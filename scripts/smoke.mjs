@@ -1,0 +1,163 @@
+import { chromium, expect } from "@playwright/test";
+
+const baseUrl = process.env.MEMORA_SMOKE_URL ?? "http://localhost:3000";
+const email = process.env.MEMORA_SMOKE_EMAIL;
+const password = process.env.MEMORA_SMOKE_PASSWORD;
+const shouldMutate = process.env.MEMORA_SMOKE_MUTATE !== "0";
+const consoleProblems = [];
+
+async function main() {
+  await assertServerReady();
+
+  const browser = await launchBrowser();
+  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+
+  page.on("console", (message) => {
+    if (message.type() === "error") {
+      consoleProblems.push(message.text());
+    }
+  });
+  page.on("pageerror", (error) => {
+    consoleProblems.push(error.message);
+  });
+
+  try {
+    await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
+    await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
+
+    await assertNoNextOverlay(page);
+    await assertLoginScreen(page);
+
+    if (!email || !password) {
+      console.log("Smoke OK: login screen. Authenticated checks skipped because MEMORA_SMOKE_EMAIL/PASSWORD are not set.");
+      return;
+    }
+
+    await signIn(page, email, password);
+    await assertTodayView(page);
+    await assertHelpAndAccount(page);
+
+    if (shouldMutate) {
+      await assertAddAndEditEnglishNote(page);
+    } else {
+      console.log("Mutation checks skipped because MEMORA_SMOKE_MUTATE=0.");
+    }
+
+    await assertNoConsoleErrors();
+    console.log("Smoke OK: authenticated UI flow.");
+  } finally {
+    await browser.close();
+  }
+}
+
+async function launchBrowser() {
+  try {
+    return await chromium.launch({
+      channel: process.env.MEMORA_SMOKE_BROWSER_CHANNEL ?? "chrome",
+      headless: process.env.MEMORA_SMOKE_HEADLESS !== "0",
+    });
+  } catch {
+    return chromium.launch({
+      headless: process.env.MEMORA_SMOKE_HEADLESS !== "0",
+    });
+  }
+}
+
+async function assertServerReady() {
+  try {
+    const response = await fetch(baseUrl);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+  } catch (error) {
+    throw new Error(
+      `Memora is not reachable at ${baseUrl}. Start it with "pnpm dev" or set MEMORA_SMOKE_URL. ${error instanceof Error ? error.message : ""}`,
+    );
+  }
+}
+
+async function assertLoginScreen(page) {
+  await expect(page.getByText("Memora").first()).toBeVisible();
+  await expect(page.getByLabel("Email")).toBeVisible();
+  await expect(page.getByLabel("Пароль")).toBeVisible();
+  await expect(page.locator('form button[type="submit"]')).toContainText("Увійти");
+}
+
+async function signIn(page, userEmail, userPassword) {
+  await page.getByLabel("Email").fill(userEmail);
+  await page.getByLabel("Пароль").fill(userPassword);
+  await page.locator('form button[type="submit"]').click();
+  await expect(page.getByRole("button", { name: "Сьогодні" })).toBeVisible({
+    timeout: 20000,
+  });
+}
+
+async function assertTodayView(page) {
+  await page.getByRole("button", { name: "Сьогодні" }).click();
+  await expect(page.getByText("Твій план навчання на сьогодні.")).toBeVisible();
+  await expect(page.getByText("Швидке додавання")).toBeVisible();
+  await expect(page.getByText("Налаштування навчання")).toBeVisible();
+}
+
+async function assertHelpAndAccount(page) {
+  await page.getByRole("button", { name: "Як користуватись" }).click();
+  await expect(page.getByText("Механіка навчання")).toBeVisible();
+
+  await page.getByRole("button", { name: "Профіль" }).click();
+  await expect(page.getByText("Налаштування навчання")).toBeVisible();
+  await expect(page.getByText("Пароль і доступ")).toBeVisible();
+
+  await page.getByRole("button", { name: "Англійські слова" }).click();
+  await expect(page.getByText("Матеріали для навчання")).toBeVisible();
+
+  await page.getByRole("button", { name: "QA та тестування" }).click();
+  await expect(page.getByText("Матеріали для навчання")).toBeVisible();
+}
+
+async function assertAddAndEditEnglishNote(page) {
+  const stamp = new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14);
+  const phrase = `smoke phrase ${stamp}`;
+  const translation = `тестова фраза ${stamp}`;
+  const updatedTranslation = `оновлена тестова фраза ${stamp}`;
+
+  await page.getByRole("button", { name: "Сьогодні" }).click();
+  await page.getByRole("button", { name: "Англ." }).click();
+  await page.getByLabel("Англійське слово або фраза").fill(phrase);
+  await page.getByLabel("Українське значення").fill(translation);
+  await page.getByLabel("Приклад").fill(`This is a ${phrase}.`);
+  await page.getByRole("button", { name: "Додати в навчання" }).click();
+  await expect(page.getByText("Додано англійський матеріал та 2 картки.")).toBeVisible({
+    timeout: 20000,
+  });
+
+  await page.getByRole("button", { name: "Англійські слова" }).click();
+  await page.getByPlaceholder("Пошук за словом, терміном або прикладом").fill(phrase);
+  await page.locator("button").filter({ hasText: phrase }).click();
+  await page.getByLabel("Українське значення").fill(updatedTranslation);
+  await page.getByRole("button", { name: "Зберегти" }).click();
+  await expect(page.getByText("Матеріал збережено.")).toBeVisible({
+    timeout: 20000,
+  });
+}
+
+async function assertNoNextOverlay(page) {
+  const hasOverlay = await page.locator("[data-nextjs-dialog-overlay]").count();
+  if (hasOverlay > 0) {
+    throw new Error("Next.js error overlay is visible.");
+  }
+}
+
+async function assertNoConsoleErrors() {
+  const meaningful = consoleProblems.filter(
+    (message) => !message.includes("Auth session missing"),
+  );
+
+  if (meaningful.length > 0) {
+    throw new Error(`Browser console errors:\n${meaningful.join("\n")}`);
+  }
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});
