@@ -2,17 +2,26 @@
 
 Memora is a spaced-recall learning service for English vocabulary and QA knowledge. This repository currently contains a Ukrainian-first, dark-only single-user product build backed by Supabase, plus the product and technical specifications in [`docs`](docs).
 
+## Production
+
+Production app:
+
+- https://memora-saas.vercel.app
+
+The production deployment is connected to GitHub through Vercel. Pushes to `main` trigger a Vercel deployment.
+
 ## Getting Started
 
 Install dependencies and run the development server:
 
 ```bash
+pnpm install
 pnpm dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser.
 
-The app expects `.env.local` to contain:
+The app expects `.env.local` to contain the variables listed in `.env.example`:
 
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=...
@@ -38,12 +47,21 @@ pnpm lint
 pnpm typecheck
 pnpm test
 pnpm build
+pnpm smoke
+```
+
+Production smoke without changing learning data:
+
+```powershell
+$env:MEMORA_SMOKE_URL="https://memora-saas.vercel.app"
+$env:MEMORA_SMOKE_MUTATE="0"
+pnpm smoke
 ```
 
 ## Specs
 
 Start with [`docs/README.md`](docs/README.md), then follow the product, learning/content, technical, and MVP backlog documents from there.
 
-## Deployment Direction
+## Deployment
 
-The intended deployment direction is Vercel. Browser-side Supabase is still used for Auth, while learning mutations now go through server actions with Supabase RLS.
+Memora is deployed on Vercel and backed by Supabase Auth/Postgres. Browser-side Supabase is used for Auth, while learning mutations go through server actions with Supabase RLS.

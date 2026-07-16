@@ -1,12 +1,16 @@
 # Deployment And Smoke Checklist
 
-Last updated: 2026-07-13
+Last updated: 2026-07-16
 
-Use this checklist before moving Memora from local development to Vercel.
+Use this checklist before and after deploying Memora to Vercel.
+
+Production URL:
+
+- https://memora-saas.vercel.app
 
 ## Required Environment Variables
 
-Local `.env.local` and Vercel project env vars must contain:
+Local `.env.local`, `.env.example`, and Vercel project env vars must contain:
 
 | Variable | Where to get it |
 | --- | --- |
@@ -17,14 +21,14 @@ Do not expose service-role keys in the browser or `NEXT_PUBLIC_*` variables.
 
 ## Supabase Auth URLs
 
-Before production deploy, configure Supabase Auth URLs:
+Production configuration:
 
-- Site URL: final Vercel production URL.
+- Site URL: `https://memora-saas.vercel.app`
 - Redirect URLs:
   - `http://localhost:3000`
   - `http://localhost:3000/**`
-  - final Vercel production URL
-  - final Vercel production URL with `/**`
+  - `https://memora-saas.vercel.app`
+  - `https://memora-saas.vercel.app/**`
 
 Password reset uses the current app origin, so local and production origins both need to be allowed.
 
@@ -59,6 +63,16 @@ pnpm smoke
 
 Use `MEMORA_SMOKE_URL` to test a Vercel preview or production URL instead of `http://localhost:3000`.
 
+Production navigation smoke without changing learning data:
+
+```powershell
+$env:MEMORA_SMOKE_URL="https://memora-saas.vercel.app"
+$env:MEMORA_SMOKE_EMAIL="owner@example.com"
+$env:MEMORA_SMOKE_PASSWORD="owner-password"
+$env:MEMORA_SMOKE_MUTATE="0"
+pnpm smoke
+```
+
 ## Manual Browser Smoke Test
 
 Use a clean browser session and the owner account.
@@ -76,6 +90,14 @@ Use a clean browser session and the owner account.
 11. If intentionally testing restore, first download a fresh JSON backup, then restore and confirm counts match the preview.
 12. Open Account, update profile fields, and confirm the saved state remains after refresh.
 13. Sign out and sign back in.
+
+## Verified Production Checks
+
+- Vercel production deploy renders the login screen.
+- Supabase Site URL and Redirect URLs are configured for production and local development.
+- Owner password reset was tested successfully on production.
+- Owner logout and login were tested successfully on production.
+- Authenticated production smoke passed with `MEMORA_SMOKE_MUTATE=0`.
 
 ## Known Production Follow-Ups
 

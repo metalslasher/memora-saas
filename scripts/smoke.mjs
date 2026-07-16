@@ -87,31 +87,31 @@ async function signIn(page, userEmail, userPassword) {
   await page.getByLabel("Email").fill(userEmail);
   await page.getByLabel("Пароль").fill(userPassword);
   await page.locator('form button[type="submit"]').click();
-  await expect(page.getByRole("button", { name: "Сьогодні" })).toBeVisible({
+  await expect(page.getByRole("button", { name: "Сьогодні", exact: true })).toBeVisible({
     timeout: 20000,
   });
 }
 
 async function assertTodayView(page) {
-  await page.getByRole("button", { name: "Сьогодні" }).click();
+  await page.getByRole("button", { name: "Сьогодні", exact: true }).click();
   await expect(page.getByText("Твій план навчання на сьогодні.")).toBeVisible();
   await expect(page.getByText("Швидке додавання")).toBeVisible();
   await expect(page.getByText("Налаштування навчання")).toBeVisible();
 }
 
 async function assertHelpAndAccount(page) {
-  await page.getByRole("button", { name: "Як користуватись" }).click();
+  await page.getByRole("button", { name: "Як користуватись", exact: true }).click();
   await expect(page.getByText("Механіка навчання")).toBeVisible();
 
-  await page.getByRole("button", { name: "Профіль" }).click();
-  await expect(page.getByText("Налаштування навчання")).toBeVisible();
-  await expect(page.getByText("Пароль і доступ")).toBeVisible();
+  await page.getByRole("button", { name: "Профіль", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Налаштування навчання", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Пароль і доступ", exact: true })).toBeVisible();
 
-  await page.getByRole("button", { name: "Англійські слова" }).click();
-  await expect(page.getByText("Матеріали для навчання")).toBeVisible();
+  await page.getByRole("button", { name: "Англійські слова", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Матеріали для навчання", exact: true })).toBeVisible();
 
-  await page.getByRole("button", { name: "QA та тестування" }).click();
-  await expect(page.getByText("Матеріали для навчання")).toBeVisible();
+  await page.getByRole("button", { name: "QA та тестування", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Матеріали для навчання", exact: true })).toBeVisible();
 }
 
 async function assertAddAndEditEnglishNote(page) {
@@ -120,7 +120,7 @@ async function assertAddAndEditEnglishNote(page) {
   const translation = `тестова фраза ${stamp}`;
   const updatedTranslation = `оновлена тестова фраза ${stamp}`;
 
-  await page.getByRole("button", { name: "Сьогодні" }).click();
+  await page.getByRole("button", { name: "Сьогодні", exact: true }).click();
   await page.getByRole("button", { name: "Англ." }).click();
   await page.getByLabel("Англійське слово або фраза").fill(phrase);
   await page.getByLabel("Українське значення").fill(translation);
@@ -130,7 +130,7 @@ async function assertAddAndEditEnglishNote(page) {
     timeout: 20000,
   });
 
-  await page.getByRole("button", { name: "Англійські слова" }).click();
+  await page.getByRole("button", { name: "Англійські слова", exact: true }).click();
   await page.getByPlaceholder("Пошук за словом, терміном або прикладом").fill(phrase);
   await page.locator("button").filter({ hasText: phrase }).click();
   await page.getByLabel("Українське значення").fill(updatedTranslation);
