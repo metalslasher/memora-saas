@@ -129,9 +129,9 @@ const levelOptions = [
 ];
 
 const modeLabels: Record<StudyMode, string> = {
-  daily: "План на сьогодні",
-  "english-productive": "Англійська практика",
-  "qa-interview": "QA-співбесіда",
+  daily: "Усе",
+  "english-productive": "Англійська",
+  "qa-interview": "QA",
 };
 
 function formatError(error: unknown) {
@@ -721,32 +721,20 @@ export function MemoraApp() {
     );
   }
 
-  let headerEyebrow =
+  const pageTitle =
     activeView === "today"
-      ? `Навчання на сьогодні ${user?.email ? `- ${user.email}` : ""}`
+      ? "Сьогодні"
       : activeView === "english"
         ? "Англійські слова"
         : activeView === "qa"
           ? "QA та тестування"
-          : "Прогрес";
-  let headerTitle =
-    activeView === "today"
-      ? "Твій план навчання на сьогодні."
-      : activeView === "english"
-        ? "Слова, переклади, приклади й картки для практики."
-        : activeView === "qa"
-          ? "Терміни, пояснення й ситуації з тестування."
-          : "Подивись, що вже закріпилось і де ще є слабкі місця.";
-
-  if (activeView === "account") {
-    headerEyebrow = user?.email ? `Профіль - ${user.email}` : "Профіль";
-    headerTitle = "Особисті дані, пароль і налаштування навчання.";
-  }
-
-  if (activeView === "help") {
-    headerEyebrow = "Як користуватись";
-    headerTitle = "Що робить Memora і як вчитися без зайвої плутанини.";
-  }
+          : activeView === "analytics"
+            ? "Прогрес"
+            : activeView === "account"
+              ? "Профіль"
+              : "Як користуватись";
+  const showHeaderMetrics =
+    activeView === "today" || activeView === "analytics";
 
   return (
     <main className="min-h-screen bg-[#070a0f] text-[#eef4ff]">
@@ -828,11 +816,8 @@ export function MemoraApp() {
             ) : null}
             <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
               <div>
-                <p className="text-sm font-medium text-[#9aa8ba]">
-                  {headerEyebrow}
-                </p>
-                <h1 className="mt-1 text-2xl font-semibold tracking-normal text-[#f4f7fb] md:text-3xl">
-                  {headerTitle}
+                <h1 className="text-2xl font-semibold tracking-normal text-[#f4f7fb] md:text-3xl">
+                  {pageTitle}
                 </h1>
               </div>
               {activeView === "today" ? (
@@ -849,38 +834,40 @@ export function MemoraApp() {
               ) : null}
             </div>
 
+            {showHeaderMetrics ? (
             <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
               <Metric
                 icon={ListChecks}
-                label="Картки на повторення"
+                label="Повторити"
                 value={summary.dueReviews.toString()}
                 accent="bg-[#2dd4bf]"
               />
               <Metric
                 icon={Plus}
-                label="Нові картки сьогодні"
+                label="Нові"
                 value={summary.newAvailable.toString()}
                 accent="bg-[#8b7cf6]"
               />
               <Metric
                 icon={Clock3}
-                label="Приблизний час"
+                label="Час"
                 value={`${summary.estimatedMinutes} хв`}
                 accent="bg-[#f2a84a]"
               />
               <Metric
                 icon={Gauge}
-                label="Якість згадування"
+                label="Якість"
                 value={formatPercent(summary.retention)}
                 accent="bg-[#ef6351]"
               />
               <Metric
                 icon={Flame}
-                label="Добре закріплені"
+                label="Закріплені"
                 value={summary.matureCards.toString()}
                 accent="bg-[#202938]"
               />
             </div>
+            ) : null}
           </ShellPanel>
 
           {activeView === "today" ? (
@@ -1270,7 +1257,7 @@ function Metric({
           <Icon className="size-4" />
         </div>
       </div>
-      <p className="mt-4 font-mono text-2xl font-semibold">{value}</p>
+      <p className="mt-4 text-2xl font-semibold">{value}</p>
       <p className="mt-1 text-sm text-[#9aa8ba]">{label}</p>
     </div>
   );
@@ -1305,54 +1292,32 @@ function StudyPanel({
         <EmptyState
           icon={Check}
           title="На сьогодні все"
-          description="У цьому режимі немає активних карток. Додай новий матеріал, імпортуй CSV або перемкни режим навчання."
+          description="Активних карток у цьому режимі немає."
         />
       </ShellPanel>
     );
   }
 
   const revealDisabled = responseText.trim().length === 0;
-  const cardStage = card.schedule.reps === 0 ? "Нова картка" : "Повторення";
-  const queueHint =
-    card.schedule.reps === 0
-      ? "Цю картку ти ще не оцінював. Спочатку спробуй згадати без підглядання."
-      : `Це повторення. Картка вже була оцінена ${card.schedule.reps} раз(и).`;
+  const cardStage = card.schedule.reps === 0 ? "Нова" : "Повторення";
 
   return (
     <ShellPanel className="min-h-[560px] p-4 md:p-5">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#263140] pb-4">
-        <div className="flex items-center gap-2">
-          <Badge tone={card.module === "english" ? "green" : "violet"}>
-            {card.module === "english" ? "Англійська" : "QA"}
-          </Badge>
-          <Badge tone="neutral">{labelCardType(card.type)}</Badge>
-          <Badge tone="neutral">{cardStage}</Badge>
-        </div>
+        <p className="text-sm text-[#9aa8ba]">
+          {card.module === "english" ? "Англійська" : "QA"} /{" "}
+          {labelCardType(card.type)} / {cardStage}
+        </p>
         <div className="flex items-center gap-2 text-sm text-[#9aa8ba]">
           <Activity className="size-4" />
-          1 з {queueLength} у черзі
+          1 / {queueLength}
         </div>
       </div>
 
       <div className="mt-4 grid gap-2 md:grid-cols-3">
-        <LearningStep
-          index="1"
-          title="Згадай"
-          text="Запиши відповідь з пам'яті."
-          active={!isRevealed}
-        />
-        <LearningStep
-          index="2"
-          title="Перевір"
-          text="Відкрий правильну відповідь."
-          active={isRevealed}
-        />
-        <LearningStep
-          index="3"
-          title="Оціни"
-          text="Постав чесну оцінку згадування."
-          active={isRevealed}
-        />
+        <LearningStep index="1" title="Згадай" active={!isRevealed} />
+        <LearningStep index="2" title="Перевір" active={isRevealed} />
+        <LearningStep index="3" title="Оціни" active={isRevealed} />
       </div>
 
       <div className="mt-6">
@@ -1360,18 +1325,15 @@ function StudyPanel({
         <h2 className="mt-3 text-2xl font-semibold leading-tight md:text-3xl">
           {card.prompt}
         </h2>
-        <p className="mt-3 text-sm leading-6 text-[#9aa8ba]">{queueHint}</p>
       </div>
 
       <label className="mt-7 block">
-        <span className="text-sm font-medium text-[#9aa8ba]">
-          Твоя відповідь з пам’яті
-        </span>
+        <span className="text-sm font-medium text-[#9aa8ba]">Відповідь</span>
         <textarea
           className="mt-2 min-h-32 w-full resize-none rounded-lg border border-[#263140] bg-[#0b111a] p-4 text-base text-[#eef4ff] outline-none transition placeholder:text-[#6f7d90] focus:border-[#2dd4bf] focus:ring-4 focus:ring-[#2dd4bf]/20"
           value={responseText}
           onChange={(event) => onResponseChange(event.target.value)}
-          placeholder="Напиши, що пам'ятаєш, перед тим як відкрити відповідь."
+          placeholder="Напиши з пам'яті."
         />
       </label>
 
@@ -1394,11 +1356,6 @@ function StudyPanel({
             <Archive className="size-4" />
             Поставити на паузу
           </button>
-          {revealDisabled ? (
-            <p className="basis-full text-xs leading-5 text-[#9aa8ba]">
-              Кнопка відкриється після того, як ти запишеш свою відповідь.
-            </p>
-          ) : null}
         </div>
       ) : (
         <div className="mt-5 space-y-4">
@@ -1482,12 +1439,10 @@ function GradeButton({
 function LearningStep({
   active,
   index,
-  text,
   title,
 }: {
   active: boolean;
   index: string;
-  text: string;
   title: string;
 }) {
   return (
@@ -1508,7 +1463,6 @@ function LearningStep({
         </span>
         <p className="text-sm font-semibold">{title}</p>
       </div>
-      <p className="mt-2 text-xs leading-5 text-[#9aa8ba]">{text}</p>
     </div>
   );
 }
@@ -1608,7 +1562,7 @@ function AddNotePanel({
         ? "Термін надто короткий."
         : null,
       normalizedQa.definition.length > 0 && normalizedQa.definition.length < 12
-        ? "Пояснення трохи коротке. Одна ясна фраза запам'ятається краще."
+        ? "Пояснення надто коротке."
         : null,
     ].filter(Boolean) as string[];
   }, [mode, normalizedEnglish, normalizedQa]);
@@ -1620,8 +1574,7 @@ function AddNotePanel({
     <ShellPanel className="p-4">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-sm font-medium text-[#9aa8ba]">Швидке додавання</p>
-          <h2 className="text-lg font-semibold">Додати матеріал для вивчення</h2>
+          <h2 className="text-lg font-semibold">Додати матеріал</h2>
         </div>
         <div className="grid grid-cols-2 rounded-lg border border-[#263140] bg-[#151d28] p-1">
           <button
@@ -1661,7 +1614,7 @@ function AddNotePanel({
         {mode === "english" ? (
           <>
             <TextInput
-              label="Англійське слово або фраза"
+              label="Слово або фраза"
               value={english.lemma}
               onChange={(lemma) => {
                 setEnglish((current) => ({ ...current, lemma }));
@@ -1671,7 +1624,7 @@ function AddNotePanel({
               placeholder="flaky test"
             />
             <TextInput
-              label="Українське значення"
+              label="Значення"
               value={english.translation}
               onChange={(translation) =>
                 setEnglish((current) => ({ ...current, translation }))
@@ -1690,7 +1643,7 @@ function AddNotePanel({
         ) : (
           <>
             <TextInput
-              label="Термін з QA або тестування"
+              label="Термін"
               value={qa.term}
               onChange={(term) => {
                 setQa((current) => ({ ...current, term }));
@@ -1700,7 +1653,7 @@ function AddNotePanel({
               placeholder="Smoke testing"
             />
             <TextInput
-              label="Пояснення простими словами"
+              label="Пояснення"
               value={qa.definition}
               onChange={(definition) =>
                 setQa((current) => ({ ...current, definition }))
@@ -1708,7 +1661,7 @@ function AddNotePanel({
               placeholder="Швидка перевірка, що критичні функції досі працюють."
             />
             <TextInput
-              label="Приклад використання"
+              label="Приклад"
               value={qa.example}
               onChange={(example) => setQa((current) => ({ ...current, example }))}
               placeholder="Після деплою запусти smoke-перевірки."
@@ -1773,7 +1726,7 @@ function AddNotePanel({
         <div className="mt-3 rounded-lg border border-[#263140] bg-[#0b111a] p-3">
           <div className="flex items-center gap-2 text-sm font-semibold text-[#c7d0dd]">
             <Sparkles className="size-4 text-[#52e0c4]" />
-            Які картки будуть створені
+            Картки
           </div>
           <div className="mt-3 space-y-2">
             {previewCards.map((card) => (
@@ -1787,7 +1740,6 @@ function AddNotePanel({
                 <p className="mt-1 text-sm font-medium text-[#eef4ff]">
                   {card.prompt}
                 </p>
-                <p className="mt-1 text-xs text-[#9aa8ba]">Відповідь: {card.answer}</p>
               </div>
             ))}
           </div>
@@ -1827,10 +1779,10 @@ function AddNotePanel({
           <Plus className="size-4" />
         )}
         {blockingDuplicate
-          ? "Перевір схожий запис"
+          ? "Схожий запис"
           : allowDuplicate
             ? "Додати все одно"
-            : "Додати в навчання"}
+            : "Додати"}
       </button>
       {successMessage ? (
         <p className="mt-3 rounded-lg border border-[#256b60] bg-[#102b27] px-3 py-2 text-sm text-[#8df3dd]">
@@ -1850,10 +1802,10 @@ function SettingsPanel({
 }) {
   return (
     <ShellPanel className="p-4">
-      <p className="text-sm font-medium text-[#9aa8ba]">Налаштування навчання</p>
+      <p className="text-sm font-medium text-[#9aa8ba]">Налаштування</p>
       <div className="mt-4 space-y-4">
         <label className="block">
-          <span className="text-sm font-medium">Скільки нових карток брати щодня</span>
+          <span className="text-sm font-medium">Нових на день</span>
           <input
             className="mt-2 w-full accent-[#2dd4bf]"
             type="range"
@@ -1871,12 +1823,12 @@ function SettingsPanel({
             }
           />
           <span className="font-mono text-sm text-[#9aa8ba]">
-            {state.settings.dailyNewLimit} нових карток на день
+            {state.settings.dailyNewLimit}/день
           </span>
         </label>
 
         <div>
-          <p className="text-sm font-medium">Як оцінювати відповідь</p>
+          <p className="text-sm font-medium">Оцінювання</p>
           <div className="mt-2 grid grid-cols-2 gap-2">
             {(["simple", "advanced"] as const).map((mode) => (
               <button
@@ -1953,15 +1905,8 @@ function ContentManager({
     <div className="grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
       <ShellPanel className="p-4">
         <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="text-sm font-medium text-[#9aa8ba]">
-              {moduleType === "english" ? "Англійські слова" : "QA та тестування"}
-            </p>
-            <h2 className="text-lg font-semibold">Матеріали для навчання</h2>
-          </div>
-          <Badge tone={moduleType === "english" ? "green" : "violet"}>
-            {notes.length} матеріалів
-          </Badge>
+          <h2 className="text-lg font-semibold">Матеріали</h2>
+          <span className="font-mono text-sm text-[#9aa8ba]">{notes.length}</span>
         </div>
 
         <label className="mt-4 flex h-11 items-center gap-2 rounded-lg border border-[#263140] bg-[#0b111a] px-3 text-sm text-[#c7d0dd]">
@@ -1970,14 +1915,14 @@ function ContentManager({
             className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-[#6f7d90]"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Пошук за словом, терміном або прикладом"
+            placeholder="Пошук"
           />
         </label>
 
         <div className="mt-4 grid grid-cols-2 gap-2">
-          <MiniStat label="У навчанні" value={activeCards.length.toString()} />
+          <MiniStat label="Активні" value={activeCards.length.toString()} />
           <MiniStat
-            label="На паузі"
+            label="Пауза"
             value={cards
               .filter(
                 (card) =>
@@ -2003,8 +1948,8 @@ function ContentManager({
                 title={notes.length === 0 ? "Матеріалів ще немає" : "Нічого не знайдено"}
                 description={
                   notes.length === 0
-                    ? "Додай перше слово або термін через швидке додавання чи імпорт з CSV."
-                    : "Спробуй інший пошуковий запит або очисти поле пошуку."
+                    ? "Додай перший матеріал."
+                    : "Зміни пошук або очисти поле."
                 }
               />
             </div>
@@ -2167,10 +2112,9 @@ function CsvImportPanel({
     <div className="mt-4 rounded-lg border border-[#263140] bg-[#0d131c] p-3">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-sm font-medium text-[#c7d0dd]">Імпорт з CSV</p>
+          <p className="text-sm font-medium text-[#c7d0dd]">CSV</p>
           <p className="mt-1 text-xs text-[#6f7d90]">{sampleColumns}</p>
         </div>
-        <Badge tone="neutral">до 200 рядків</Badge>
       </div>
 
       <input
@@ -2192,7 +2136,7 @@ function CsvImportPanel({
           type="button"
         >
           <FileText className="size-4" />
-          Обрати файл
+          Файл
         </button>
         <button
           className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#263140] px-3 py-2 text-sm font-medium text-[#c7d0dd] transition hover:border-[#2dd4bf] hover:text-[#52e0c4]"
@@ -2200,7 +2144,7 @@ function CsvImportPanel({
           type="button"
         >
           <Sparkles className="size-4" />
-          Завантажити шаблон
+          Шаблон
         </button>
       </div>
 
@@ -2211,8 +2155,8 @@ function CsvImportPanel({
       {preview ? (
         <div className="mt-3 space-y-3">
           <div className="grid grid-cols-3 gap-2">
-            <MiniStat label="Можна додати" value={preview.summary.ready.toString()} />
-            <MiniStat label="Схожі записи" value={preview.summary.duplicates.toString()} />
+            <MiniStat label="Готові" value={preview.summary.ready.toString()} />
+            <MiniStat label="Схожі" value={preview.summary.duplicates.toString()} />
             <MiniStat label="Помилки" value={preview.summary.invalid.toString()} />
           </div>
 
@@ -2302,11 +2246,8 @@ function ImportHistoryPanel({
   return (
     <div className="mt-4 border-t border-[#263140] pt-3">
       <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-sm font-medium text-[#c7d0dd]">Останні завантаження</p>
-          <p className="mt-1 text-xs text-[#6f7d90]">Що було додано з CSV</p>
-        </div>
-        <Badge tone="neutral">{visibleRuns.length}</Badge>
+        <p className="text-sm font-medium text-[#c7d0dd]">Історія</p>
+        <span className="font-mono text-sm text-[#9aa8ba]">{visibleRuns.length}</span>
       </div>
 
       <div className="mt-3 space-y-2">
@@ -2315,7 +2256,7 @@ function ImportHistoryPanel({
             <EmptyState
               icon={FileText}
               title="CSV ще не завантажували"
-              description="Після першого файлу тут буде видно, що додалось, які рядки пропущені й де були помилки."
+              description="Імпорти з'являться тут."
             />
           </div>
         ) : (
@@ -2399,7 +2340,7 @@ function NoteDetailPanel({
         <EmptyState
           icon={FileText}
           title="Матеріал не вибрано"
-          description="Вибери матеріал зі списку ліворуч, щоб редагувати поля й переглянути картки, які з нього створені."
+          description="Вибери матеріал зі списку."
         />
       </ShellPanel>
     );
@@ -2409,16 +2350,9 @@ function NoteDetailPanel({
     <ShellPanel className="p-4 md:p-5">
       <div className="flex flex-col gap-4 border-b border-[#263140] pb-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge tone={moduleType === "english" ? "green" : "violet"}>
-              {moduleType === "english" ? "Англійська" : "QA"}
-            </Badge>
-            <Badge tone="neutral">{labelStatus(note.status)}</Badge>
-            <Badge tone="neutral">{labelSource(note.source)}</Badge>
-          </div>
-          <h2 className="mt-3 truncate text-2xl font-semibold">{note.title}</h2>
+          <h2 className="truncate text-2xl font-semibold">{note.title}</h2>
           <p className="mt-1 text-sm text-[#9aa8ba]">
-            Додано {formatDate(note.createdAt)}
+            {moduleType === "english" ? "Англійська" : "QA"} / {labelStatus(note.status)} / {formatDate(note.createdAt)}
           </p>
         </div>
         <StatusControls
@@ -2439,19 +2373,18 @@ function NoteDetailPanel({
         <div>
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-medium text-[#9aa8ba]">Картки для повторення</p>
-              <h3 className="text-lg font-semibold">{cards.length} карток з цього матеріалу</h3>
+              <h3 className="text-lg font-semibold">Картки</h3>
+              <p className="mt-1 text-sm text-[#9aa8ba]">{cards.length}</p>
             </div>
             <BookOpenCheck className="size-5 text-[#2dd4bf]" />
           </div>
-          <CardGenerationHint moduleType={moduleType} />
           <div className="mt-4 space-y-3">
             {cards.length === 0 ? (
               <div className="rounded-lg border border-[#263140] bg-[#0d131c] p-5">
                 <EmptyState
                   icon={BookOpenCheck}
                   title="Карток для цього матеріалу немає"
-                  description="Заповни основні поля й збережи зміни. Після цього Memora зможе створити картки для повторення."
+                  description="Заповни поля й збережи."
                 />
               </div>
             ) : (
@@ -2470,37 +2403,6 @@ function NoteDetailPanel({
         </div>
       </div>
     </ShellPanel>
-  );
-}
-
-function CardGenerationHint({ moduleType }: { moduleType: ModuleType }) {
-  const items =
-    moduleType === "english"
-      ? [
-          "За українським значенням згадати англійське слово",
-          "За англійською фразою зрозуміти український сенс",
-          "У прикладі з пропуском вставити потрібне слово",
-        ]
-      : [
-          "За терміном з тестування пояснити його українською",
-          "За поясненням згадати потрібний термін",
-          "За ситуацією вибрати практичне рішення або відмінність",
-        ];
-
-  return (
-    <div className="mt-4 rounded-lg border border-[#263140] bg-[#0b111a] p-3">
-      <p className="text-sm font-semibold text-[#c7d0dd]">
-        Що тренують ці картки
-      </p>
-      <div className="mt-2 grid gap-2">
-        {items.map((item) => (
-          <div key={item} className="flex items-start gap-2 text-xs leading-5 text-[#9aa8ba]">
-            <Check className="mt-0.5 size-3.5 shrink-0 text-[#52e0c4]" />
-            <span>{item}</span>
-          </div>
-        ))}
-      </div>
-    </div>
   );
 }
 
@@ -2557,8 +2459,7 @@ function NoteEditForm({
     <div className="rounded-lg border border-[#263140] bg-[#0d131c] p-4">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-sm font-medium text-[#9aa8ba]">Поля матеріалу</p>
-          <h3 className="text-lg font-semibold">Редагування змісту</h3>
+          <h3 className="text-lg font-semibold">Зміст</h3>
         </div>
         <div className="flex flex-wrap justify-end gap-2">
           <button
@@ -2568,7 +2469,7 @@ function NoteEditForm({
             type="button"
           >
             <Sparkles className="size-4" />
-            Привести до ладу
+            Очистити
           </button>
           <button
             className="inline-flex items-center gap-2 rounded-lg bg-[#2dd4bf] px-3 py-2 text-sm font-semibold text-[#071018] transition hover:bg-[#5eead4] disabled:cursor-not-allowed disabled:bg-[#344052] disabled:text-[#8d9aab]"
@@ -2585,15 +2486,12 @@ function NoteEditForm({
           </button>
         </div>
       </div>
-      <p className="mt-2 text-xs leading-5 text-[#9aa8ba]">
-        Після збереження Memora оновить питання й відповіді в картках, які створені з цього матеріалу.
-      </p>
 
       <div className="mt-4 space-y-3">
         {note.module === "english" ? (
           <>
             <TextInput
-              label="Англійське слово або фраза"
+              label="Слово або фраза"
               value={textValue(draft.lemma_en)}
               onChange={(lemma_en) =>
                 setDraft((current) => ({ ...current, lemma_en }))
@@ -2601,7 +2499,7 @@ function NoteEditForm({
               placeholder="bug"
             />
             <TextInput
-              label="Українське значення"
+              label="Значення"
               value={textValue(draft.translation_uk)}
               onChange={(translation_uk) =>
                 setDraft((current) => ({ ...current, translation_uk }))
@@ -2628,13 +2526,13 @@ function NoteEditForm({
         ) : (
           <>
             <TextInput
-              label="Термін з QA або тестування"
+              label="Термін"
               value={textValue(draft.term)}
               onChange={(term) => setDraft((current) => ({ ...current, term }))}
               placeholder="Regression testing"
             />
             <TextArea
-              label="Пояснення простими словами"
+              label="Пояснення"
               value={textValue(draft.short_definition)}
               onChange={(short_definition) =>
                 setDraft((current) => ({ ...current, short_definition }))
@@ -2642,7 +2540,7 @@ function NoteEditForm({
               placeholder="Перевірка, що вже робочий функціонал не зламався після змін."
             />
             <TextArea
-              label="Приклад використання"
+              label="Приклад"
               value={textValue(draft.example)}
               onChange={(example) =>
                 setDraft((current) => ({ ...current, example }))
@@ -3064,6 +2962,11 @@ function HelpWorkspace() {
               text="Підходить для одного слова, фрази або терміна, який щойно зустрівся в роботі, курсі чи співбесіді."
             />
             <HelpLine
+              icon={BookOpenCheck}
+              title="Картки з матеріалу"
+              text="З одного запису Memora робить кілька карток: для англійської це переклад, розуміння і контекст; для QA - визначення, зворотне пригадування і практична ситуація."
+            />
+            <HelpLine
               icon={FileText}
               title="Імпорт з CSV"
               text="Підходить для списку слів або термінів. Спочатку Memora показує попередній перегляд, схожі записи й помилки, а вже потім додає картки."
@@ -3255,8 +3158,7 @@ function AccountWorkspace({
       <ShellPanel className="p-4 md:p-5">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-sm font-medium text-[#9aa8ba]">Профіль</p>
-            <h2 className="text-lg font-semibold">Налаштування навчання</h2>
+            <h2 className="text-lg font-semibold">Профіль</h2>
           </div>
           <Globe2 className="size-5 text-[#2dd4bf]" />
         </div>
@@ -3375,8 +3277,7 @@ function AccountWorkspace({
       <ShellPanel className="p-4 md:p-5">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-sm font-medium text-[#9aa8ba]">Безпека</p>
-            <h2 className="text-lg font-semibold">Пароль і доступ</h2>
+            <h2 className="text-lg font-semibold">Безпека</h2>
           </div>
           <ShieldCheck className="size-5 text-[#2dd4bf]" />
         </div>
@@ -3391,10 +3292,7 @@ function AccountWorkspace({
         ) : null}
 
         <div className="mt-4 rounded-lg border border-[#263140] bg-[#0d131c] p-4">
-          <p className="text-sm font-semibold">Лист для відновлення</p>
-          <p className="mt-1 text-xs leading-5 text-[#9aa8ba]">
-            Надішли собі посилання, якщо треба змінити пароль через email.
-          </p>
+          <p className="text-sm font-semibold">Відновлення пароля</p>
           <div className="mt-3 flex flex-col gap-2 sm:flex-row">
             <input
               className="h-11 min-w-0 flex-1 rounded-lg border border-[#263140] bg-[#0b111a] px-3 text-sm text-[#eef4ff] outline-none transition placeholder:text-[#6f7d90] focus:border-[#2dd4bf] focus:ring-4 focus:ring-[#2dd4bf]/20"
@@ -3507,8 +3405,7 @@ function AnalyticsWorkspace({
       <ShellPanel className="p-4 md:p-5">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium text-[#9aa8ba]">Історія повторень</p>
-            <h2 className="text-lg font-semibold">Останні спроби</h2>
+            <h2 className="text-lg font-semibold">Історія</h2>
           </div>
           <Activity className="size-5 text-[#2dd4bf]" />
         </div>
@@ -3518,7 +3415,7 @@ function AnalyticsWorkspace({
               <EmptyState
                 icon={Activity}
                 title="Повторень ще немає"
-                description="Після першої оціненої картки тут з'явиться історія спроб і якість пригадування."
+                description="Оцінені картки з'являться тут."
               />
             </div>
           ) : (
@@ -3543,7 +3440,7 @@ function AnalyticsWorkspace({
                   </p>
                   <p className="mt-1 text-xs text-[#9aa8ba]">
                     {log.wasCorrect ? "Згадано" : "Потрібно повторити"} /{" "}
-                    {Math.round(log.elapsedMs / 1000)}s
+                    {Math.round(log.elapsedMs / 1000)} сек
                   </p>
                 </div>
               );
@@ -3622,15 +3519,15 @@ function BackupPanel({
     <ShellPanel className="p-4 md:p-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-sm font-medium text-[#9aa8ba]">Резервна копія</p>
-          <h2 className="text-lg font-semibold">Зберегти або відновити дані</h2>
+          <h2 className="text-lg font-semibold">Дані</h2>
         </div>
-        <Badge tone="neutral">{state.notes.length} матеріалів</Badge>
+        <span className="font-mono text-sm text-[#9aa8ba]">
+          {state.notes.length}
+        </span>
       </div>
       <div className="mt-4 grid gap-3 md:grid-cols-3">
         <ExportButton
           label="Повна копія JSON"
-          description="Матеріали, картки, розклад, історія повторень та імпортів."
           onClick={() =>
             downloadTextFile(
               `memora-backup-${dateStamp()}.json`,
@@ -3641,7 +3538,6 @@ function BackupPanel({
         />
         <ExportButton
           label="CSV зі словами"
-          description="Слова, українські значення, приклади й статуси."
           onClick={() =>
             downloadTextFile(
               `memora-english-${dateStamp()}.csv`,
@@ -3652,7 +3548,6 @@ function BackupPanel({
         />
         <ExportButton
           label="CSV з QA"
-          description="QA терміни, пояснення, приклади й статуси."
           onClick={() =>
             downloadTextFile(
               `memora-qa-${dateStamp()}.csv`,
@@ -3666,11 +3561,7 @@ function BackupPanel({
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <p className="text-sm font-semibold text-[#eef4ff]">
-              Відновлення з резервної копії
-            </p>
-            <p className="mt-2 max-w-3xl text-xs leading-5 text-[#9aa8ba]">
-              Замінює поточні матеріали, картки, розклад і історію повторень
-              даними з JSON-файлу. Журнал CSV-імпортів не перезаписується.
+              Відновлення
             </p>
           </div>
           <input
@@ -3729,7 +3620,7 @@ function BackupPanel({
             </label>
             <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-xs leading-5 text-[#9aa8ba]">
-                Перед відновленням бажано завантажити свіжу JSON-копію поточного стану.
+                Поточні дані буде замінено.
               </p>
               <button
                 className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#2dd4bf] px-4 text-sm font-semibold text-[#03110f] transition hover:bg-[#67e8d7] disabled:cursor-not-allowed disabled:bg-[#3a4b60] disabled:text-[#91a0b3]"
@@ -3768,11 +3659,9 @@ function PreviewMetric({
 }
 
 function ExportButton({
-  description,
   label,
   onClick,
 }: {
-  description: string;
   label: string;
   onClick: () => void;
 }) {
@@ -3786,7 +3675,6 @@ function ExportButton({
         <span className="font-semibold text-[#eef4ff]">{label}</span>
         <Download className="size-4 text-[#2dd4bf]" />
       </div>
-      <p className="mt-2 text-xs leading-5 text-[#9aa8ba]">{description}</p>
     </button>
   );
 }
@@ -3805,21 +3693,18 @@ function DeckPanel({ state }: { state: MemoraState }) {
     <ShellPanel className="p-4 md:p-5">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm font-medium text-[#9aa8ba]">Матеріали</p>
-          <h2 className="text-lg font-semibold">Що зараз у навчанні</h2>
+          <h2 className="text-lg font-semibold">Матеріали</h2>
         </div>
         <BookOpenCheck className="size-5 text-[#2dd4bf]" />
       </div>
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <DeckStat
           title="Англійські слова"
-          subtitle="Переклад, розуміння і контекст"
           value={englishCards.length}
           tone="green"
         />
         <DeckStat
           title="QA та тестування"
-          subtitle="Терміни, пояснення і ситуації"
           value={qaCards.length}
           tone="violet"
         />
@@ -3835,7 +3720,7 @@ function DeckPanel({ state }: { state: MemoraState }) {
             <EmptyState
               icon={BookOpenCheck}
               title="Матеріалів ще немає"
-              description="Додай перше слово або термін вручну чи через імпорт з CSV, щоб з'явилися навчальні картки."
+              description="Додай перший матеріал."
             />
           </div>
         ) : (
@@ -3871,8 +3756,7 @@ function AnalyticsPanel({
     <ShellPanel className="p-4 md:p-5">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm font-medium text-[#9aa8ba]">Прогрес</p>
-          <h2 className="text-lg font-semibold">Що видно з повторень</h2>
+          <h2 className="text-lg font-semibold">Повторення</h2>
         </div>
         <Sparkles className="size-5 text-[#f2a84a]" />
       </div>
@@ -3987,12 +3871,10 @@ function Badge({
 
 function DeckStat({
   title,
-  subtitle,
   value,
   tone,
 }: {
   title: string;
-  subtitle: string;
   value: number;
   tone: "green" | "violet";
 }) {
@@ -4000,7 +3882,6 @@ function DeckStat({
     <div className="rounded-lg border border-[#263140] bg-[#0d131c] p-4">
       <p className="font-mono text-2xl font-semibold">{value}</p>
       <p className="mt-2 text-sm font-medium">{title}</p>
-      <p className="mt-1 text-xs leading-5 text-[#9aa8ba]">{subtitle}</p>
       <div
         className={`mt-3 h-1.5 rounded-full ${
           tone === "green" ? "bg-[#2dd4bf]" : "bg-[#8b7cf6]"
@@ -4013,7 +3894,7 @@ function DeckStat({
 function MiniStat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg border border-[#263140] bg-[#0d131c] p-3">
-      <p className="font-mono text-xl font-semibold">{value}</p>
+      <p className="text-xl font-semibold">{value}</p>
       <p className="mt-1 text-xs text-[#9aa8ba]">{label}</p>
     </div>
   );
@@ -4100,7 +3981,7 @@ function labelDuplicateField(field: string) {
 }
 
 function formatPercent(value: number | null) {
-  if (value === null) return "немає";
+  if (value === null) return "-";
   return `${Math.round(value * 100)}%`;
 }
 
