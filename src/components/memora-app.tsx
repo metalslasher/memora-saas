@@ -22,6 +22,7 @@ import {
   Loader2,
   LogOut,
   Mail,
+  Menu,
   PauseCircle,
   Plus,
   PlayCircle,
@@ -32,6 +33,7 @@ import {
   Target,
   Upload,
   UserCircle,
+  X,
 } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import type { ChangeEvent, FormEvent } from "react";
@@ -134,6 +136,15 @@ const modeLabels: Record<StudyMode, string> = {
   "qa-interview": "QA",
 };
 
+const navigationItems: Array<{ view: AppView; label: string; icon: IconType }> = [
+  { view: "today", label: "Практика", icon: Target },
+  { view: "english", label: "Англійські слова", icon: Languages },
+  { view: "qa", label: "QA та тестування", icon: Code2 },
+  { view: "analytics", label: "Прогрес", icon: BarChart3 },
+  { view: "account", label: "Профіль", icon: UserCircle },
+  { view: "help", label: "Як користуватись", icon: FileText },
+];
+
 function formatError(error: unknown) {
   if (error instanceof Error) return error.message;
 
@@ -175,6 +186,7 @@ export function MemoraApp() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [state, setState] = useState<MemoraState | null>(null);
   const [activeView, setActiveView] = useState<AppView>("today");
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
   const [responseText, setResponseText] = useState("");
@@ -319,6 +331,13 @@ export function MemoraApp() {
     contentNotes.find((note) => note.id === selectedNoteId) ??
     contentNotes.at(0) ??
     null;
+  const currentViewLabel =
+    navigationItems.find((item) => item.view === activeView)?.label ?? "Memora";
+
+  const navigateToView = useCallback((view: AppView) => {
+    setActiveView(view);
+    setIsMobileMenuOpen(false);
+  }, []);
 
   const handleOpenNote = useCallback((note: Note) => {
     setActiveView(note.module);
@@ -721,75 +740,32 @@ export function MemoraApp() {
     );
   }
 
-  const pageTitle =
-    activeView === "today"
-      ? "Сьогодні"
-      : activeView === "english"
-        ? "Англійські слова"
-        : activeView === "qa"
-          ? "QA та тестування"
-          : activeView === "analytics"
-            ? "Прогрес"
-            : activeView === "account"
-              ? "Профіль"
-              : "Як користуватись";
-  const showHeaderMetrics =
-    activeView === "today" || activeView === "analytics";
-
   return (
     <main className="min-h-screen bg-[#070a0f] text-[#eef4ff]">
-      <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-5 px-4 py-4 md:px-6 lg:flex-row">
-        <aside className="lg:sticky lg:top-4 lg:h-[calc(100vh-2rem)] lg:w-72">
+      <MobileTopBar
+        activeView={activeView}
+        currentViewLabel={currentViewLabel}
+        isBusy={isMutating}
+        isOpen={isMobileMenuOpen}
+        userEmail={user?.email}
+        onNavigate={navigateToView}
+        onSignOut={() => {
+          setIsMobileMenuOpen(false);
+          void handleSignOut();
+        }}
+        onToggle={() => setIsMobileMenuOpen((value) => !value)}
+      />
+
+      <div className="mx-auto flex w-full max-w-[1440px] gap-4 px-3 pb-4 pt-3 md:px-5 lg:gap-5 lg:px-6 lg:py-4">
+        <aside className="hidden lg:sticky lg:top-4 lg:block lg:h-[calc(100vh-2rem)] lg:w-72">
           <ShellPanel className="flex h-full flex-col justify-between p-4">
             <div>
-              <div className="flex items-center gap-3">
-                <div className="grid size-10 place-items-center rounded-lg bg-[#202938] text-white">
-                  <Brain className="size-5" />
-                </div>
-                <div>
-                  <p className="text-lg font-semibold leading-6">Memora</p>
-                  <p className="text-xs text-[#9aa8ba]">Особисте навчання</p>
-                </div>
-              </div>
-
-              <nav className="mt-7 space-y-2">
-                <NavItem
-                  icon={Target}
-                  label="Сьогодні"
-                  active={activeView === "today"}
-                  onClick={() => setActiveView("today")}
-                />
-                <NavItem
-                  icon={Languages}
-                  label="Англійські слова"
-                  active={activeView === "english"}
-                  onClick={() => setActiveView("english")}
-                />
-                <NavItem
-                  icon={Code2}
-                  label="QA та тестування"
-                  active={activeView === "qa"}
-                  onClick={() => setActiveView("qa")}
-                />
-                <NavItem
-                  icon={BarChart3}
-                  label="Прогрес"
-                  active={activeView === "analytics"}
-                  onClick={() => setActiveView("analytics")}
-                />
-                <NavItem
-                  icon={UserCircle}
-                  label="Профіль"
-                  active={activeView === "account"}
-                  onClick={() => setActiveView("account")}
-                />
-                <NavItem
-                  icon={FileText}
-                  label="Як користуватись"
-                  active={activeView === "help"}
-                  onClick={() => setActiveView("help")}
-                />
-              </nav>
+              <BrandLockup />
+              <NavigationList
+                activeView={activeView}
+                className="mt-7"
+                onNavigate={navigateToView}
+              />
             </div>
 
             <div className="mt-6 space-y-3">
@@ -806,21 +782,21 @@ export function MemoraApp() {
           </ShellPanel>
         </aside>
 
-        <section className="min-w-0 flex-1 space-y-5">
-          <ShellPanel className="p-4 md:p-5">
-            {errorMessage ? (
-              <StatusBanner tone="error" message={errorMessage} />
-            ) : null}
-            {statusMessage ? (
-              <StatusBanner tone="success" message={statusMessage} />
-            ) : null}
-            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-              <div>
-                <h1 className="text-2xl font-semibold tracking-normal text-[#f4f7fb] md:text-3xl">
-                  {pageTitle}
-                </h1>
-              </div>
-              {activeView === "today" ? (
+        <section className="min-w-0 flex-1 space-y-4 md:space-y-5">
+          {errorMessage || statusMessage ? (
+            <div className="space-y-3">
+              {errorMessage ? (
+                <StatusBanner tone="error" message={errorMessage} />
+              ) : null}
+              {statusMessage ? (
+                <StatusBanner tone="success" message={statusMessage} />
+              ) : null}
+            </div>
+          ) : null}
+
+          {activeView === "today" ? (
+            <ShellPanel className="p-3 md:p-4">
+              <div className="flex justify-end">
                 <ModeSelector
                   value={state.settings.studyMode}
                   onChange={(studyMode) => {
@@ -831,93 +807,79 @@ export function MemoraApp() {
                     resetPracticeUi();
                   }}
                 />
-              ) : null}
-            </div>
-
-            {showHeaderMetrics ? (
-            <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-              <Metric
-                icon={ListChecks}
-                label="Повторити"
-                value={summary.dueReviews.toString()}
-                accent="bg-[#2dd4bf]"
-              />
-              <Metric
-                icon={Plus}
-                label="Нові"
-                value={summary.newAvailable.toString()}
-                accent="bg-[#8b7cf6]"
-              />
-              <Metric
-                icon={Clock3}
-                label="Час"
-                value={`${summary.estimatedMinutes} хв`}
-                accent="bg-[#f2a84a]"
-              />
-              <Metric
-                icon={Gauge}
-                label="Якість"
-                value={formatPercent(summary.retention)}
-                accent="bg-[#ef6351]"
-              />
-              <Metric
-                icon={Flame}
-                label="Закріплені"
-                value={summary.matureCards.toString()}
-                accent="bg-[#202938]"
-              />
-            </div>
-            ) : null}
-          </ShellPanel>
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+                <Metric
+                  icon={ListChecks}
+                  label="Повторити"
+                  value={summary.dueReviews.toString()}
+                  accent="bg-[#2dd4bf]"
+                />
+                <Metric
+                  icon={Plus}
+                  label="Нові"
+                  value={summary.newAvailable.toString()}
+                  accent="bg-[#8b7cf6]"
+                />
+                <Metric
+                  icon={Clock3}
+                  label="Час"
+                  value={`${summary.estimatedMinutes} хв`}
+                  accent="bg-[#f2a84a]"
+                />
+                <Metric
+                  icon={Gauge}
+                  label="Якість"
+                  value={formatPercent(summary.retention)}
+                  accent="bg-[#ef6351]"
+                />
+                <Metric
+                  icon={Flame}
+                  label="Закріплені"
+                  value={summary.matureCards.toString()}
+                  accent="bg-[#202938]"
+                />
+              </div>
+            </ShellPanel>
+          ) : null}
 
           {activeView === "today" ? (
-            <>
-              <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
-                <StudyPanel
-                  card={activeCard}
-                  queueLength={queue.length}
-                  responseText={responseText}
-                  isRevealed={isRevealed}
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px] xl:gap-5">
+              <StudyPanel
+                card={activeCard}
+                queueLength={queue.length}
+                responseText={responseText}
+                isRevealed={isRevealed}
+                isBusy={isMutating}
+                reviewButtons={state.settings.reviewButtons}
+                onResponseChange={setResponseText}
+                onReveal={() => setIsRevealed(true)}
+                onReview={(rating) => void submitReview(rating)}
+                onSuspend={(cardId) => void handleSuspend(cardId)}
+              />
+
+              <div className="space-y-5">
+                <AddNotePanel
                   isBusy={isMutating}
-                  reviewButtons={state.settings.reviewButtons}
-                  onResponseChange={setResponseText}
-                  onReveal={() => setIsRevealed(true)}
-                  onReview={(rating) => void submitReview(rating)}
-                  onSuspend={(cardId) => void handleSuspend(cardId)}
+                  notes={state.notes}
+                  onAddEnglish={handleAddEnglish}
+                  onAddQa={handleAddQa}
+                  onOpenNote={handleOpenNote}
                 />
-
-                <div className="space-y-5">
-                  <AddNotePanel
-                    isBusy={isMutating}
-                    notes={state.notes}
-                    onAddEnglish={handleAddEnglish}
-                    onAddQa={handleAddQa}
-                    onOpenNote={handleOpenNote}
-                  />
-                  <SettingsPanel
-                    state={state}
-                    onChange={(nextState) =>
-                      void handleSettingsChange(nextState.settings)
-                    }
-                  />
-                </div>
               </div>
-
-              <div className="grid gap-5 xl:grid-cols-2">
-                <DeckPanel state={state} />
-                <AnalyticsPanel state={state} summary={summary} />
-              </div>
-            </>
+            </div>
           ) : activeView === "account" ? (
             <AccountWorkspace
               key={profile?.updatedAt ?? user?.id ?? "account"}
               isBusy={isMutating}
               isPasswordRecovery={isPasswordRecovery}
               profile={profile}
+              state={state}
               user={user}
               onPasswordReset={handlePasswordReset}
               onPasswordUpdate={handlePasswordUpdate}
               onProfileSave={handleProfileSave}
+              onSettingsChange={(settings) => void handleSettingsChange(settings)}
             />
           ) : activeView === "help" ? (
             <HelpWorkspace />
@@ -952,6 +914,103 @@ export function MemoraApp() {
         </section>
       </div>
     </main>
+  );
+}
+
+function BrandLockup() {
+  return (
+    <div className="flex items-center gap-3">
+      <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-[#202938] text-white">
+        <Brain className="size-5" />
+      </div>
+      <p className="text-lg font-semibold leading-6">Memora</p>
+    </div>
+  );
+}
+
+function NavigationList({
+  activeView,
+  className = "",
+  onNavigate,
+}: {
+  activeView: AppView;
+  className?: string;
+  onNavigate: (view: AppView) => void;
+}) {
+  return (
+    <nav className={`space-y-2 ${className}`}>
+      {navigationItems.map((item) => (
+        <NavItem
+          key={item.view}
+          icon={item.icon}
+          label={item.label}
+          active={activeView === item.view}
+          onClick={() => onNavigate(item.view)}
+        />
+      ))}
+    </nav>
+  );
+}
+
+function MobileTopBar({
+  activeView,
+  currentViewLabel,
+  isBusy,
+  isOpen,
+  onNavigate,
+  onSignOut,
+  onToggle,
+  userEmail,
+}: {
+  activeView: AppView;
+  currentViewLabel: string;
+  isBusy: boolean;
+  isOpen: boolean;
+  onNavigate: (view: AppView) => void;
+  onSignOut: () => void;
+  onToggle: () => void;
+  userEmail?: string;
+}) {
+  return (
+    <header className="sticky top-0 z-40 border-b border-[#202938] bg-[#070a0f]/95 backdrop-blur lg:hidden">
+      <div className="mx-auto flex min-h-16 max-w-[1440px] items-center justify-between gap-3 px-3">
+        <BrandLockup />
+        <div className="flex items-center gap-2">
+          {!isOpen ? (
+            <span className="max-w-[150px] truncate text-sm font-medium text-[#9aa8ba]">
+              {currentViewLabel}
+            </span>
+          ) : null}
+          <button
+            className="grid size-10 place-items-center rounded-lg border border-[#263140] text-[#c7d0dd]"
+            aria-expanded={isOpen}
+            aria-label={isOpen ? "Закрити меню" : "Відкрити меню"}
+            onClick={onToggle}
+            type="button"
+          >
+            {isOpen ? <X className="size-5" /> : <Menu className="size-5" />}
+          </button>
+        </div>
+      </div>
+
+      {isOpen ? (
+        <div className="border-t border-[#202938] px-3 pb-3">
+          <ShellPanel className="p-3">
+            <NavigationList activeView={activeView} onNavigate={onNavigate} />
+            <button
+              className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-[#263140] px-3 py-2 text-sm font-medium text-[#c7d0dd]"
+              title={userEmail ?? "Вийти"}
+              disabled={isBusy}
+              onClick={onSignOut}
+              type="button"
+            >
+              <LogOut className="size-4" />
+              Вийти
+            </button>
+          </ShellPanel>
+        </div>
+      ) : null}
+    </header>
   );
 }
 
@@ -1221,7 +1280,7 @@ function ModeSelector({
   onChange: (mode: StudyMode) => void;
 }) {
   return (
-    <div className="grid grid-cols-1 gap-2 rounded-lg border border-[#263140] bg-[#151d28] p-1 sm:grid-cols-3">
+    <div className="grid w-full grid-cols-3 gap-1 rounded-lg border border-[#263140] bg-[#151d28] p-1 sm:w-auto sm:min-w-[420px]">
       {(Object.keys(modeLabels) as StudyMode[]).map((mode) => (
         <button
           key={mode}
@@ -1251,13 +1310,13 @@ function Metric({
   accent: string;
 }) {
   return (
-    <div className="min-h-28 rounded-lg border border-[#263140] bg-[#0d131c] p-4">
+    <div className="min-h-24 rounded-lg border border-[#263140] bg-[#0d131c] p-3 md:min-h-28 md:p-4">
       <div className="flex items-center justify-between">
-        <div className={`grid size-9 place-items-center rounded-lg text-white ${accent}`}>
+        <div className={`grid size-8 place-items-center rounded-lg text-white md:size-9 ${accent}`}>
           <Icon className="size-4" />
         </div>
       </div>
-      <p className="mt-4 text-2xl font-semibold">{value}</p>
+      <p className="mt-3 text-2xl font-semibold md:mt-4">{value}</p>
       <p className="mt-1 text-sm text-[#9aa8ba]">{label}</p>
     </div>
   );
@@ -1291,7 +1350,7 @@ function StudyPanel({
       <ShellPanel className="grid min-h-[560px] place-items-center p-6">
         <EmptyState
           icon={Check}
-          title="На сьогодні все"
+          title="Черга порожня"
           description="Активних карток у цьому режимі немає."
         />
       </ShellPanel>
@@ -1312,12 +1371,6 @@ function StudyPanel({
           <Activity className="size-4" />
           1 / {queueLength}
         </div>
-      </div>
-
-      <div className="mt-4 grid gap-2 md:grid-cols-3">
-        <LearningStep index="1" title="Згадай" active={!isRevealed} />
-        <LearningStep index="2" title="Перевір" active={isRevealed} />
-        <LearningStep index="3" title="Оціни" active={isRevealed} />
       </div>
 
       <div className="mt-6">
@@ -1433,37 +1486,6 @@ function GradeButton({
     >
       {label}
     </button>
-  );
-}
-
-function LearningStep({
-  active,
-  index,
-  title,
-}: {
-  active: boolean;
-  index: string;
-  title: string;
-}) {
-  return (
-    <div
-      className={`rounded-lg border p-3 ${
-        active
-          ? "border-[#2dd4bf] bg-[#102b27]"
-          : "border-[#263140] bg-[#0d131c]"
-      }`}
-    >
-      <div className="flex items-center gap-2">
-        <span
-          className={`grid size-6 place-items-center rounded-md text-xs font-semibold ${
-            active ? "bg-[#2dd4bf] text-[#071018]" : "bg-[#202938] text-[#c7d0dd]"
-          }`}
-        >
-          {index}
-        </span>
-        <p className="text-sm font-semibold">{title}</p>
-      </div>
-    </div>
   );
 }
 
@@ -1802,7 +1824,7 @@ function SettingsPanel({
 }) {
   return (
     <ShellPanel className="p-4">
-      <p className="text-sm font-medium text-[#9aa8ba]">Налаштування</p>
+      <h2 className="text-lg font-semibold">Навчання</h2>
       <div className="mt-4 space-y-4">
         <label className="block">
           <span className="text-sm font-medium">Нових на день</span>
@@ -2727,9 +2749,9 @@ function HelpWorkspace() {
   }> = [
     {
       icon: Target,
-      title: "Сьогодні",
-      role: "Щоденний план навчання.",
-      use: "Починай звідси. Тут зібрані картки, які варто пройти саме сьогодні: спершу ті, що час повторити, потім нові.",
+      title: "Практика",
+      role: "Поточна черга.",
+      use: "Починай звідси. Тут зібрані картки, які варто пройти зараз: спершу повторення, потім нові.",
     },
     {
       icon: Languages,
@@ -2764,7 +2786,7 @@ function HelpWorkspace() {
   ];
 
   const routine = [
-    "Відкрий «Сьогодні» і пройди картки, які Memora підготувала на цей день.",
+    "Відкрий «Практика» і пройди підготовлену чергу.",
     "Прочитай питання і спробуй відповісти з пам'яті. Навіть короткий неповний варіант краще, ніж одразу дивитися відповідь.",
     "Натисни «Перевірити відповідь», порівняй із тим, що написав, і оціни чесно.",
     "Якщо бачиш потрібне слово або термін з тестування, додай його через швидке додавання або CSV.",
@@ -2901,7 +2923,7 @@ function HelpWorkspace() {
             <h2 className="text-lg font-semibold">Що де знаходиться</h2>
           </div>
           <p className="max-w-xl text-sm leading-6 text-[#9aa8ba]">
-            Якщо коротко: «Сьогодні» для навчання, «Англійські слова» і
+            Якщо коротко: «Практика» для навчання, «Англійські слова» і
             «QA та тестування» для матеріалів, «Прогрес» для перевірки слабких
             місць, «Профіль» для особистих налаштувань.
           </p>
@@ -3092,18 +3114,22 @@ function AccountWorkspace({
   isBusy,
   isPasswordRecovery,
   profile,
+  state,
   user,
   onPasswordReset,
   onPasswordUpdate,
   onProfileSave,
+  onSettingsChange,
 }: {
   isBusy: boolean;
   isPasswordRecovery: boolean;
   profile: UserProfile | null;
+  state: MemoraState;
   user: User | null;
   onPasswordReset: (email: string) => Promise<void>;
   onPasswordUpdate: (password: string) => Promise<void>;
   onProfileSave: (draft: UserProfileDraft) => Promise<void>;
+  onSettingsChange: (settings: AppSettings) => void;
 }) {
   const [draft, setDraft] = useState<UserProfileDraft>(() =>
     profileToDraft(profile),
@@ -3155,124 +3181,141 @@ function AccountWorkspace({
 
   return (
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
-      <ShellPanel className="p-4 md:p-5">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h2 className="text-lg font-semibold">Профіль</h2>
-          </div>
-          <Globe2 className="size-5 text-[#2dd4bf]" />
-        </div>
-
-        {profileError ? <StatusBanner tone="error" message={profileError} /> : null}
-
-        <form className="mt-4 space-y-4" onSubmit={saveProfile}>
-          <div className="grid gap-4 md:grid-cols-2">
-            <ReadOnlyField
-              icon={Mail}
-              label="Email"
-              value={user?.email ?? profile?.email ?? "Не вказано"}
-            />
-            <label className="block">
-              <span className="text-sm font-medium text-[#c7d0dd]">
-                Мова інтерфейсу
-              </span>
-              <select
-                className="mt-1 h-11 w-full rounded-lg border border-[#263140] bg-[#0b111a] px-3 text-sm text-[#eef4ff] outline-none transition focus:border-[#2dd4bf] focus:ring-4 focus:ring-[#2dd4bf]/20"
-                value={draft.locale}
-                onChange={(event) =>
-                  setDraft((current) => ({ ...current, locale: event.target.value }))
-                }
-              >
-                {localeOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+      <div className="space-y-5">
+        <ShellPanel className="p-4 md:p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-semibold">Профіль</h2>
+            </div>
+            <Globe2 className="size-5 text-[#2dd4bf]" />
           </div>
 
-          <div className="grid gap-4 md:grid-cols-3">
-            <label className="block">
-              <span className="text-sm font-medium text-[#c7d0dd]">
-                Часовий пояс
-              </span>
-              <select
-                className="mt-1 h-11 w-full rounded-lg border border-[#263140] bg-[#0b111a] px-3 text-sm text-[#eef4ff] outline-none transition focus:border-[#2dd4bf] focus:ring-4 focus:ring-[#2dd4bf]/20"
-                value={draft.timezone}
-                onChange={(event) =>
-                  setDraft((current) => ({
-                    ...current,
-                    timezone: event.target.value,
-                  }))
-                }
-              >
-                {timezoneOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+          {profileError ? <StatusBanner tone="error" message={profileError} /> : null}
 
-            <label className="block">
-              <span className="text-sm font-medium text-[#c7d0dd]">
-                Рівень англійської
-              </span>
-              <select
-                className="mt-1 h-11 w-full rounded-lg border border-[#263140] bg-[#0b111a] px-3 text-sm text-[#eef4ff] outline-none transition focus:border-[#2dd4bf] focus:ring-4 focus:ring-[#2dd4bf]/20"
-                value={draft.level}
-                onChange={(event) =>
-                  setDraft((current) => ({ ...current, level: event.target.value }))
-                }
-              >
-                {levelOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="block">
-              <span className="text-sm font-medium text-[#c7d0dd]">
-                Хвилин на день
-              </span>
-              <input
-                className="mt-1 h-11 w-full rounded-lg border border-[#263140] bg-[#0b111a] px-3 text-sm text-[#eef4ff] outline-none transition placeholder:text-[#6f7d90] focus:border-[#2dd4bf] focus:ring-4 focus:ring-[#2dd4bf]/20"
-                max={180}
-                min={5}
-                type="number"
-                value={draft.dailyMinutes}
-                onChange={(event) =>
-                  setDraft((current) => ({
-                    ...current,
-                    dailyMinutes: Number(event.target.value),
-                  }))
-                }
+          <form className="mt-4 space-y-4" onSubmit={saveProfile}>
+            <div className="grid gap-4 md:grid-cols-2">
+              <ReadOnlyField
+                icon={Mail}
+                label="Email"
+                value={user?.email ?? profile?.email ?? "Не вказано"}
               />
-            </label>
-          </div>
+              <label className="block">
+                <span className="text-sm font-medium text-[#c7d0dd]">
+                  Мова інтерфейсу
+                </span>
+                <select
+                  className="mt-1 h-11 w-full rounded-lg border border-[#263140] bg-[#0b111a] px-3 text-sm text-[#eef4ff] outline-none transition focus:border-[#2dd4bf] focus:ring-4 focus:ring-[#2dd4bf]/20"
+                  value={draft.locale}
+                  onChange={(event) =>
+                    setDraft((current) => ({
+                      ...current,
+                      locale: event.target.value,
+                    }))
+                  }
+                >
+                  {localeOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
 
-          <TextArea
-            label="Основна ціль"
-            placeholder="Наприклад: впевненіше проходити QA співбесіди англійською."
-            value={draft.primaryGoal}
-            onChange={(primaryGoal) =>
-              setDraft((current) => ({ ...current, primaryGoal }))
-            }
-          />
+            <div className="grid gap-4 md:grid-cols-3">
+              <label className="block">
+                <span className="text-sm font-medium text-[#c7d0dd]">
+                  Часовий пояс
+                </span>
+                <select
+                  className="mt-1 h-11 w-full rounded-lg border border-[#263140] bg-[#0b111a] px-3 text-sm text-[#eef4ff] outline-none transition focus:border-[#2dd4bf] focus:ring-4 focus:ring-[#2dd4bf]/20"
+                  value={draft.timezone}
+                  onChange={(event) =>
+                    setDraft((current) => ({
+                      ...current,
+                      timezone: event.target.value,
+                    }))
+                  }
+                >
+                  {timezoneOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
 
-          <button
-            className="inline-flex items-center gap-2 rounded-lg bg-[#2dd4bf] px-4 py-3 text-sm font-semibold text-[#071018] transition hover:bg-[#5eead4] disabled:cursor-not-allowed disabled:bg-[#344052] disabled:text-[#8d9aab]"
-            disabled={isBusy}
-            type="submit"
-          >
-            {isBusy ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
-            Зберегти профіль
-          </button>
-        </form>
-      </ShellPanel>
+              <label className="block">
+                <span className="text-sm font-medium text-[#c7d0dd]">
+                  Рівень англійської
+                </span>
+                <select
+                  className="mt-1 h-11 w-full rounded-lg border border-[#263140] bg-[#0b111a] px-3 text-sm text-[#eef4ff] outline-none transition focus:border-[#2dd4bf] focus:ring-4 focus:ring-[#2dd4bf]/20"
+                  value={draft.level}
+                  onChange={(event) =>
+                    setDraft((current) => ({
+                      ...current,
+                      level: event.target.value,
+                    }))
+                  }
+                >
+                  {levelOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-medium text-[#c7d0dd]">
+                  Хвилин на день
+                </span>
+                <input
+                  className="mt-1 h-11 w-full rounded-lg border border-[#263140] bg-[#0b111a] px-3 text-sm text-[#eef4ff] outline-none transition placeholder:text-[#6f7d90] focus:border-[#2dd4bf] focus:ring-4 focus:ring-[#2dd4bf]/20"
+                  max={180}
+                  min={5}
+                  type="number"
+                  value={draft.dailyMinutes}
+                  onChange={(event) =>
+                    setDraft((current) => ({
+                      ...current,
+                      dailyMinutes: Number(event.target.value),
+                    }))
+                  }
+                />
+              </label>
+            </div>
+
+            <TextArea
+              label="Основна ціль"
+              placeholder="Наприклад: впевненіше проходити QA співбесіди англійською."
+              value={draft.primaryGoal}
+              onChange={(primaryGoal) =>
+                setDraft((current) => ({ ...current, primaryGoal }))
+              }
+            />
+
+            <button
+              className="inline-flex items-center gap-2 rounded-lg bg-[#2dd4bf] px-4 py-3 text-sm font-semibold text-[#071018] transition hover:bg-[#5eead4] disabled:cursor-not-allowed disabled:bg-[#344052] disabled:text-[#8d9aab]"
+              disabled={isBusy}
+              type="submit"
+            >
+              {isBusy ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Save className="size-4" />
+              )}
+              Зберегти профіль
+            </button>
+          </form>
+        </ShellPanel>
+
+        <SettingsPanel
+          state={state}
+          onChange={(nextState) => onSettingsChange(nextState.settings)}
+        />
+      </div>
 
       <ShellPanel className="p-4 md:p-5">
         <div className="flex items-start justify-between gap-4">

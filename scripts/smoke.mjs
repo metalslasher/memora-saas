@@ -87,16 +87,16 @@ async function signIn(page, userEmail, userPassword) {
   await page.getByLabel("Email").fill(userEmail);
   await page.getByLabel("Пароль").fill(userPassword);
   await page.locator('form button[type="submit"]').click();
-  await expect(page.getByRole("button", { name: "Сьогодні", exact: true })).toBeVisible({
+  await expect(page.getByRole("button", { name: "Практика", exact: true })).toBeVisible({
     timeout: 20000,
   });
 }
 
 async function assertTodayView(page) {
-  await page.getByRole("button", { name: "Сьогодні", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Сьогодні", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Практика", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Усе", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Додати матеріал", exact: true })).toBeVisible();
-  await expect(page.getByText("Налаштування")).toBeVisible();
+  await expect(page.getByText("Повторити")).toBeVisible();
 }
 
 async function assertHelpAndAccount(page) {
@@ -104,7 +104,9 @@ async function assertHelpAndAccount(page) {
   await expect(page.getByText("Механіка навчання")).toBeVisible();
 
   await page.getByRole("button", { name: "Профіль", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Профіль", exact: true })).toBeVisible();
   await expect(page.getByText("Мова інтерфейсу")).toBeVisible();
+  await expect(page.getByText("Навчання")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Безпека", exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "Англійські слова", exact: true }).click();
@@ -120,7 +122,7 @@ async function assertAddAndEditEnglishNote(page) {
   const translation = `тестова фраза ${stamp}`;
   const updatedTranslation = `оновлена тестова фраза ${stamp}`;
 
-  await page.getByRole("button", { name: "Сьогодні", exact: true }).click();
+  await page.getByRole("button", { name: "Практика", exact: true }).click();
   await page.getByRole("button", { name: "Англ." }).click();
   await page.getByLabel("Слово або фраза").fill(phrase);
   await page.getByLabel("Значення").fill(translation);
