@@ -1016,13 +1016,16 @@ function MobileTopBar({
 function ShellPanel({
   children,
   className = "",
+  id,
 }: {
   children: React.ReactNode;
   className?: string;
+  id?: string;
 }) {
   return (
     <div
       className={`rounded-lg border border-[#263140] bg-[#10161f] shadow-[0_18px_70px_rgba(0,0,0,0.34)] ${className}`}
+      id={id}
     >
       {children}
     </div>
@@ -2691,110 +2694,217 @@ function StatusControls({
 }
 
 function HelpWorkspace() {
-  const loopSteps: Array<{ icon: IconType; title: string; text: string }> = [
+  const tocItems: Array<{
+    href: string;
+    icon: IconType;
+    title: string;
+    text: string;
+  }> = [
     {
-      icon: Plus,
-      title: "Додаєш",
-      text: "слово, термін або файл CSV",
-    },
-    {
+      href: "#help-core",
       icon: Brain,
-      title: "Згадуєш",
-      text: "пишеш відповідь без підглядання",
+      title: "Суть",
+      text: "для чого Memora і чому вона працює",
     },
     {
+      href: "#help-practice",
+      icon: Target,
+      title: "Практика",
+      text: "черга, режими і щоденний сценарій",
+    },
+    {
+      href: "#help-materials",
       icon: BookOpenCheck,
-      title: "Звіряєш",
-      text: "відкриваєш правильну відповідь",
+      title: "Матеріали",
+      text: "слова, QA, картки, статуси, CSV",
     },
     {
+      href: "#help-ratings",
       icon: Gauge,
-      title: "Оцінюєш",
-      text: "чесно оцінюєш, як легко згадав",
+      title: "Оцінювання",
+      text: "як вибирати кнопки після відповіді",
     },
     {
-      icon: Clock3,
-      title: "Повертаєшся пізніше",
-      text: "Memora сама підкаже наступний день",
+      href: "#help-progress",
+      icon: BarChart3,
+      title: "Прогрес",
+      text: "метрики, слабкі місця, резервні копії",
+    },
+    {
+      href: "#help-profile",
+      icon: UserCircle,
+      title: "Профіль",
+      text: "налаштування, пароль, доступ",
+    },
+    {
+      href: "#help-map",
+      icon: FileText,
+      title: "Карта",
+      text: "що є в кожному розділі сервісу",
     },
   ];
 
-  const effectiveness = [
+  const corePrinciples = [
     {
       icon: Brain,
       title: "Активне пригадування",
-      text: "Ти не перечитуєш готову відповідь, а дістаєш її з пам'яті. Саме це тренує згадування у співбесіді, роботі й живій розмові.",
+      text: "Ти спочатку пишеш відповідь з пам'яті, а вже потім відкриваєш правильний варіант. Це тренує саме згадування, а не пасивне перечитування.",
     },
     {
       icon: Clock3,
       title: "Інтервали повторення",
-      text: "Картки повертаються не щогодини і не випадково, а тоді, коли пам'ять уже трохи слабшає. Так менше зубріння і більше користі.",
+      text: "Картка повертається тоді, коли її вже корисно повторити. Легкі картки відкладаються далі, складні повертаються швидше.",
     },
     {
       icon: Gauge,
-      title: "Розумний розклад",
-      text: "Після кожної оцінки Memora перераховує, коли краще повернути картку. Те, що згадалося легко, з'явиться пізніше. Те, що забулося, повернеться швидше.",
+      title: "FSRS-розклад",
+      text: "Memora використовує FSRS: після кожної оцінки перераховується наступна дата повторення, складність і стабільність картки.",
     },
     {
       icon: Languages,
       title: "Пояснення українською",
-      text: "Англійські слова й QA-терміни можуть залишатися англійською, але сенс пояснюється українською. Так ти вчиш значення, а не просто набір символів.",
+      text: "Англійські слова й QA-терміни можуть лишатися англійською, але сенс пояснюється українською. Так простіше вчити зміст, а не набір символів.",
     },
   ];
 
-  const productBlocks: Array<{
-    icon: IconType;
-    title: string;
-    role: string;
-    use: string;
-  }> = [
+  const practiceSteps = [
+    {
+      title: "Відкрий практику",
+      text: "Це головний робочий екран. Тут зібрані картки, які потрібно пройти зараз.",
+    },
+    {
+      title: "Напиши відповідь",
+      text: "Не підглядай одразу. Навіть неповна відповідь корисніша, ніж просто прочитати правильний варіант.",
+    },
+    {
+      title: "Перевір себе",
+      text: "Натисни «Перевірити відповідь», порівняй зі своєю відповіддю і подивись пояснення.",
+    },
+    {
+      title: "Оціни чесно",
+      text: "Оцінка має показувати, як легко ти згадав зараз. Не оцінюй за бажанням «хочу знати це краще».",
+    },
+    {
+      title: "Додавай тільки потрібне",
+      text: "Якщо зустрів слово або QA-термін, додай його вручну або через CSV. Не перетворюй Memora на склад «колись вивчу».",
+    },
+  ];
+
+  const practiceMetrics = [
+    {
+      icon: ListChecks,
+      title: "Повторити",
+      text: "Картки, які вже вивчались і сьогодні знову мають бути згадані.",
+    },
+    {
+      icon: Plus,
+      title: "Нові",
+      text: "Картки, які можна взяти сьогодні без перевантаження денного ліміту.",
+    },
+    {
+      icon: Clock3,
+      title: "Час",
+      text: "Орієнтовна тривалість поточної черги. Це не таймер, а швидка оцінка навантаження.",
+    },
+    {
+      icon: Gauge,
+      title: "Якість",
+      text: "Частка успішних повторень. Якщо значення падає, краще не додавати багато нового.",
+    },
+    {
+      icon: Flame,
+      title: "Закріплені",
+      text: "Картки, які вже добре тримаються в пам'яті й мають довші інтервали повторення.",
+    },
+  ];
+
+  const modeItems = [
+    {
+      title: "Усе",
+      text: "Змішана черга: англійська і QA разом. Добре підходить для звичайної щоденної практики.",
+    },
+    {
+      title: "Англійська",
+      text: "Фокус тільки на словах і фразах. Зручно, коли хочеш потренувати активний словник.",
+    },
+    {
+      title: "QA",
+      text: "Фокус на термінах і поясненнях з тестування. Корисно перед співбесідою або робочою підготовкою.",
+    },
+  ];
+
+  const sectionItems = [
     {
       icon: Target,
       title: "Практика",
-      role: "Поточна черга.",
-      use: "Починай звідси. Тут зібрані картки, які варто пройти зараз: спершу повторення, потім нові.",
+      text: "Головне місце для навчання. Тут проходиш чергу, пишеш відповідь, перевіряєш себе і ставиш оцінку.",
     },
     {
       icon: Languages,
       title: "Англійські слова",
-      role: "Слова, фрази, переклади й приклади.",
-      use: "Додавай англійське слово або фразу, українське значення і приклад. Memora зробить картки на переклад, розуміння й контекст.",
+      text: "База англійських слів і фраз. Тут можна шукати, редагувати, ставити матеріали на паузу, архівувати й імпортувати CSV.",
     },
     {
       icon: Code2,
       title: "QA та тестування",
-      role: "Терміни, пояснення і практичні ситуації.",
-      use: "Записуй терміни з QA або тестування простими українськими поясненнями. Memora зробить картки на визначення, зворотне пригадування й ситуації зі співбесід.",
+      text: "База QA-термінів. Основний принцип той самий, але пояснення краще писати українською, щоб точно розуміти сенс терміна.",
     },
     {
       icon: BarChart3,
       title: "Прогрес",
-      role: "Огляд навчання.",
-      use: "Дивись, скільки вже повторено, які теми просідають, що добре закріпилось і де варто відредагувати картки.",
+      text: "Огляд повторень, слабких місць, матеріалів і резервних копій. Сюди варто заходити не щохвилини, а періодично.",
     },
     {
       icon: UserCircle,
       title: "Профіль",
-      role: "Профіль і безпека.",
-      use: "Налаштовуй часовий пояс, рівень англійської, навчальну ціль і пароль. Тут немає навчальної черги, тільки особисті параметри.",
+      text: "Особисті налаштування: мова, часовий пояс, рівень англійської, навчальна ціль, пароль і параметри навчання.",
     },
     {
       icon: FileText,
       title: "Як користуватись",
-      role: "Пояснення всього сервісу.",
-      use: "Повертайся сюди, якщо забув, що означає оцінка, розділ, імпорт, статус картки або щоденна логіка повторення.",
+      text: "Ця довідка. Тут зібрана логіка сервісу, пояснення розділів, налаштувань і правил роботи з даними.",
     },
   ];
 
-  const routine = [
-    "Відкрий «Практика» і пройди підготовлену чергу.",
-    "Прочитай питання і спробуй відповісти з пам'яті. Навіть короткий неповний варіант краще, ніж одразу дивитися відповідь.",
-    "Натисни «Перевірити відповідь», порівняй із тим, що написав, і оціни чесно.",
-    "Якщо бачиш потрібне слово або термін з тестування, додай його через швидке додавання або CSV.",
-    "Раз на кілька днів відкрий «Прогрес», подивись на слабкі місця і відредагуй картки, які сформульовані нечітко.",
+  const materialItems = [
+    {
+      icon: Languages,
+      title: "Англійський матеріал",
+      text: "Заповнюєш слово або фразу, українське значення і приклад. Memora створює картку на активний переклад та картку на розуміння значення.",
+    },
+    {
+      icon: Code2,
+      title: "QA-матеріал",
+      text: "Заповнюєш термін, коротке пояснення і приклад. Memora створює картку на пояснення терміна та картку на пригадування терміна за описом.",
+    },
+    {
+      icon: Sparkles,
+      title: "Попередній перегляд карток",
+      text: "Під час додавання видно, які картки будуть створені. Якщо формулювання виглядає нечітко, краще виправити матеріал одразу.",
+    },
+    {
+      icon: Search,
+      title: "Пошук і редагування",
+      text: "У розділах матеріалів можна знайти запис, змінити його зміст і подивитися пов'язані картки.",
+    },
   ];
 
-  const ratings = [
+  const statusItems = [
+    {
+      title: "В навчанні",
+      text: "Матеріал або картка активні й можуть потрапляти в чергу практики.",
+    },
+    {
+      title: "На паузі",
+      text: "Тимчасово прибрано з черги. Корисно для нечітких або зайвих карток, які ще не хочеш видаляти.",
+    },
+    {
+      title: "В архіві",
+      text: "Матеріал більше не потрібен у навчанні, але лишається в базі для історії.",
+    },
+  ];
+
+  const ratingItems = [
     {
       label: "Знову",
       tone: "border-[#6f2b2b] bg-[#2a1215] text-[#ffb4aa]",
@@ -2817,224 +2927,379 @@ function HelpWorkspace() {
     },
   ];
 
+  const profileSettings = [
+    {
+      icon: Languages,
+      title: "Мова інтерфейсу",
+      text: "Зараз основна мова інтерфейсу українська. Англійські слова й технічні QA-терміни лишаються англійською там, де так природніше.",
+    },
+    {
+      icon: Clock3,
+      title: "Часовий пояс",
+      text: "Впливає на те, як рахувати день і коли картки вважаються доступними сьогодні.",
+    },
+    {
+      icon: Gauge,
+      title: "Рівень англійської",
+      text: "Потрібен як особистий контекст. Він не має ламати розклад, але допомагає тримати ціль навчання в одному місці.",
+    },
+    {
+      icon: Target,
+      title: "Хвилин на день і ціль",
+      text: "Це твій орієнтир навантаження. Якщо ціль змінюється, краще оновити її, щоб сервіс залишався під твою реальну задачу.",
+    },
+    {
+      icon: Plus,
+      title: "Нових на день",
+      text: "Обмежує кількість нових карток. Повторення мають пріоритет, бо вони зберігають те, що вже було додано.",
+    },
+    {
+      icon: KeyRound,
+      title: "Пароль і відновлення",
+      text: "У профілі можна змінити пароль або надіслати лист для відновлення доступу на email акаунта.",
+    },
+  ];
+
   return (
     <div className="space-y-5">
-      <ShellPanel className="overflow-hidden p-4 md:p-5">
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,0.95fr)_minmax(420px,1.05fr)] xl:items-center">
+      <ShellPanel className="p-4 md:p-5">
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,0.9fr)_minmax(360px,0.7fr)]">
           <div>
-            <h2 className="text-2xl font-semibold leading-tight md:text-3xl">
-              Memora допомагає не просто читати матеріал, а тренувати реальне
-              пригадування.
+            <p className="text-sm font-medium text-[#52e0c4]">Довідка</p>
+            <h2 className="mt-2 max-w-3xl text-2xl font-semibold leading-tight md:text-3xl">
+              Як працює Memora і як користуватись сервісом без зайвого шуму.
             </h2>
-            <p className="mt-4 max-w-2xl text-sm leading-6 text-[#9aa8ba]">
-              У сервісі є дві навчальні бази: англійські слова та QA і тестування.
-              Кожен доданий матеріал перетворюється на кілька карток. Ти
-              відповідаєш з пам&apos;яті, перевіряєш себе, ставиш оцінку, а Memora
-              планує наступне повторення.
+            <p className="mt-4 max-w-3xl text-sm leading-7 text-[#9aa8ba]">
+              Memora зберігає твої англійські слова й QA-терміни, перетворює їх
+              на картки для активного пригадування і сама планує повторення.
+              Головна ідея проста: спочатку згадати самому, потім перевірити,
+              чесно оцінити відповідь і повернутися до картки тоді, коли це дасть
+              найбільше користі.
             </p>
             <div className="mt-5 grid gap-3 sm:grid-cols-3">
               <MiniStat label="Головна дія" value="згадати" />
-              <MiniStat label="Ритм" value="щодня" />
-              <MiniStat label="Мета" value="довго" />
+              <MiniStat label="Основа" value="FSRS" />
+              <MiniStat label="Мова пояснень" value="укр." />
             </div>
           </div>
 
           <div className="rounded-lg border border-[#263140] bg-[#0d131c] p-4">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-medium text-[#9aa8ba]">
-                  Механіка навчання
-                </p>
-                <h3 className="text-lg font-semibold">Цикл однієї картки</h3>
+            <div className="flex items-center gap-3">
+              <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-[#14352f] text-[#52e0c4]">
+                <FileText className="size-4" />
               </div>
-              <Activity className="size-5 text-[#2dd4bf]" />
+              <div>
+                <p className="text-sm font-semibold">Зміст</p>
+                <p className="text-xs text-[#9aa8ba]">Перейди одразу до потрібного блоку.</p>
+              </div>
             </div>
-            <div className="memora-flow mt-5">
-              {loopSteps.map((step, index) => {
-                const Icon = step.icon;
-                return (
-                  <div key={step.title} className="memora-flow-step">
-                    <div className="grid size-11 place-items-center rounded-lg border border-[#2dd4bf]/40 bg-[#14352f] text-[#52e0c4]">
-                      <Icon className="size-5" />
-                    </div>
-                    <span className="mt-3 font-mono text-xs text-[#6f7d90]">
-                      0{index + 1}
-                    </span>
-                    <p className="mt-1 text-sm font-semibold">{step.title}</p>
-                    <p className="mt-1 text-xs leading-5 text-[#9aa8ba]">
-                      {step.text}
-                    </p>
-                  </div>
-                );
-              })}
+            <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
+              {tocItems.map((item) => (
+                <HelpTocLink key={item.href} {...item} />
+              ))}
             </div>
           </div>
         </div>
       </ShellPanel>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
-        <ShellPanel className="p-4 md:p-5">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-sm font-medium text-[#9aa8ba]">
-                Чому це працює
-              </p>
-              <h2 className="text-lg font-semibold">
-                Ефективність не в кількості карток, а в якості пригадування
-              </h2>
-            </div>
-            <Brain className="size-5 text-[#2dd4bf]" />
+      <HelpSection
+        id="help-core"
+        icon={Brain}
+        kicker="Суть і алгоритм"
+        title="Чому Memora ефективніша за просте перечитування."
+      >
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {corePrinciples.map((item) => (
+            <HelpCard key={item.title} icon={item.icon} title={item.title}>
+              {item.text}
+            </HelpCard>
+          ))}
+        </div>
+        <div className="mt-4 rounded-lg border border-[#263140] bg-[#0d131c] p-4">
+          <h3 className="font-semibold">Цикл однієї картки</h3>
+          <div className="mt-4 grid gap-3 md:grid-cols-5">
+            {practiceSteps.map((step, index) => (
+              <HelpStep
+                key={step.title}
+                index={index + 1}
+                title={step.title}
+                text={step.text}
+              />
+            ))}
           </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
-            {effectiveness.map((item) => (
+        </div>
+      </HelpSection>
+
+      <HelpSection
+        id="help-practice"
+        icon={Target}
+        kicker="Практика"
+        title="Головний екран потрібен тільки для навчання тут і зараз."
+      >
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(340px,0.6fr)]">
+          <div className="rounded-lg border border-[#263140] bg-[#0d131c] p-4">
+            <h3 className="font-semibold">Режими черги</h3>
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
+              {modeItems.map((item) => (
+                <HelpMiniBlock key={item.title} title={item.title} text={item.text} />
+              ))}
+            </div>
+          </div>
+          <div className="rounded-lg border border-[#263140] bg-[#0d131c] p-4">
+            <h3 className="font-semibold">Щоденний порядок</h3>
+            <div className="mt-4 space-y-3">
+              {practiceSteps.map((step, index) => (
+                <HelpLine
+                  key={step.title}
+                  icon={index === 0 ? Target : index === 1 ? Brain : index === 2 ? BookOpenCheck : index === 3 ? Gauge : Plus}
+                  title={step.title}
+                  text={step.text}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="mt-4 rounded-lg border border-[#263140] bg-[#0d131c] p-4">
+          <h3 className="font-semibold">Метрики зверху</h3>
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            {practiceMetrics.map((item) => (
               <HelpCard key={item.title} icon={item.icon} title={item.title}>
                 {item.text}
               </HelpCard>
             ))}
           </div>
-        </ShellPanel>
-
-        <ShellPanel className="p-4 md:p-5">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-sm font-medium text-[#9aa8ba]">
-                Щоденний сценарій
-              </p>
-              <h2 className="text-lg font-semibold">Як користуватись</h2>
-            </div>
-            <Target className="size-5 text-[#2dd4bf]" />
-          </div>
-          <ol className="mt-4 space-y-3">
-            {routine.map((item, index) => (
-              <li key={item} className="flex gap-3">
-                <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-[#14352f] font-mono text-xs text-[#52e0c4]">
-                  {index + 1}
-                </span>
-                <span className="text-sm leading-6 text-[#c7d0dd]">{item}</span>
-              </li>
-            ))}
-          </ol>
-        </ShellPanel>
-      </div>
-
-      <ShellPanel className="p-4 md:p-5">
-        <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="text-sm font-medium text-[#9aa8ba]">Розділи</p>
-            <h2 className="text-lg font-semibold">Що де знаходиться</h2>
-          </div>
-          <p className="max-w-xl text-sm leading-6 text-[#9aa8ba]">
-            Якщо коротко: «Практика» для навчання, «Англійські слова» і
-            «QA та тестування» для матеріалів, «Прогрес» для перевірки слабких
-            місць, «Профіль» для особистих налаштувань.
-          </p>
         </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {productBlocks.map((block) => (
-            <HelpBlock key={block.title} {...block} />
+      </HelpSection>
+
+      <HelpSection
+        id="help-materials"
+        icon={BookOpenCheck}
+        kicker="Матеріали і картки"
+        title="Матеріал це запис, а картки це вправи, які Memora з нього створює."
+      >
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {materialItems.map((item) => (
+            <HelpCard key={item.title} icon={item.icon} title={item.title}>
+              {item.text}
+            </HelpCard>
           ))}
         </div>
-      </ShellPanel>
-
-      <div className="grid gap-5 xl:grid-cols-2">
-        <ShellPanel className="p-4 md:p-5">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-sm font-medium text-[#9aa8ba]">
-                Оцінювання
-              </p>
-              <h2 className="text-lg font-semibold">
-                Як обирати кнопку після відповіді
-              </h2>
+        <div className="mt-4 grid gap-4 xl:grid-cols-2">
+          <div className="rounded-lg border border-[#263140] bg-[#0d131c] p-4">
+            <h3 className="font-semibold">Статуси</h3>
+            <div className="mt-4 grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
+              {statusItems.map((item) => (
+                <HelpMiniBlock key={item.title} title={item.title} text={item.text} />
+              ))}
             </div>
-            <Gauge className="size-5 text-[#2dd4bf]" />
           </div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            {ratings.map((rating) => (
-              <div
-                key={rating.label}
-                className={`rounded-lg border p-4 ${rating.tone}`}
-              >
-                <p className="font-semibold">{rating.label}</p>
-                <p className="mt-2 text-sm leading-6">{rating.text}</p>
-              </div>
-            ))}
-          </div>
-          <p className="mt-4 rounded-lg border border-[#263140] bg-[#0d131c] p-3 text-sm leading-6 text-[#9aa8ba]">
-            Правило просте: оцінюй не “наскільки я хочу це знати”, а “як легко я
-            реально згадав зараз”. Чесність важливіша за красиву статистику.
-          </p>
-        </ShellPanel>
-
-        <ShellPanel className="p-4 md:p-5">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-sm font-medium text-[#9aa8ba]">
-                Матеріали й дані
-              </p>
-              <h2 className="text-lg font-semibold">
-                Додавання, імпорт, ремонт і резервні копії
-              </h2>
+          <div className="rounded-lg border border-[#263140] bg-[#0d131c] p-4">
+            <h3 className="font-semibold">CSV-імпорт</h3>
+            <div className="mt-4 space-y-3">
+              <HelpLine
+                icon={Download}
+                title="Шаблон"
+                text="Скачай шаблон CSV у потрібному розділі, щоб колонки збігалися з форматом Memora."
+              />
+              <HelpLine
+                icon={Upload}
+                title="Попередній перегляд"
+                text="Після вибору файлу видно готові рядки, дублікати й помилки. Дані додаються тільки після підтвердження."
+              />
+              <HelpLine
+                icon={AlertCircle}
+                title="Дублікати"
+                text="Схожі записи за замовчуванням пропускаються. Якщо потрібно, можна явно дозволити додавання схожих матеріалів."
+              />
             </div>
-            <FileText className="size-5 text-[#2dd4bf]" />
           </div>
-          <div className="mt-4 space-y-3">
-            <HelpLine
-              icon={Plus}
-              title="Швидке додавання"
-              text="Підходить для одного слова, фрази або терміна, який щойно зустрівся в роботі, курсі чи співбесіді."
-            />
-            <HelpLine
-              icon={BookOpenCheck}
-              title="Картки з матеріалу"
-              text="З одного запису Memora робить кілька карток: для англійської це переклад, розуміння і контекст; для QA - визначення, зворотне пригадування і практична ситуація."
-            />
-            <HelpLine
-              icon={FileText}
-              title="Імпорт з CSV"
-              text="Підходить для списку слів або термінів. Спочатку Memora показує попередній перегляд, схожі записи й помилки, а вже потім додає картки."
-            />
-            <HelpLine
-              icon={Archive}
-              title="Призупинити або архівувати"
-              text="Якщо картка погано сформульована або вже не потрібна, її краще прибрати з черги, а не мучити себе повтореннями."
-            />
-            <HelpLine
-              icon={Download}
-              title="Резервна копія"
-              text="У «Прогресі» можна завантажити повну резервну копію JSON і окремі CSV для англійських слів та QA."
-            />
-          </div>
-        </ShellPanel>
-      </div>
+        </div>
+      </HelpSection>
 
-      <ShellPanel className="p-4 md:p-5">
-        <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)] lg:items-start">
-          <div>
-            <p className="text-sm font-medium text-[#9aa8ba]">
-              Швидка пам&apos;ятка
-            </p>
-            <h2 className="text-lg font-semibold">Як зрозуміти, що все йде добре</h2>
-          </div>
-          <div className="grid gap-3 md:grid-cols-3">
-            <MiniStat label="Черга зменшується" value="так" />
-            <MiniStat label="Помилки показують слабкі місця" value="видно" />
-            <MiniStat label="Нові картки не витісняють повторення" value="баланс" />
-          </div>
+      <HelpSection
+        id="help-ratings"
+        icon={Gauge}
+        kicker="Оцінювання"
+        title="Оцінка керує наступною датою повторення."
+      >
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {ratingItems.map((rating) => (
+            <div
+              key={rating.label}
+              className={`rounded-lg border p-4 ${rating.tone}`}
+            >
+              <p className="font-semibold">{rating.label}</p>
+              <p className="mt-2 text-sm leading-6">{rating.text}</p>
+            </div>
+          ))}
         </div>
         <div className="mt-4 grid gap-3 md:grid-cols-2">
-          <HelpCard icon={Check} title="Нормальний день">
-            Ти зробив доступну чергу, додав 0-3 справді потрібні матеріали і не
-            намагався занести в систему весь список “на колись” за один вечір.
+          <HelpCard icon={Check} title="Головне правило">
+            Оцінюй те, що відбулося зараз: наскільки легко відповідь прийшла з
+            пам&apos;яті. Так розклад буде чесним і корисним.
           </HelpCard>
-          <HelpCard icon={AlertCircle} title="Коли треба втрутитись">
-            Якщо одна картка постійно падає, проблема часто не в тобі, а в
-            формулюванні. Відредагуй матеріал, додай простіший приклад або
-            призупини зайву картку.
+          <HelpCard icon={AlertCircle} title="Коли не треба додавати нове">
+            Якщо багато карток отримують «Знову» або «Важко», краще спочатку
+            розібрати старі повторення і відредагувати нечіткі формулювання.
           </HelpCard>
         </div>
-      </ShellPanel>
+      </HelpSection>
+
+      <HelpSection
+        id="help-progress"
+        icon={BarChart3}
+        kicker="Прогрес і дані"
+        title="Прогрес потрібен для контролю якості, а не для постійного самоконтролю."
+      >
+        <div className="grid gap-4 xl:grid-cols-2">
+          <div className="rounded-lg border border-[#263140] bg-[#0d131c] p-4">
+            <h3 className="font-semibold">Що дивитися в прогресі</h3>
+            <div className="mt-4 space-y-3">
+              <HelpLine
+                icon={Activity}
+                title="Історія повторень"
+                text="Показує останні оцінені картки, час відповіді й результат. Це допомагає побачити, що реально повторювалось."
+              />
+              <HelpLine
+                icon={Gauge}
+                title="Слабкі місця"
+                text="Якщо тема або картка часто падає, проблема може бути в знанні або у формулюванні самої картки."
+              />
+              <HelpLine
+                icon={BookOpenCheck}
+                title="Матеріали"
+                text="Огляд кількості англійських і QA-карток, джерел матеріалів та останніх доданих записів."
+              />
+            </div>
+          </div>
+          <div className="rounded-lg border border-[#263140] bg-[#0d131c] p-4">
+            <h3 className="font-semibold">Резервні копії</h3>
+            <div className="mt-4 space-y-3">
+              <HelpLine
+                icon={Download}
+                title="Експорт JSON"
+                text="Повна копія бази: матеріали, картки, розклад, історія повторень і налаштування."
+              />
+              <HelpLine
+                icon={Download}
+                title="CSV-експорт"
+                text="Окремі файли для англійських слів і QA. Зручно для перегляду або переносу списків."
+              />
+              <HelpLine
+                icon={Upload}
+                title="Відновлення"
+                text="Restore працює через preview: спочатку бачиш, що у файлі, потім підтверджуєш заміну поточних даних."
+              />
+            </div>
+          </div>
+        </div>
+      </HelpSection>
+
+      <HelpSection
+        id="help-profile"
+        icon={UserCircle}
+        kicker="Профіль і налаштування"
+        title="Налаштування винесені з практики, щоб головний екран не відволікав."
+      >
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {profileSettings.map((item) => (
+            <HelpCard key={item.title} icon={item.icon} title={item.title}>
+              {item.text}
+            </HelpCard>
+          ))}
+        </div>
+        <div className="mt-4 rounded-lg border border-[#263140] bg-[#0d131c] p-4">
+          <h3 className="font-semibold">Як зрозуміти, що все йде добре</h3>
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            <HelpMiniBlock
+              title="Черга зменшується"
+              text="Після практики кількість карток на сьогодні має падати або ставати нулем."
+            />
+            <HelpMiniBlock
+              title="Помилки зрозумілі"
+              text="Ти бачиш, які теми просідають, і можеш відредагувати погані формулювання."
+            />
+            <HelpMiniBlock
+              title="Нові не витісняють повторення"
+              text="Краще стабільно повторювати старе, ніж щодня додавати багато нового."
+            />
+          </div>
+        </div>
+      </HelpSection>
+
+      <HelpSection
+        id="help-map"
+        icon={FileText}
+        kicker="Карта сервісу"
+        title="Що за що відповідає."
+      >
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {sectionItems.map((item) => (
+            <HelpCard key={item.title} icon={item.icon} title={item.title}>
+              {item.text}
+            </HelpCard>
+          ))}
+        </div>
+      </HelpSection>
     </div>
+  );
+}
+
+function HelpSection({
+  children,
+  icon: Icon,
+  id,
+  kicker,
+  title,
+}: {
+  children: React.ReactNode;
+  icon: IconType;
+  id: string;
+  kicker: string;
+  title: string;
+}) {
+  return (
+    <ShellPanel className="scroll-mt-20 p-4 md:p-5" id={id}>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-sm font-medium text-[#52e0c4]">{kicker}</p>
+          <h2 className="mt-1 text-xl font-semibold leading-tight md:text-2xl">
+            {title}
+          </h2>
+        </div>
+        <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-[#14352f] text-[#52e0c4]">
+          <Icon className="size-5" />
+        </div>
+      </div>
+      <div className="mt-5">{children}</div>
+    </ShellPanel>
+  );
+}
+
+function HelpTocLink({
+  href,
+  icon: Icon,
+  text,
+  title,
+}: {
+  href: string;
+  icon: IconType;
+  text: string;
+  title: string;
+}) {
+  return (
+    <a
+      className="group flex gap-3 rounded-lg border border-[#263140] bg-[#101923] p-3 transition hover:border-[#2dd4bf] hover:bg-[#13221f]"
+      href={href}
+    >
+      <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-[#202938] text-[#eef4ff] transition group-hover:bg-[#14352f] group-hover:text-[#52e0c4]">
+        <Icon className="size-4" />
+      </div>
+      <div className="min-w-0">
+        <p className="text-sm font-semibold">{title}</p>
+        <p className="mt-1 text-xs leading-5 text-[#9aa8ba]">{text}</p>
+      </div>
+    </a>
   );
 }
 
@@ -3049,42 +3314,48 @@ function HelpCard({
 }) {
   return (
     <div className="rounded-lg border border-[#263140] bg-[#0d131c] p-4">
-      <div className="flex items-center gap-3">
-        <div className="grid size-9 place-items-center rounded-lg bg-[#14352f] text-[#52e0c4]">
+      <div className="flex items-start gap-3">
+        <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-[#14352f] text-[#52e0c4]">
           <Icon className="size-4" />
         </div>
-        <h3 className="font-semibold">{title}</h3>
+        <h3 className="min-w-0 font-semibold leading-6">{title}</h3>
       </div>
       <p className="mt-3 text-sm leading-6 text-[#9aa8ba]">{children}</p>
     </div>
   );
 }
 
-function HelpBlock({
-  icon: Icon,
-  role,
+function HelpStep({
+  index,
+  text,
   title,
-  use,
 }: {
-  icon: IconType;
-  role: string;
+  index: number;
+  text: string;
   title: string;
-  use: string;
 }) {
   return (
     <div className="rounded-lg border border-[#263140] bg-[#0d131c] p-4">
-      <div className="flex items-start gap-3">
-        <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-[#202938] text-[#eef4ff]">
-          <Icon className="size-4" />
-        </div>
-        <div>
-          <h3 className="font-semibold">{title}</h3>
-          <p className="mt-1 text-xs font-medium uppercase tracking-[0.16em] text-[#52e0c4]">
-            {role}
-          </p>
-        </div>
-      </div>
-      <p className="mt-3 text-sm leading-6 text-[#9aa8ba]">{use}</p>
+      <span className="grid size-8 place-items-center rounded-lg bg-[#14352f] font-mono text-xs text-[#52e0c4]">
+        {index}
+      </span>
+      <p className="mt-3 font-semibold leading-6">{title}</p>
+      <p className="mt-2 text-sm leading-6 text-[#9aa8ba]">{text}</p>
+    </div>
+  );
+}
+
+function HelpMiniBlock({
+  text,
+  title,
+}: {
+  text: string;
+  title: string;
+}) {
+  return (
+    <div className="rounded-lg border border-[#263140] bg-[#101923] p-3">
+      <p className="text-sm font-semibold leading-6">{title}</p>
+      <p className="mt-1 text-sm leading-6 text-[#9aa8ba]">{text}</p>
     </div>
   );
 }
