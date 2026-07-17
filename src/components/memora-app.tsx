@@ -796,19 +796,17 @@ export function MemoraApp() {
 
           {activeView === "today" ? (
             <ShellPanel className="p-3 md:p-4">
-              <div className="flex justify-end">
-                <ModeSelector
-                  value={state.settings.studyMode}
-                  onChange={(studyMode) => {
-                    void handleSettingsChange({
-                      ...state.settings,
-                      studyMode,
-                    });
-                    resetPracticeUi();
-                  }}
-                />
-              </div>
-              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+              <ModeSelector
+                value={state.settings.studyMode}
+                onChange={(studyMode) => {
+                  void handleSettingsChange({
+                    ...state.settings,
+                    studyMode,
+                  });
+                  resetPracticeUi();
+                }}
+              />
+              <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-5">
                 <Metric
                   icon={ListChecks}
                   label="Повторити"
@@ -838,6 +836,7 @@ export function MemoraApp() {
                   label="Закріплені"
                   value={summary.matureCards.toString()}
                   accent="bg-[#202938]"
+                  className="col-span-2 md:col-span-1"
                 />
               </div>
             </ShellPanel>
@@ -1280,7 +1279,7 @@ function ModeSelector({
   onChange: (mode: StudyMode) => void;
 }) {
   return (
-    <div className="grid w-full grid-cols-3 gap-1 rounded-lg border border-[#263140] bg-[#151d28] p-1 sm:w-auto sm:min-w-[420px]">
+    <div className="grid w-full grid-cols-3 gap-1 rounded-lg border border-[#263140] bg-[#151d28] p-1">
       {(Object.keys(modeLabels) as StudyMode[]).map((mode) => (
         <button
           key={mode}
@@ -1303,14 +1302,16 @@ function Metric({
   label,
   value,
   accent,
+  className = "",
 }: {
   icon: IconType;
   label: string;
   value: string;
   accent: string;
+  className?: string;
 }) {
   return (
-    <div className="min-h-24 rounded-lg border border-[#263140] bg-[#0d131c] p-3 md:min-h-28 md:p-4">
+    <div className={`min-h-24 rounded-lg border border-[#263140] bg-[#0d131c] p-3 md:min-h-28 md:p-4 ${className}`}>
       <div className="flex items-center justify-between">
         <div className={`grid size-8 place-items-center rounded-lg text-white md:size-9 ${accent}`}>
           <Icon className="size-4" />
@@ -1347,7 +1348,7 @@ function StudyPanel({
 }) {
   if (!card) {
     return (
-      <ShellPanel className="grid min-h-[560px] place-items-center p-6">
+      <ShellPanel className="grid min-h-[360px] place-items-center p-6 md:min-h-[420px]">
         <EmptyState
           icon={Check}
           title="Черга порожня"
@@ -1361,7 +1362,7 @@ function StudyPanel({
   const cardStage = card.schedule.reps === 0 ? "Нова" : "Повторення";
 
   return (
-    <ShellPanel className="min-h-[560px] p-4 md:p-5">
+    <ShellPanel className="p-4 md:p-5">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#263140] pb-4">
         <p className="text-sm text-[#9aa8ba]">
           {card.module === "english" ? "Англійська" : "QA"} /{" "}
