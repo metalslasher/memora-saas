@@ -15,7 +15,6 @@ import {
   FileText,
   Flame,
   Gauge,
-  Globe2,
   KeyRound,
   Languages,
   ListChecks,
@@ -118,14 +117,6 @@ type ClientImportCommitRow = {
   raw?: Record<string, string>;
 };
 
-const localeOptions = [{ value: "uk-UA", label: "Українська" }];
-const timezoneOptions = [
-  { value: "Europe/Kiev", label: "Київ" },
-  { value: "UTC", label: "UTC" },
-  { value: "Europe/Warsaw", label: "Варшава" },
-  { value: "Europe/London", label: "Лондон" },
-  { value: "America/New_York", label: "Нью-Йорк" },
-];
 const levelOptions = [
   { value: "", label: "Не вказувати" },
   { value: "beginner", label: "Початковий" },
@@ -207,6 +198,8 @@ export function MemoraApp() {
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
   const loadingUserIdRef = useRef<string | null>(null);
   const loadedUserIdRef = useRef<string | null>(null);
+  const isSavingSettingsRef = useRef(false);
+  const pendingSettingsRef = useRef<AppSettings | null>(null);
 
   const resetPracticeUi = useCallback(() => {
     setActiveCardId(null);
@@ -440,18 +433,37 @@ export function MemoraApp() {
     const previousState = state;
     const nextState = { ...state, settings };
     const isModeChange = settings.studyMode !== previousState.settings.studyMode;
+    pendingSettingsRef.current = settings;
     setState(nextState);
     setErrorMessage(null);
     if (isModeChange) resetPracticeSession(nextState);
 
+    if (isSavingSettingsRef.current) return;
+
+    isSavingSettingsRef.current = true;
+
     try {
-      const updatedState = unwrapActionState(await updateSettingsAction(settings));
-      setState(updatedState);
-      if (isModeChange) resetPracticeSession(updatedState);
+      while (pendingSettingsRef.current) {
+        const settingsToSave = pendingSettingsRef.current;
+        pendingSettingsRef.current = null;
+        const updatedState = unwrapActionState(
+          await updateSettingsAction(settingsToSave),
+        );
+
+        if (!pendingSettingsRef.current) {
+          setState(updatedState);
+          if (settingsToSave.studyMode !== previousState.settings.studyMode) {
+            resetPracticeSession(updatedState);
+          }
+        }
+      }
     } catch (error) {
+      pendingSettingsRef.current = null;
       setState(previousState);
       if (isModeChange) resetPracticeSession(previousState);
       setErrorMessage(formatError(error));
+    } finally {
+      isSavingSettingsRef.current = false;
     }
   }
 
@@ -1679,12 +1691,28 @@ function EmptyState({
 }
 
 function SettingsPanel({
-  state,
+  settings,
   onChange,
 }: {
-  state: MemoraState;
-  onChange: (state: MemoraState) => void;
+  settings: AppSettings;
+  onChange: (settings: AppSettings) => void;
 }) {
+  const latestSettingsRef = useRef(settings);
+
+  useEffect(() => {
+    latestSettingsRef.current = settings;
+  }, [settings]);
+
+  function updateSettings(settingsPatch: Partial<AppSettings>) {
+    const nextSettings = {
+      ...latestSettingsRef.current,
+      ...settingsPatch,
+    };
+
+    latestSettingsRef.current = nextSettings;
+    onChange(nextSettings);
+  }
+
   return (
     <ShellPanel className="p-4">
       <h2 className="text-lg font-semibold">Навчання</h2>
@@ -1695,20 +1723,14 @@ function SettingsPanel({
             className="mt-2 w-full accent-[#2dd4bf]"
             type="range"
             min="0"
-            max="20"
-            value={state.settings.dailyNewLimit}
+            max="50"
+            value={settings.dailyNewLimit}
             onChange={(event) =>
-              onChange({
-                ...state,
-                settings: {
-                  ...state.settings,
-                  dailyNewLimit: Number(event.target.value),
-                },
-              })
+              updateSettings({ dailyNewLimit: Number(event.target.value) })
             }
           />
           <span className="font-mono text-sm text-[#9aa8ba]">
-            {state.settings.dailyNewLimit}/день
+            {settings.dailyNewLimit}/день
           </span>
         </label>
 
@@ -1719,16 +1741,12 @@ function SettingsPanel({
               <button
                 key={mode}
                 className={`rounded-lg border px-3 py-2 text-sm font-medium capitalize ${
-                  state.settings.reviewButtons === mode
+                  settings.reviewButtons === mode
                     ? "border-[#2dd4bf] bg-[#14352f] text-[#52e0c4]"
                     : "border-[#263140] text-[#9aa8ba]"
                 }`}
-                onClick={() =>
-                  onChange({
-                    ...state,
-                    settings: { ...state.settings, reviewButtons: mode },
-                  })
-                }
+                onClick={() => updateSettings({ reviewButtons: mode })}
+                type="button"
               >
                 {mode === "simple" ? "2 кнопки" : "4 кнопки"}
               </button>
@@ -3060,29 +3078,29 @@ function HelpWorkspace() {
 
   const profileSettings = [
     {
-      icon: Languages,
-      title: "Мова інтерфейсу",
-      text: "Зараз основна мова інтерфейсу українська. Англійські слова й технічні QA-терміни лишаються англійською там, де так природніше.",
-    },
-    {
-      icon: Clock3,
-      title: "Часовий пояс",
-      text: "Впливає на те, як рахувати день і коли картки вважаються доступними сьогодні.",
-    },
-    {
       icon: Gauge,
       title: "Рівень англійської",
-      text: "Потрібен як особистий контекст. Він не має ламати розклад, але допомагає тримати ціль навчання в одному місці.",
+      text: "Особистий орієнтир для тебе. Він не змінює алгоритм повторень, але допомагає тримати контекст навчання в профілі.",
     },
     {
       icon: Target,
-      title: "Хвилин на день і ціль",
-      text: "Це твій орієнтир навантаження. Якщо ціль змінюється, краще оновити її, щоб сервіс залишався під твою реальну задачу.",
+      title: "Основна ціль",
+      text: "Коротко фіксує, навіщо ти зараз вчиш матеріал: співбесіди, робота, словник для конкретної теми або інша задача.",
     },
     {
       icon: Plus,
       title: "Нових на день",
-      text: "Обмежує кількість нових карток. Повторення мають пріоритет, бо вони зберігають те, що вже було додано.",
+      text: "Обмежує кількість нових карток на день. Повторення мають пріоритет, а ліміт можна підняти до 50.",
+    },
+    {
+      icon: ListChecks,
+      title: "Оцінювання",
+      text: "Перемикає просту схему з двома кнопками або розширену з чотирма оцінками для точнішого розкладу.",
+    },
+    {
+      icon: Download,
+      title: "Дані",
+      text: "Тут можна завантажити резервну копію або повернути базу з JSON-файлу, якщо потрібно відновити матеріали.",
     },
     {
       icon: KeyRound,
@@ -3592,7 +3610,7 @@ function AccountWorkspace({
             <div>
               <h2 className="text-lg font-semibold">Профіль</h2>
             </div>
-            <Globe2 className="size-5 text-[#2dd4bf]" />
+            <UserCircle className="size-5 text-[#2dd4bf]" />
           </div>
 
           {profileError ? <StatusBanner tone="error" message={profileError} /> : null}
@@ -3604,51 +3622,6 @@ function AccountWorkspace({
                 label="Email"
                 value={user?.email ?? profile?.email ?? "Не вказано"}
               />
-              <label className="block">
-                <span className="text-sm font-medium text-[#c7d0dd]">
-                  Мова інтерфейсу
-                </span>
-                <select
-                  className="mt-1 h-11 w-full rounded-lg border border-[#263140] bg-[#0b111a] px-3 text-sm text-[#eef4ff] outline-none transition focus:border-[#2dd4bf] focus:ring-4 focus:ring-[#2dd4bf]/20"
-                  value={draft.locale}
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      locale: event.target.value,
-                    }))
-                  }
-                >
-                  {localeOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-3">
-              <label className="block">
-                <span className="text-sm font-medium text-[#c7d0dd]">
-                  Часовий пояс
-                </span>
-                <select
-                  className="mt-1 h-11 w-full rounded-lg border border-[#263140] bg-[#0b111a] px-3 text-sm text-[#eef4ff] outline-none transition focus:border-[#2dd4bf] focus:ring-4 focus:ring-[#2dd4bf]/20"
-                  value={draft.timezone}
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      timezone: event.target.value,
-                    }))
-                  }
-                >
-                  {timezoneOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
 
               <label className="block">
                 <span className="text-sm font-medium text-[#c7d0dd]">
@@ -3670,25 +3643,6 @@ function AccountWorkspace({
                     </option>
                   ))}
                 </select>
-              </label>
-
-              <label className="block">
-                <span className="text-sm font-medium text-[#c7d0dd]">
-                  Хвилин на день
-                </span>
-                <input
-                  className="mt-1 h-11 w-full rounded-lg border border-[#263140] bg-[#0b111a] px-3 text-sm text-[#eef4ff] outline-none transition placeholder:text-[#6f7d90] focus:border-[#2dd4bf] focus:ring-4 focus:ring-[#2dd4bf]/20"
-                  max={180}
-                  min={5}
-                  type="number"
-                  value={draft.dailyMinutes}
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      dailyMinutes: Number(event.target.value),
-                    }))
-                  }
-                />
               </label>
             </div>
 
@@ -3717,8 +3671,8 @@ function AccountWorkspace({
         </ShellPanel>
 
         <SettingsPanel
-          state={state}
-          onChange={(nextState) => onSettingsChange(nextState.settings)}
+          settings={state.settings}
+          onChange={onSettingsChange}
         />
       </div>
 
@@ -3801,9 +3755,7 @@ function AccountWorkspace({
             </button>
           </form>
         </ShellPanel>
-      </div>
 
-      <div className="xl:col-span-2">
         <BackupPanel
           isBusy={isBusy}
           state={state}
@@ -3959,7 +3911,7 @@ function BackupPanel({
         />
       </div>
       <div className="mt-4 rounded-lg border border-[#263140] bg-[#0d131c] p-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-semibold text-[#eef4ff]">
               Відновлення
@@ -3973,7 +3925,7 @@ function BackupPanel({
             type="file"
           />
           <button
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#314055] px-4 text-sm font-semibold text-[#dce7f5] transition hover:border-[#2dd4bf] hover:bg-[#101a25] disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-[#314055] px-4 text-sm font-semibold text-[#dce7f5] transition hover:border-[#2dd4bf] hover:bg-[#101a25] disabled:cursor-not-allowed disabled:opacity-60"
             disabled={isBusy}
             onClick={() => fileInputRef.current?.click()}
             type="button"

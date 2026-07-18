@@ -108,9 +108,13 @@ async function assertHelpAndAccount(page) {
 
   await page.getByRole("button", { name: "Профіль", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Профіль", exact: true })).toBeVisible();
-  await expect(page.getByText("Мова інтерфейсу")).toBeVisible();
-  await expect(page.getByText("Навчання")).toBeVisible();
+  await expect(page.getByText("Мова інтерфейсу")).toHaveCount(0);
+  await expect(page.getByText("Часовий пояс")).toHaveCount(0);
+  await expect(page.getByText("Хвилин на день")).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Навчання", exact: true })).toBeVisible();
+  await expect(page.locator('input[type="range"]')).toHaveAttribute("max", "50");
   await expect(page.getByRole("heading", { name: "Безпека", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Дані", exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "Англійські слова", exact: true }).click();
   await expect(page.getByRole("region", { name: "Новий матеріал" })).toBeVisible();
