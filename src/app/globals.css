@@ -30,3 +30,12 @@ textarea {
   background: #2dd4bf;
   color: #071018;
 }
+
+.scrollbar-hidden {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none;
+}

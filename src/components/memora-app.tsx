@@ -48,7 +48,6 @@ import {
   reviewCardAction,
   restoreBackupAction,
   suspendCardAction,
-  updateCardStatusAction,
   updateNoteContentAction,
   updateNoteStatusAction,
   updateProfileAction,
@@ -546,29 +545,6 @@ export function MemoraApp() {
     }
   }
 
-  async function handleCardStatusChange(
-    cardId: string,
-    status: ItemStatus,
-  ) {
-    if (!state || isMutating) return;
-
-    setIsMutating(true);
-    setErrorMessage(null);
-    setStatusMessage(null);
-
-    try {
-      const nextState = unwrapActionState(
-        await updateCardStatusAction(cardId, status),
-      );
-      setState(nextState);
-      setStatusMessage(`Картку оновлено: ${labelStatus(status)}.`);
-    } catch (error) {
-      setErrorMessage(formatError(error));
-    } finally {
-      setIsMutating(false);
-    }
-  }
-
   async function handleNoteStatusChange(
     noteId: string,
     status: ItemStatus,
@@ -912,9 +888,6 @@ export function MemoraApp() {
               selectedNote={selectedNote}
               onAddEnglish={handleAddEnglish}
               onAddQa={handleAddQa}
-              onCardStatusChange={(cardId, status) =>
-                void handleCardStatusChange(cardId, status)
-              }
               onNoteContentChange={handleNoteContentChange}
               onNoteSelect={setSelectedNoteId}
               onNoteStatusChange={(noteId, status) =>
@@ -1757,7 +1730,6 @@ function ContentManager({
   selectedNote,
   onAddEnglish,
   onAddQa,
-  onCardStatusChange,
   onImport,
   onNoteContentChange,
   onNoteSelect,
@@ -1771,7 +1743,6 @@ function ContentManager({
   selectedNote: Note | null;
   onAddEnglish: (draft: EnglishDraft) => Promise<void>;
   onAddQa: (draft: QaDraft) => Promise<void>;
-  onCardStatusChange: (cardId: string, status: ItemStatus) => void;
   onImport: (
     rows: ClientImportCommitRow[],
     skipDuplicates: boolean,
@@ -1878,7 +1849,6 @@ function ContentManager({
             isBusy={isBusy}
             moduleType={moduleType}
             note={selectedNote}
-            onCardStatusChange={onCardStatusChange}
             onNoteContentChange={onNoteContentChange}
             onNoteStatusChange={onNoteStatusChange}
           />
@@ -2452,7 +2422,7 @@ function ImportHistoryPanel({
         <span className="font-mono text-sm text-[#9aa8ba]">{visibleRuns.length}</span>
       </div>
 
-      <div className="mt-3 max-h-44 space-y-2 overflow-y-auto pr-1">
+      <div className="scrollbar-hidden mt-3 max-h-44 space-y-2 overflow-y-auto">
         {visibleRuns.length === 0 ? (
           <div className="rounded-lg border border-[#263140] bg-[#0b111a] p-5">
             <EmptyState
@@ -2521,7 +2491,6 @@ function NoteDetailPanel({
   isBusy,
   moduleType,
   note,
-  onCardStatusChange,
   onNoteContentChange,
   onNoteStatusChange,
 }: {
@@ -2529,7 +2498,6 @@ function NoteDetailPanel({
   isBusy: boolean;
   moduleType: ModuleType;
   note: Note | null;
-  onCardStatusChange: (cardId: string, status: ItemStatus) => void;
   onNoteContentChange: (
     noteId: string,
     content: NoteContentDraft,
@@ -2591,14 +2559,7 @@ function NoteDetailPanel({
               </div>
             ) : (
               cards.map((card) => (
-                <CardRow
-                  key={card.id}
-                  card={card}
-                  disabled={isBusy}
-                  onStatusChange={(status) =>
-                    onCardStatusChange(card.id, status)
-                  }
-                />
+                <CardRow key={card.id} card={card} />
               ))
             )}
           </div>
@@ -2756,39 +2717,21 @@ function NoteEditForm({
   );
 }
 
-function CardRow({
-  card,
-  disabled,
-  onStatusChange,
-}: {
-  card: StudyCard;
-  disabled: boolean;
-  onStatusChange: (status: ItemStatus) => void;
-}) {
+function CardRow({ card }: { card: StudyCard }) {
   return (
     <div className="rounded-lg border border-[#263140] bg-[#0d131c] p-4">
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_160px]">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge tone="neutral">{labelCardType(card.type)}</Badge>
-            <span className="font-mono text-xs text-[#9aa8ba]">
-              наступний раз: {formatDate(card.schedule.due)}
-            </span>
-          </div>
-          <div className="mt-3 space-y-3">
-            <CardField label="Питання" value={card.prompt} strong />
-            <CardField label="Відповідь" value={card.answer} />
-            {card.explanation ? (
-              <CardField label="Пояснення" value={card.explanation} />
-            ) : null}
-          </div>
-        </div>
-        <StatusControls
-          compact
-          disabled={disabled}
-          status={card.status}
-          onChange={onStatusChange}
-        />
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge tone="neutral">{labelCardType(card.type)}</Badge>
+        <span className="font-mono text-xs text-[#9aa8ba]">
+          наступний раз: {formatDate(card.schedule.due)}
+        </span>
+      </div>
+      <div className="mt-3 space-y-3">
+        <CardField label="Питання" value={card.prompt} strong />
+        <CardField label="Відповідь" value={card.answer} />
+        {card.explanation ? (
+          <CardField label="Пояснення" value={card.explanation} />
+        ) : null}
       </div>
     </div>
   );
@@ -2820,12 +2763,10 @@ function CardField({
 }
 
 function StatusControls({
-  compact = false,
   disabled,
   status,
   onChange,
 }: {
-  compact?: boolean;
   disabled: boolean;
   status: ItemStatus;
   onChange: (status: ItemStatus) => void;
@@ -2837,13 +2778,7 @@ function StatusControls({
   ];
 
   return (
-    <div
-      className={`grid w-full gap-2 ${
-        compact
-          ? "self-start grid-cols-1 sm:grid-cols-3 xl:grid-cols-1"
-          : "grid-cols-3 sm:w-auto"
-      }`}
-    >
+    <div className="grid w-full grid-cols-3 gap-2 sm:w-auto">
       {controls.map((control) => {
         const Icon = control.icon;
         const isActive = status === control.status;
