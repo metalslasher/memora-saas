@@ -1822,38 +1822,20 @@ function ContentManager({
         />
       </div>
 
-      <ShellPanel className="p-4">
-        <div className="grid gap-3 lg:grid-cols-[minmax(260px,1fr)_auto] lg:items-end">
-          <div>
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold">Матеріали</h2>
-              <span className="font-mono text-sm text-[#9aa8ba]">
-                {filteredNotes.length} / {notes.length}
-              </span>
-            </div>
-
-            <label className="mt-3 flex h-11 items-center gap-2 rounded-lg border border-[#263140] bg-[#0b111a] px-3 text-sm text-[#c7d0dd]">
-              <Search className="size-4 text-[#6f7d90]" />
-              <input
-                className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-[#6f7d90]"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Пошук"
-              />
-            </label>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:min-w-[360px]">
-            <MiniStat label="Активні" value={activeCards.length.toString()} />
-            <MiniStat label="Пауза" value={suspendedCards.length.toString()} />
-            <MiniStat
-              label="Усього"
-              value={notes.length.toString()}
-              className="col-span-2 sm:col-span-1"
-            />
-          </div>
-        </div>
-      </ShellPanel>
+      <div className="grid gap-3 lg:grid-cols-[minmax(280px,1fr)_120px_120px_120px]">
+        <label className="flex min-h-18 items-center gap-2 rounded-lg border border-[#263140] bg-[#10161f] px-4 text-sm text-[#c7d0dd]">
+          <Search className="size-4 text-[#6f7d90]" />
+          <input
+            className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-[#6f7d90]"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Пошук"
+          />
+        </label>
+        <MiniStat label="Активні" value={activeCards.length.toString()} />
+        <MiniStat label="Пауза" value={suspendedCards.length.toString()} />
+        <MiniStat label="Усього" value={notes.length.toString()} />
+      </div>
 
       {filteredNotes.length === 0 ? (
         <ShellPanel className="p-6">
@@ -1971,7 +1953,8 @@ function NoteDetailModal({
         type="button"
       />
       <div className="relative flex w-full max-w-6xl flex-col overflow-hidden bg-[#10161f] sm:rounded-lg sm:border sm:border-[#263140] sm:shadow-[0_28px_90px_rgba(0,0,0,0.48)]">
-        <div className="flex shrink-0 items-center justify-end border-b border-[#263140] bg-[#10161f] px-3 py-3 sm:px-4">
+        <div className="flex shrink-0 items-center justify-between border-b border-[#263140] bg-[#10161f] px-3 py-3 sm:px-4">
+          <BrandLockup />
           <button
             aria-label="Закрити"
             className="grid size-10 place-items-center rounded-lg border border-[#263140] text-[#c7d0dd] transition hover:border-[#2dd4bf] hover:text-[#52e0c4]"
@@ -2264,10 +2247,8 @@ function CsvImportPanel({
     preview?.rows
       .filter((row) => row.status !== "ready")
       .slice(0, 4) ?? [];
-  const sampleColumns =
-    moduleType === "english"
-      ? "lemma_en, translation_uk, example_en"
-      : "term, short_definition, example";
+  const importTitle =
+    moduleType === "english" ? "Імпорт слів" : "Імпорт QA-термінів";
 
   async function readFile(file: File) {
     setLocalMessage(null);
@@ -2335,10 +2316,8 @@ function CsvImportPanel({
   return (
     <div className="rounded-lg border border-[#263140] bg-[#0d131c] p-4">
       <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-sm font-medium text-[#c7d0dd]">CSV</p>
-          <p className="mt-1 text-xs text-[#6f7d90]">{sampleColumns}</p>
-        </div>
+        <p className="text-sm font-semibold text-[#eef4ff]">{importTitle}</p>
+        <Upload className="size-4 text-[#52e0c4]" />
       </div>
 
       <input
@@ -2464,8 +2443,7 @@ function ImportHistoryPanel({
       run.rows.length === 0
         ? true
         : run.rows.some((row) => !row.module || row.module === moduleType),
-    )
-    .slice(0, 4);
+    );
 
   return (
     <div className="mt-4 border-t border-[#263140] pt-3">
@@ -2474,7 +2452,7 @@ function ImportHistoryPanel({
         <span className="font-mono text-sm text-[#9aa8ba]">{visibleRuns.length}</span>
       </div>
 
-      <div className="mt-3 space-y-2">
+      <div className="mt-3 max-h-44 space-y-2 overflow-y-auto pr-1">
         {visibleRuns.length === 0 ? (
           <div className="rounded-lg border border-[#263140] bg-[#0b111a] p-5">
             <EmptyState
@@ -2571,12 +2549,12 @@ function NoteDetailPanel({
   }
 
   return (
-    <div className="rounded-lg border border-[#263140] bg-[#10161f] p-4 md:p-5">
+    <div className="p-1 sm:p-2">
       <div className="flex flex-col gap-4 border-b border-[#263140] pb-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <h2 className="truncate text-2xl font-semibold">{note.title}</h2>
           <p className="mt-1 text-sm text-[#9aa8ba]">
-            {moduleType === "english" ? "Англійська" : "QA"} / {labelStatus(note.status)} / {formatDate(note.createdAt)}
+            {moduleType === "english" ? "Англійська" : "QA"} / {formatDate(note.createdAt)}
           </p>
         </div>
         <StatusControls
@@ -2789,13 +2767,10 @@ function CardRow({
 }) {
   return (
     <div className="rounded-lg border border-[#263140] bg-[#0d131c] p-4">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_160px]">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <Badge tone="neutral">{labelCardType(card.type)}</Badge>
-            <Badge tone={card.status === "active" ? "green" : "neutral"}>
-              {labelStatus(card.status)}
-            </Badge>
             <span className="font-mono text-xs text-[#9aa8ba]">
               наступний раз: {formatDate(card.schedule.due)}
             </span>
@@ -2863,8 +2838,10 @@ function StatusControls({
 
   return (
     <div
-      className={`grid w-full grid-cols-3 gap-2 ${
-        compact ? "lg:w-auto" : "sm:w-auto"
+      className={`grid w-full gap-2 ${
+        compact
+          ? "self-start grid-cols-1 sm:grid-cols-3 xl:grid-cols-1"
+          : "grid-cols-3 sm:w-auto"
       }`}
     >
       {controls.map((control) => {
@@ -2874,7 +2851,7 @@ function StatusControls({
         return (
           <button
             key={control.status}
-            className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-55 ${
+            className={`inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-lg border px-3 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-55 ${
               isActive
                 ? "border-[#2dd4bf] bg-[#14352f] text-[#52e0c4]"
                 : "border-[#263140] text-[#9aa8ba] hover:bg-[#151d28]"
@@ -2885,9 +2862,7 @@ function StatusControls({
             type="button"
           >
             <Icon className="size-4" />
-            <span className={compact ? "sr-only sm:not-sr-only" : ""}>
-              {control.label}
-            </span>
+            <span>{control.label}</span>
           </button>
         );
       })}
@@ -4418,7 +4393,7 @@ function MiniStat({
   value: string;
 }) {
   return (
-    <div className={`rounded-lg border border-[#263140] bg-[#0d131c] p-3 ${className}`}>
+    <div className={`min-h-18 rounded-lg border border-[#263140] bg-[#0d131c] p-3 ${className}`}>
       <p className="text-xl font-semibold">{value}</p>
       <p className="mt-1 text-xs text-[#9aa8ba]">{label}</p>
     </div>

@@ -113,10 +113,16 @@ async function assertHelpAndAccount(page) {
   await expect(page.getByRole("heading", { name: "Безпека", exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "Англійські слова", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Матеріали", exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Новий матеріал" })).toBeVisible();
+  await expect(page.getByText("Імпорт слів", { exact: true })).toBeVisible();
+  await expect(page.getByPlaceholder("Пошук")).toBeVisible();
+  await expect(page.getByText("Активні", { exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "QA та тестування", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Матеріали", exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Новий матеріал" })).toBeVisible();
+  await expect(page.getByText("Імпорт QA-термінів", { exact: true })).toBeVisible();
+  await expect(page.getByPlaceholder("Пошук")).toBeVisible();
+  await expect(page.getByText("Усього", { exact: true })).toBeVisible();
 }
 
 async function assertAddAndEditEnglishNote(page) {
