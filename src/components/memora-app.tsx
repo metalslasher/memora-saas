@@ -962,10 +962,9 @@ function StudyStreakWidget({
   stats: StreakStats;
 }) {
   const streakLabel = pluralizeDays(stats.count);
-  const cardLabel =
-    stats.count > 0
-      ? `${stats.count} ${streakLabel}`
-      : "Серія ще не почалась";
+  const cardLabel = `${stats.count} ${streakLabel}`;
+  const streakVisual = getStreakVisual(stats.count);
+  const StreakIcon = streakVisual.icon;
 
   return (
     <section
@@ -973,8 +972,11 @@ function StudyStreakWidget({
       className={`overflow-hidden rounded-lg border border-[#263140] bg-[#101923] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] ${className}`}
     >
       <div className="flex items-center gap-3">
-        <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-[#2d2110] text-[#ffb45f]">
-          <Flame className="size-5 fill-[#ff7a38]/40" />
+        <div
+          className={`grid size-10 shrink-0 place-items-center rounded-lg ${streakVisual.containerClass}`}
+          title={streakVisual.title}
+        >
+          <StreakIcon className={`size-5 ${streakVisual.iconClass}`} />
         </div>
         <div className="min-w-0">
           <div className="flex items-baseline gap-2">
@@ -985,9 +987,6 @@ function StudyStreakWidget({
               {streakLabel}
             </span>
           </div>
-          <p className="mt-1 truncate text-xs font-medium text-[#9aa8ba]">
-            {stats.message}
-          </p>
         </div>
       </div>
 
@@ -1018,6 +1017,38 @@ function StudyStreakWidget({
       </div>
     </section>
   );
+}
+
+function getStreakVisual(count: number): {
+  containerClass: string;
+  icon: IconType;
+  iconClass: string;
+  title: string;
+} {
+  if (count >= 7) {
+    return {
+      containerClass: "bg-[#2d2110] text-[#ffb45f]",
+      icon: Flame,
+      iconClass: "fill-[#ff7a38]/40",
+      title: "Сильна серія",
+    };
+  }
+
+  if (count > 0) {
+    return {
+      containerClass: "bg-[#123129] text-[#52e0c4]",
+      icon: Sparkles,
+      iconClass: "",
+      title: "Серія активна",
+    };
+  }
+
+  return {
+    containerClass: "bg-[#172232] text-[#9fb0c5]",
+    icon: Target,
+    iconClass: "",
+    title: "Серія ще не почалась",
+  };
 }
 
 function MobileTopBar({
