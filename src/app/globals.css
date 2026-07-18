@@ -39,3 +39,25 @@ textarea {
 .scrollbar-hidden::-webkit-scrollbar {
   display: none;
 }
+
+.scrollbar-soft {
+  scrollbar-color: #314055 transparent;
+  scrollbar-width: thin;
+}
+
+.scrollbar-soft::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollbar-soft::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-soft::-webkit-scrollbar-thumb {
+  background: #314055;
+  border-radius: 999px;
+}
+
+.scrollbar-soft::-webkit-scrollbar-thumb:hover {
+  background: #2dd4bf;
+}

@@ -3851,10 +3851,10 @@ function AnalyticsWorkspace({
   state: MemoraState;
   summary: QueueSummary;
 }) {
-  const recentLogs = state.reviewLogs.slice(-6).reverse();
+  const recentLogs = state.reviewLogs.slice(-100).reverse();
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
+    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px] xl:items-start">
       <ProgressOverviewPanel state={state} summary={summary} />
       <RecentReviewsPanel logs={recentLogs} state={state} />
       <WeakCardsPanel state={state} />
@@ -4090,9 +4090,10 @@ function ProgressOverviewPanel({
   const last7Logs = reviewsInLastDays(state.reviewLogs, 7);
   const last30Logs = reviewsInLastDays(state.reviewLogs, 30);
   const last30Accuracy = reviewAccuracy(last30Logs);
+  const activeCards = state.cards.filter((card) => card.status === "active");
 
   return (
-    <ShellPanel className="p-4 md:p-5">
+    <ShellPanel className="p-4 md:p-5 xl:min-h-[314px]">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold">Навчальна динаміка</h2>
@@ -4103,14 +4104,15 @@ function ProgressOverviewPanel({
       <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <MiniStat label="За 7 днів" value={last7Logs.length.toString()} />
         <MiniStat label="За 30 днів" value={last30Logs.length.toString()} />
+        <MiniStat label="Усього" value={state.reviewLogs.length.toString()} />
         <MiniStat label="Якість" value={formatPercent(last30Accuracy)} />
-        <MiniStat label="У черзі" value={summary.totalDue.toString()} />
       </div>
 
-      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <MiniStat label="У черзі" value={summary.totalDue.toString()} />
+        <MiniStat label="Активних карток" value={activeCards.length.toString()} />
         <MiniStat label="Невдалих спроб" value={summary.lapses.toString()} />
-        <MiniStat label="Проблемних карток" value={summary.leeches.toString()} />
-        <MiniStat label="Добре закріплені" value={summary.matureCards.toString()} />
+        <MiniStat label="Закріплені" value={summary.matureCards.toString()} />
       </div>
     </ShellPanel>
   );
@@ -4124,7 +4126,7 @@ function RecentReviewsPanel({
   state: MemoraState;
 }) {
   return (
-    <ShellPanel className="p-4 md:p-5">
+    <ShellPanel className="flex flex-col p-4 md:p-5 xl:h-[314px]">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold">Останні повторення</h2>
@@ -4132,7 +4134,10 @@ function RecentReviewsPanel({
         <Activity className="size-5 text-[#2dd4bf]" />
       </div>
 
-      <div className="mt-4 space-y-3">
+      <div
+        aria-label="Історія останніх повторень"
+        className="scrollbar-soft mt-4 min-h-0 space-y-3 overflow-y-auto pr-1 xl:flex-1"
+      >
         {logs.length === 0 ? (
           <div className="rounded-lg border border-[#263140] bg-[#151d28] p-5">
             <EmptyState
@@ -4186,7 +4191,10 @@ function WeakCardsPanel({ state }: { state: MemoraState }) {
         <AlertCircle className="size-5 text-[#ef6351]" />
       </div>
 
-      <div className="mt-4 space-y-3">
+      <div
+        aria-label="Список слабких карток"
+        className="scrollbar-soft mt-4 max-h-80 space-y-3 overflow-y-auto pr-1"
+      >
         {weakCards.length === 0 ? (
           <div className="rounded-lg border border-[#263140] bg-[#151d28] p-5">
             <EmptyState
@@ -4227,6 +4235,11 @@ function MaterialProgressPanel({ state }: { state: MemoraState }) {
   const activeCards = state.cards.filter((card) => card.status === "active");
   const englishCards = activeCards.filter((card) => card.module === "english");
   const qaCards = activeCards.filter((card) => card.module === "qa");
+  const sourceCounts = {
+    imported: state.notes.filter((note) => note.source === "imported").length,
+    seed: state.notes.filter((note) => note.source === "seed").length,
+    user: state.notes.filter((note) => note.source === "user").length,
+  };
 
   return (
     <ShellPanel className="p-4 md:p-5">
@@ -4256,30 +4269,10 @@ function MaterialProgressPanel({ state }: { state: MemoraState }) {
         />
       </div>
 
-      <div className="mt-4 divide-y divide-[#263140]">
-        {state.notes.length === 0 ? (
-          <div className="py-4">
-            <EmptyState
-              icon={BookOpenCheck}
-              title="Матеріалів ще немає"
-              description="Додай перший матеріал."
-            />
-          </div>
-        ) : (
-          state.notes.slice(-4).map((note) => (
-            <div key={note.id} className="flex items-center justify-between gap-3 py-3">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium">{note.title}</p>
-                <p className="text-xs text-[#9aa8ba]">
-                  {labelSource(note.source)} / {labelStatus(note.status)}
-                </p>
-              </div>
-              <Badge tone={note.module === "english" ? "green" : "violet"}>
-                {note.module === "english" ? "Англ." : "QA"}
-              </Badge>
-            </div>
-          ))
-        )}
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <MiniStat label="Приклади Memora" value={sourceCounts.seed.toString()} />
+        <MiniStat label="Додані вручну" value={sourceCounts.user.toString()} />
+        <MiniStat label="Імпорт" value={sourceCounts.imported.toString()} />
       </div>
     </ShellPanel>
   );
@@ -4314,7 +4307,7 @@ function getWeakCards(state: MemoraState) {
         right.schedule.lapses - left.schedule.lapses ||
         right.schedule.reps - left.schedule.reps,
     )
-    .slice(0, 5);
+    .slice(0, 30);
 }
 
 function labelReviewRating(rating: ReviewRating) {
