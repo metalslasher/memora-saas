@@ -353,9 +353,7 @@ export function MemoraApp() {
     [contentModule, state],
   );
   const selectedNote =
-    contentNotes.find((note) => note.id === selectedNoteId) ??
-    contentNotes.at(0) ??
-    null;
+    contentNotes.find((note) => note.id === selectedNoteId) ?? null;
   const currentViewLabel =
     navigationItems.find((item) => item.view === activeView)?.label ?? "Memora";
 
@@ -1783,7 +1781,7 @@ function ContentManager({
     noteId: string,
     content: NoteContentDraft,
   ) => Promise<void>;
-  onNoteSelect: (noteId: string) => void;
+  onNoteSelect: (noteId: string | null) => void;
   onNoteStatusChange: (noteId: string, status: ItemStatus) => void;
 }) {
   const [query, setQuery] = useState("");
@@ -1799,38 +1797,13 @@ function ContentManager({
   const activeCards = cards.filter(
     (card) => card.module === moduleType && card.status === "active",
   );
+  const suspendedCards = cards.filter(
+    (card) => card.module === moduleType && card.status === "suspended",
+  );
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
-      <ShellPanel className="p-4">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold">Матеріали</h2>
-          <span className="font-mono text-sm text-[#9aa8ba]">{notes.length}</span>
-        </div>
-
-        <label className="mt-4 flex h-11 items-center gap-2 rounded-lg border border-[#263140] bg-[#0b111a] px-3 text-sm text-[#c7d0dd]">
-          <Search className="size-4 text-[#6f7d90]" />
-          <input
-            className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-[#6f7d90]"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Пошук"
-          />
-        </label>
-
-        <div className="mt-4 grid grid-cols-2 gap-2">
-          <MiniStat label="Активні" value={activeCards.length.toString()} />
-          <MiniStat
-            label="Пауза"
-            value={cards
-              .filter(
-                (card) =>
-                  card.module === moduleType && card.status === "suspended",
-              )
-              .length.toString()}
-          />
-        </div>
-
+    <div className="space-y-4 md:space-y-5">
+      <div className="grid gap-4 xl:grid-cols-[minmax(340px,0.95fr)_minmax(360px,1.05fr)]">
         <NewMaterialPanel
           isBusy={isBusy}
           moduleType={moduleType}
@@ -1847,69 +1820,174 @@ function ContentManager({
           notes={notes}
           onImport={onImport}
         />
+      </div>
 
-        <div className="mt-4 max-h-[620px] space-y-2 overflow-y-auto pr-1">
-          {filteredNotes.length === 0 ? (
-            <div className="rounded-lg border border-[#263140] bg-[#151d28] p-5">
-              <EmptyState
-                icon={FileText}
-                title={notes.length === 0 ? "Матеріалів ще немає" : "Нічого не знайдено"}
-                description={
-                  notes.length === 0
-                    ? "Додай перший матеріал."
-                    : "Зміни пошук або очисти поле."
-                }
-              />
+      <ShellPanel className="p-4">
+        <div className="grid gap-3 lg:grid-cols-[minmax(260px,1fr)_auto] lg:items-end">
+          <div>
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-lg font-semibold">Матеріали</h2>
+              <span className="font-mono text-sm text-[#9aa8ba]">
+                {filteredNotes.length} / {notes.length}
+              </span>
             </div>
-          ) : (
-            filteredNotes.map((note) => {
-              const noteCards = cards.filter((card) => card.noteId === note.id);
-              const isSelected = note.id === selectedNote?.id;
 
-              return (
-                <button
-                  key={note.id}
-                  className={`w-full rounded-lg border p-3 text-left transition ${
-                    isSelected
-                      ? "border-[#2dd4bf] bg-[#14352f]"
-                      : "border-[#263140] bg-[#0d131c] hover:bg-[#151d28]"
-                  }`}
-                  onClick={() => onNoteSelect(note.id)}
-                  type="button"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold">
-                        {note.title}
-                      </p>
-                      <p className="mt-1 text-xs text-[#9aa8ba]">
-                        {labelSource(note.source)} / {labelStatus(note.status)}
-                      </p>
-                    </div>
-                    <span className="font-mono text-sm text-[#c7d0dd]">
-                      {noteCards.length}
-                    </span>
-                  </div>
-                </button>
-              );
-            })
-          )}
+            <label className="mt-3 flex h-11 items-center gap-2 rounded-lg border border-[#263140] bg-[#0b111a] px-3 text-sm text-[#c7d0dd]">
+              <Search className="size-4 text-[#6f7d90]" />
+              <input
+                className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-[#6f7d90]"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Пошук"
+              />
+            </label>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:min-w-[360px]">
+            <MiniStat label="Активні" value={activeCards.length.toString()} />
+            <MiniStat label="Пауза" value={suspendedCards.length.toString()} />
+            <MiniStat
+              label="Усього"
+              value={notes.length.toString()}
+              className="col-span-2 sm:col-span-1"
+            />
+          </div>
         </div>
       </ShellPanel>
 
-      <NoteDetailPanel
-        cards={selectedCards}
-        isBusy={isBusy}
-        moduleType={moduleType}
-        note={selectedNote}
-        onCardStatusChange={onCardStatusChange}
-        onNoteContentChange={onNoteContentChange}
-        onNoteStatusChange={onNoteStatusChange}
-      />
+      {filteredNotes.length === 0 ? (
+        <ShellPanel className="p-6">
+          <EmptyState
+            icon={FileText}
+            title={notes.length === 0 ? "Матеріалів ще немає" : "Нічого не знайдено"}
+            description={
+              notes.length === 0
+                ? "Додай перший матеріал вручну або через CSV."
+                : "Зміни пошук або очисти поле."
+            }
+          />
+        </ShellPanel>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
+          {filteredNotes.map((note) => {
+            const noteCards = cards.filter((card) => card.noteId === note.id);
+            const activeNoteCards = noteCards.filter(
+              (card) => card.status === "active",
+            );
+
+            return (
+              <NoteTile
+                key={note.id}
+                activeCardCount={activeNoteCards.length}
+                cardCount={noteCards.length}
+                isSelected={note.id === selectedNote?.id}
+                note={note}
+                onClick={() => onNoteSelect(note.id)}
+              />
+            );
+          })}
+        </div>
+      )}
+
+      {selectedNote ? (
+        <NoteDetailModal onClose={() => onNoteSelect(null)}>
+          <NoteDetailPanel
+            cards={selectedCards}
+            isBusy={isBusy}
+            moduleType={moduleType}
+            note={selectedNote}
+            onCardStatusChange={onCardStatusChange}
+            onNoteContentChange={onNoteContentChange}
+            onNoteStatusChange={onNoteStatusChange}
+          />
+        </NoteDetailModal>
+      ) : null}
     </div>
   );
 }
 
+function NoteTile({
+  activeCardCount,
+  cardCount,
+  isSelected,
+  note,
+  onClick,
+}: {
+  activeCardCount: number;
+  cardCount: number;
+  isSelected: boolean;
+  note: Note;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      className={`rounded-lg border p-4 text-left transition ${
+        isSelected
+          ? "border-[#2dd4bf] bg-[#14352f]"
+          : "border-[#263140] bg-[#10161f] hover:border-[#344052] hover:bg-[#151d28]"
+      }`}
+      onClick={onClick}
+      type="button"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-base font-semibold text-[#eef4ff]">
+            {note.title}
+          </p>
+          <p className="mt-1 text-xs text-[#9aa8ba]">
+            {labelSource(note.source)}
+          </p>
+        </div>
+        <span className="font-mono text-sm text-[#c7d0dd]">{cardCount}</span>
+      </div>
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <Badge tone={note.status === "active" ? "green" : "neutral"}>
+          {labelStatus(note.status)}
+        </Badge>
+        <Badge tone="neutral">активних карток: {activeCardCount}</Badge>
+      </div>
+    </button>
+  );
+}
+
+function NoteDetailModal({
+  children,
+  onClose,
+}: {
+  children: React.ReactNode;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      aria-modal="true"
+      aria-label="Деталі матеріалу"
+      className="fixed inset-0 z-50 flex items-stretch justify-center bg-[#02050a]/78 p-0 backdrop-blur-md sm:p-4 lg:p-6"
+      role="dialog"
+    >
+      <button
+        aria-label="Закрити"
+        className="absolute inset-0 cursor-default"
+        onClick={onClose}
+        type="button"
+      />
+      <div className="relative flex w-full max-w-6xl flex-col overflow-hidden bg-[#10161f] sm:rounded-lg sm:border sm:border-[#263140] sm:shadow-[0_28px_90px_rgba(0,0,0,0.48)]">
+        <div className="flex shrink-0 items-center justify-end border-b border-[#263140] bg-[#10161f] px-3 py-3 sm:px-4">
+          <button
+            aria-label="Закрити"
+            className="grid size-10 place-items-center rounded-lg border border-[#263140] text-[#c7d0dd] transition hover:border-[#2dd4bf] hover:text-[#52e0c4]"
+            onClick={onClose}
+            type="button"
+          >
+            <X className="size-5" />
+          </button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-4">
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
 function NewMaterialPanel({
   isBusy,
   moduleType,
@@ -1923,7 +2001,7 @@ function NewMaterialPanel({
   notes: Note[];
   onAddEnglish: (draft: EnglishDraft) => Promise<void>;
   onAddQa: (draft: QaDraft) => Promise<void>;
-  onNoteSelect: (noteId: string) => void;
+  onNoteSelect: (noteId: string | null) => void;
 }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [allowDuplicate, setAllowDuplicate] = useState(false);
@@ -2001,7 +2079,7 @@ function NewMaterialPanel({
   return (
     <section
       aria-label="Новий матеріал"
-      className="mt-4 rounded-lg border border-[#263140] bg-[#0d131c] p-3"
+      className="rounded-lg border border-[#263140] bg-[#0d131c] p-4"
     >
       <div className="flex items-center justify-between gap-3">
         <h3 className="text-sm font-semibold text-[#eef4ff]">Новий матеріал</h3>
@@ -2255,7 +2333,7 @@ function CsvImportPanel({
   }
 
   return (
-    <div className="mt-4 rounded-lg border border-[#263140] bg-[#0d131c] p-3">
+    <div className="rounded-lg border border-[#263140] bg-[#0d131c] p-4">
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-sm font-medium text-[#c7d0dd]">CSV</p>
@@ -2493,7 +2571,7 @@ function NoteDetailPanel({
   }
 
   return (
-    <ShellPanel className="p-4 md:p-5">
+    <div className="rounded-lg border border-[#263140] bg-[#10161f] p-4 md:p-5">
       <div className="flex flex-col gap-4 border-b border-[#263140] pb-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <h2 className="truncate text-2xl font-semibold">{note.title}</h2>
@@ -2548,7 +2626,7 @@ function NoteDetailPanel({
           </div>
         </div>
       </div>
-    </ShellPanel>
+    </div>
   );
 }
 
@@ -2603,13 +2681,13 @@ function NoteEditForm({
 
   return (
     <div className="rounded-lg border border-[#263140] bg-[#0d131c] p-4">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h3 className="text-lg font-semibold">Зміст</h3>
         </div>
-        <div className="flex flex-wrap justify-end gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
           <button
-            className="inline-flex items-center gap-2 rounded-lg border border-[#263140] px-3 py-2 text-sm font-medium text-[#c7d0dd] transition hover:border-[#2dd4bf] hover:text-[#52e0c4]"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[#263140] px-3 py-2 text-sm font-medium text-[#c7d0dd] transition hover:border-[#2dd4bf] hover:text-[#52e0c4] sm:w-auto"
             disabled={isBusy || isSaving}
             onClick={quickFixDraft}
             type="button"
@@ -2618,7 +2696,7 @@ function NoteEditForm({
             Очистити
           </button>
           <button
-            className="inline-flex items-center gap-2 rounded-lg bg-[#2dd4bf] px-3 py-2 text-sm font-semibold text-[#071018] transition hover:bg-[#5eead4] disabled:cursor-not-allowed disabled:bg-[#344052] disabled:text-[#8d9aab]"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#2dd4bf] px-3 py-2 text-sm font-semibold text-[#071018] transition hover:bg-[#5eead4] disabled:cursor-not-allowed disabled:bg-[#344052] disabled:text-[#8d9aab] sm:w-auto"
             disabled={!canSave || !hasChanges || isBusy || isSaving}
             onClick={() => void save()}
             type="button"
@@ -2784,7 +2862,11 @@ function StatusControls({
   ];
 
   return (
-    <div className={`flex flex-wrap gap-2 ${compact ? "lg:justify-end" : ""}`}>
+    <div
+      className={`grid w-full grid-cols-3 gap-2 ${
+        compact ? "lg:w-auto" : "sm:w-auto"
+      }`}
+    >
       {controls.map((control) => {
         const Icon = control.icon;
         const isActive = status === control.status;
@@ -2792,7 +2874,7 @@ function StatusControls({
         return (
           <button
             key={control.status}
-            className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-55 ${
+            className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-55 ${
               isActive
                 ? "border-[#2dd4bf] bg-[#14352f] text-[#52e0c4]"
                 : "border-[#263140] text-[#9aa8ba] hover:bg-[#151d28]"
@@ -4326,9 +4408,17 @@ function DeckStat({
   );
 }
 
-function MiniStat({ label, value }: { label: string; value: string }) {
+function MiniStat({
+  className = "",
+  label,
+  value,
+}: {
+  className?: string;
+  label: string;
+  value: string;
+}) {
   return (
-    <div className="rounded-lg border border-[#263140] bg-[#0d131c] p-3">
+    <div className={`rounded-lg border border-[#263140] bg-[#0d131c] p-3 ${className}`}>
       <p className="text-xl font-semibold">{value}</p>
       <p className="mt-1 text-xs text-[#9aa8ba]">{label}</p>
     </div>

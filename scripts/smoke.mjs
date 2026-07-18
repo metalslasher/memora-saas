@@ -137,8 +137,9 @@ async function assertAddAndEditEnglishNote(page) {
 
   await page.getByPlaceholder("Пошук").fill(phrase);
   await page.locator("button").filter({ hasText: phrase }).click();
-  await page.getByLabel("Значення").fill(updatedTranslation);
-  await page.getByRole("button", { name: "Зберегти" }).click();
+  const details = page.getByRole("dialog", { name: "Деталі матеріалу" });
+  await details.getByLabel("Значення").fill(updatedTranslation);
+  await details.getByRole("button", { name: "Зберегти" }).click();
   await expect(page.getByText("Матеріал збережено.")).toBeVisible({
     timeout: 20000,
   });
