@@ -1496,41 +1496,81 @@ function StudyPanel({
         </h2>
       </div>
 
-      <label className="mt-7 block">
-        <span className="text-sm font-medium text-[#9aa8ba]">Відповідь</span>
-        <textarea
-          className="mt-2 min-h-32 w-full resize-none rounded-lg border border-[#263140] bg-[#0b111a] p-4 text-base text-[#eef4ff] outline-none transition placeholder:text-[#6f7d90] focus:border-[#2dd4bf] focus:ring-4 focus:ring-[#2dd4bf]/20"
-          value={responseText}
-          onChange={(event) => onResponseChange(event.target.value)}
-          placeholder="Напиши з пам'яті."
-        />
-      </label>
-
       {!isRevealed ? (
-        <div className="mt-4 grid gap-3 sm:flex sm:flex-wrap sm:items-center">
-          <button
-            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#2dd4bf] px-4 py-3 text-sm font-semibold text-[#071018] transition hover:bg-[#5eead4] disabled:cursor-not-allowed disabled:bg-[#344052] disabled:text-[#8d9aab] sm:w-auto"
-            disabled={revealDisabled || isBusy}
-            onClick={onReveal}
-          >
-            Перевірити відповідь
-            <ChevronRight className="size-4" />
-          </button>
-          <button
-            className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[#263140] px-4 py-3 text-sm font-medium text-[#c7d0dd] transition hover:border-[#ef6351] hover:text-[#ff8d7f] sm:w-auto"
-            title="Призупинити цю картку"
-            disabled={isBusy}
-            onClick={() => onSuspend(card.id)}
-          >
-            <Archive className="size-4" />
-            Поставити на паузу
-          </button>
+        <div>
+          <label className="mt-7 block">
+            <span className="text-sm font-medium text-[#9aa8ba]">Відповідь</span>
+            <textarea
+              className="mt-2 min-h-32 w-full resize-none rounded-lg border border-[#263140] bg-[#0b111a] p-4 text-base text-[#eef4ff] outline-none transition placeholder:text-[#6f7d90] focus:border-[#2dd4bf] focus:ring-4 focus:ring-[#2dd4bf]/20"
+              value={responseText}
+              onChange={(event) => onResponseChange(event.target.value)}
+              placeholder="Напиши з пам'яті."
+            />
+          </label>
+
+          <div className="mt-4 grid gap-3 sm:flex sm:flex-wrap sm:items-center">
+            <button
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#2dd4bf] px-4 py-3 text-sm font-semibold text-[#071018] transition hover:bg-[#5eead4] disabled:cursor-not-allowed disabled:bg-[#344052] disabled:text-[#8d9aab] sm:w-auto"
+              disabled={revealDisabled || isBusy}
+              onClick={onReveal}
+            >
+              Перевірити відповідь
+              <ChevronRight className="size-4" />
+            </button>
+            <button
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[#263140] px-4 py-3 text-sm font-medium text-[#c7d0dd] transition hover:border-[#ef6351] hover:text-[#ff8d7f] sm:w-auto"
+              title="Призупинити цю картку"
+              disabled={isBusy}
+              onClick={() => onSuspend(card.id)}
+            >
+              <Archive className="size-4" />
+              Поставити на паузу
+            </button>
+          </div>
         </div>
       ) : (
-        <div className="mt-5 space-y-4">
-          <div className="rounded-lg border border-[#263140] bg-[#151d28] p-4">
-            <p className="text-sm font-medium text-[#9aa8ba]">Відповідь</p>
+        <div className="mt-6 space-y-3">
+          <div className="rounded-lg border border-[#2dd4bf]/35 bg-[#10211f] p-3 sm:p-4">
+            <p className="text-sm font-medium text-[#9aa8ba]">
+              Правильна відповідь
+            </p>
             <p className="mt-2 text-xl font-semibold">{card.answer}</p>
+
+            <div
+              className={`mt-4 grid gap-2 sm:flex sm:flex-wrap sm:gap-3 ${
+                reviewButtons === "advanced" ? "grid-cols-4" : "grid-cols-2"
+              }`}
+            >
+              <GradeButton
+                tone="red"
+                label="Знову"
+                disabled={isBusy}
+                onClick={() => onReview("again")}
+              />
+              {reviewButtons === "advanced" ? (
+                <GradeButton
+                  tone="amber"
+                  label="Важко"
+                  disabled={isBusy}
+                  onClick={() => onReview("hard")}
+                />
+              ) : null}
+              <GradeButton
+                tone="green"
+                label="Добре"
+                disabled={isBusy}
+                onClick={() => onReview("good")}
+              />
+              {reviewButtons === "advanced" ? (
+                <GradeButton
+                  tone="dark"
+                  label="Легко"
+                  disabled={isBusy}
+                  onClick={() => onReview("easy")}
+                />
+              ) : null}
+            </div>
+
             <p className="mt-3 text-sm leading-6 text-[#c7d0dd]">
               {card.explanation}
             </p>
@@ -1540,36 +1580,17 @@ function StudyPanel({
               </p>
             ) : null}
           </div>
-          <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
-            <GradeButton
-              tone="red"
-              label="Знову"
-              disabled={isBusy}
-              onClick={() => onReview("again")}
-            />
-            {reviewButtons === "advanced" ? (
-              <GradeButton
-                tone="amber"
-                label="Важко"
-                disabled={isBusy}
-                onClick={() => onReview("hard")}
-              />
-            ) : null}
-            <GradeButton
-              tone="green"
-              label="Добре"
-              disabled={isBusy}
-              onClick={() => onReview("good")}
-            />
-            {reviewButtons === "advanced" ? (
-              <GradeButton
-                tone="dark"
-                label="Легко"
-                disabled={isBusy}
-                onClick={() => onReview("easy")}
-              />
-            ) : null}
-          </div>
+
+          {responseText.trim() ? (
+            <div className="rounded-lg border border-[#263140] bg-[#0b111a] p-3">
+              <p className="text-xs font-medium uppercase tracking-[0.12em] text-[#6f7d90]">
+                Ти написав
+              </p>
+              <p className="mt-1 text-sm leading-6 text-[#c7d0dd]">
+                {responseText}
+              </p>
+            </div>
+          ) : null}
         </div>
       )}
     </ShellPanel>
@@ -1629,7 +1650,7 @@ function GradeButton({
 
   return (
     <button
-      className={`inline-flex w-full min-w-24 items-center justify-center rounded-lg px-4 py-3 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-55 sm:w-auto ${classes[tone]}`}
+      className={`inline-flex w-full min-w-0 items-center justify-center rounded-lg px-2 py-3 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-55 sm:w-auto sm:min-w-24 sm:px-4 ${classes[tone]}`}
       disabled={disabled}
       onClick={onClick}
     >
