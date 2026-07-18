@@ -104,7 +104,7 @@ async function assertHelpAndAccount(page) {
   await page.getByRole("button", { name: "Як користуватись", exact: true }).click();
   await expect(page.getByText("Зміст", { exact: true })).toBeVisible();
   await expect(page.locator("#help-core").getByText("Суть і алгоритм", { exact: true })).toBeVisible();
-  await expect(page.locator("#help-profile").getByText("Профіль і налаштування", { exact: true })).toBeVisible();
+  await expect(page.locator("#help-profile").getByText("Профіль і дані", { exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "Профіль", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Профіль", exact: true })).toBeVisible();

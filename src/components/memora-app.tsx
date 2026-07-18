@@ -2843,12 +2843,20 @@ function StatusControls({
 }
 
 function HelpWorkspace() {
-  const tocItems: Array<{
-    href: string;
+  type HelpInfoItem = {
     icon: IconType;
     title: string;
     text: string;
-  }> = [
+  };
+  type HelpTextItem = {
+    title: string;
+    text: string;
+  };
+  type HelpTocItem = HelpInfoItem & {
+    href: string;
+  };
+
+  const tocItems: HelpTocItem[] = [
     {
       href: "#help-core",
       icon: Brain,
@@ -2877,7 +2885,7 @@ function HelpWorkspace() {
       href: "#help-progress",
       icon: BarChart3,
       title: "Прогрес",
-      text: "метрики, слабкі місця, резервні копії",
+      text: "динаміка, історія, слабкі картки",
     },
     {
       href: "#help-profile",
@@ -2893,7 +2901,7 @@ function HelpWorkspace() {
     },
   ];
 
-  const corePrinciples = [
+  const corePrinciples: HelpInfoItem[] = [
     {
       icon: Brain,
       title: "Активне пригадування",
@@ -2916,7 +2924,7 @@ function HelpWorkspace() {
     },
   ];
 
-  const practiceSteps = [
+  const practiceSteps: HelpTextItem[] = [
     {
       title: "Відкрий практику",
       text: "Це головний робочий екран. Тут зібрані картки, які потрібно пройти зараз.",
@@ -2938,8 +2946,9 @@ function HelpWorkspace() {
       text: "Якщо зустрів слово або QA-термін, додай його вручну або через CSV. Не перетворюй Memora на склад «колись вивчу».",
     },
   ];
+  const practiceStepIcons = [Target, Brain, BookOpenCheck, Gauge, Plus];
 
-  const practiceMetrics = [
+  const practiceMetrics: HelpInfoItem[] = [
     {
       icon: ListChecks,
       title: "Повторити",
@@ -2967,7 +2976,7 @@ function HelpWorkspace() {
     },
   ];
 
-  const modeItems = [
+  const modeItems: HelpTextItem[] = [
     {
       title: "Усе",
       text: "Змішана черга: англійська і QA разом. Добре підходить для звичайної щоденної практики.",
@@ -2982,7 +2991,7 @@ function HelpWorkspace() {
     },
   ];
 
-  const sectionItems = [
+  const sectionItems: HelpInfoItem[] = [
     {
       icon: Target,
       title: "Практика",
@@ -3001,12 +3010,12 @@ function HelpWorkspace() {
     {
       icon: BarChart3,
       title: "Прогрес",
-      text: "Огляд повторень, слабких місць, матеріалів і резервних копій. Сюди варто заходити не щохвилини, а періодично.",
+      text: "Огляд повторень, слабких місць і стану матеріалів. Сюди варто заходити періодично, а не після кожної картки.",
     },
     {
       icon: UserCircle,
       title: "Профіль",
-      text: "Особисті налаштування: мова, часовий пояс, рівень англійської, навчальна ціль, пароль і параметри навчання.",
+      text: "Рівень англійської, навчальна ціль, ліміт нових карток, режим оцінювання, пароль і резервні копії.",
     },
     {
       icon: FileText,
@@ -3015,7 +3024,7 @@ function HelpWorkspace() {
     },
   ];
 
-  const materialItems = [
+  const materialItems: HelpInfoItem[] = [
     {
       icon: Languages,
       title: "Англійський матеріал",
@@ -3038,7 +3047,7 @@ function HelpWorkspace() {
     },
   ];
 
-  const statusItems = [
+  const statusItems: HelpTextItem[] = [
     {
       title: "В навчанні",
       text: "Матеріал або картка активні й можуть потрапляти в чергу практики.",
@@ -3076,7 +3085,30 @@ function HelpWorkspace() {
     },
   ];
 
-  const profileSettings = [
+  const progressItems: HelpInfoItem[] = [
+    {
+      icon: Activity,
+      title: "Останні повторення",
+      text: "Список останніх оцінених карток. Він прокручується всередині блоку, тому не розтягує сторінку.",
+    },
+    {
+      icon: AlertCircle,
+      title: "Слабкі картки",
+      text: "Картки, які часто повертаються після помилок. Якщо вони повторюються, краще відредагувати формулювання.",
+    },
+    {
+      icon: BookOpenCheck,
+      title: "Матеріали",
+      text: "Показує кількість матеріалів і карток у навчанні, на паузі, в архіві та за джерелом додавання.",
+    },
+    {
+      icon: Gauge,
+      title: "Якість",
+      text: "Орієнтир за останніми повтореннями. Якщо якість падає, не поспішай додавати багато нових карток.",
+    },
+  ];
+
+  const profileSettings: HelpInfoItem[] = [
     {
       icon: Gauge,
       title: "Рівень англійської",
@@ -3100,7 +3132,7 @@ function HelpWorkspace() {
     {
       icon: Download,
       title: "Дані",
-      text: "Тут можна завантажити резервну копію або повернути базу з JSON-файлу, якщо потрібно відновити матеріали.",
+      text: "Повна JSON-копія, CSV-експорт і відновлення з preview. Це захист твоєї особистої бази знань.",
     },
     {
       icon: KeyRound,
@@ -3110,286 +3142,246 @@ function HelpWorkspace() {
   ];
 
   return (
-    <div className="space-y-5">
-      <ShellPanel className="p-4 md:p-5">
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,0.9fr)_minmax(360px,0.7fr)]">
-          <div>
+    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="space-y-5">
+        <ShellPanel className="p-4 md:p-5">
+          <div className="max-w-4xl">
             <p className="text-sm font-medium text-[#52e0c4]">Довідка</p>
-            <h2 className="mt-2 max-w-3xl text-2xl font-semibold leading-tight md:text-3xl">
-              Як працює Memora і як користуватись сервісом без зайвого шуму.
+            <h2 className="mt-2 text-2xl font-semibold leading-tight md:text-3xl">
+              Як Memora працює і як нею користуватись.
             </h2>
-            <p className="mt-4 max-w-3xl text-sm leading-7 text-[#9aa8ba]">
-              Memora зберігає твої англійські слова й QA-терміни, перетворює їх
-              на картки для активного пригадування і сама планує повторення.
-              Головна ідея проста: спочатку згадати самому, потім перевірити,
-              чесно оцінити відповідь і повернутися до картки тоді, коли це дасть
-              найбільше користі.
+            <p className="mt-4 text-sm leading-7 text-[#9aa8ba]">
+              Memora перетворює англійські слова й QA-терміни на картки для
+              активного пригадування. Ти спочатку відповідаєш з пам&apos;яті,
+              потім перевіряєш себе, ставиш чесну оцінку, а сервіс планує
+              наступне повторення.
             </p>
-            <div className="mt-5 grid gap-3 sm:grid-cols-3">
-              <MiniStat label="Головна дія" value="згадати" />
-              <MiniStat label="Основа" value="FSRS" />
-              <MiniStat label="Мова пояснень" value="укр." />
-            </div>
           </div>
-
-          <div className="rounded-lg border border-[#263140] bg-[#0d131c] p-4">
-            <div className="flex items-center gap-3">
-              <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-[#14352f] text-[#52e0c4]">
-                <FileText className="size-4" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold">Зміст</p>
-                <p className="text-xs text-[#9aa8ba]">Перейди одразу до потрібного блоку.</p>
-              </div>
-            </div>
-            <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
-              {tocItems.map((item) => (
-                <HelpTocLink key={item.href} {...item} />
-              ))}
-            </div>
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            <MiniStat label="Головна дія" value="згадати" />
+            <MiniStat label="Розклад" value="FSRS" />
+            <MiniStat label="Пояснення" value="укр." />
           </div>
-        </div>
-      </ShellPanel>
+        </ShellPanel>
 
-      <HelpSection
-        id="help-core"
-        icon={Brain}
-        kicker="Суть і алгоритм"
-        title="Чому Memora ефективніша за просте перечитування."
-      >
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          {corePrinciples.map((item) => (
-            <HelpCard key={item.title} icon={item.icon} title={item.title}>
-              {item.text}
-            </HelpCard>
-          ))}
-        </div>
-        <div className="mt-4 rounded-lg border border-[#263140] bg-[#0d131c] p-4">
-          <h3 className="font-semibold">Цикл однієї картки</h3>
-          <div className="mt-4 grid gap-3 md:grid-cols-5">
-            {practiceSteps.map((step, index) => (
-              <HelpStep
-                key={step.title}
-                index={index + 1}
-                title={step.title}
-                text={step.text}
-              />
+        <HelpSection
+          id="help-core"
+          icon={Brain}
+          kicker="Суть і алгоритм"
+          title="Чому це ефективніше за перечитування."
+        >
+          <div className="grid gap-3 md:grid-cols-2">
+            {corePrinciples.map((item) => (
+              <HelpCard key={item.title} icon={item.icon} title={item.title}>
+                {item.text}
+              </HelpCard>
             ))}
           </div>
-        </div>
-      </HelpSection>
-
-      <HelpSection
-        id="help-practice"
-        icon={Target}
-        kicker="Практика"
-        title="Головний екран потрібен тільки для навчання тут і зараз."
-      >
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(340px,0.6fr)]">
-          <div className="rounded-lg border border-[#263140] bg-[#0d131c] p-4">
-            <h3 className="font-semibold">Режими черги</h3>
-            <div className="mt-4 grid gap-3 md:grid-cols-3">
-              {modeItems.map((item) => (
-                <HelpMiniBlock key={item.title} title={item.title} text={item.text} />
-              ))}
-            </div>
-          </div>
-          <div className="rounded-lg border border-[#263140] bg-[#0d131c] p-4">
-            <h3 className="font-semibold">Щоденний порядок</h3>
-            <div className="mt-4 space-y-3">
+          <div className="mt-4">
+            <h3 className="font-semibold">Цикл однієї картки</h3>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {practiceSteps.map((step, index) => (
-                <HelpLine
+                <HelpStep
                   key={step.title}
-                  icon={index === 0 ? Target : index === 1 ? Brain : index === 2 ? BookOpenCheck : index === 3 ? Gauge : Plus}
+                  index={index + 1}
                   title={step.title}
                   text={step.text}
                 />
               ))}
             </div>
           </div>
-        </div>
-        <div className="mt-4 rounded-lg border border-[#263140] bg-[#0d131c] p-4">
-          <h3 className="font-semibold">Метрики зверху</h3>
-          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-            {practiceMetrics.map((item) => (
+        </HelpSection>
+
+        <HelpSection
+          id="help-practice"
+          icon={Target}
+          kicker="Практика"
+          title="Головний екран потрібен тільки для навчання тут і зараз."
+        >
+          <div className="grid items-start gap-4 lg:grid-cols-2">
+            <HelpSubsection title="Режими черги">
+              <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+                {modeItems.map((item) => (
+                  <HelpMiniBlock key={item.title} title={item.title} text={item.text} />
+                ))}
+              </div>
+            </HelpSubsection>
+            <HelpSubsection title="Щоденний порядок">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+                {practiceSteps.map((step, index) => (
+                  <HelpLine
+                    key={step.title}
+                    icon={practiceStepIcons[index] ?? Target}
+                    title={step.title}
+                    text={step.text}
+                  />
+                ))}
+              </div>
+            </HelpSubsection>
+          </div>
+          <HelpSubsection className="mt-4" title="Метрики зверху">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {practiceMetrics.map((item) => (
+                <HelpCard key={item.title} icon={item.icon} title={item.title}>
+                  {item.text}
+                </HelpCard>
+              ))}
+            </div>
+          </HelpSubsection>
+        </HelpSection>
+
+        <HelpSection
+          id="help-materials"
+          icon={BookOpenCheck}
+          kicker="Матеріали і картки"
+          title="Матеріал це запис, а картки це вправи, які Memora з нього створює."
+        >
+          <div className="grid gap-3 md:grid-cols-2">
+            {materialItems.map((item) => (
               <HelpCard key={item.title} icon={item.icon} title={item.title}>
                 {item.text}
               </HelpCard>
             ))}
           </div>
-        </div>
-      </HelpSection>
+          <div className="mt-4 grid items-start gap-4 lg:grid-cols-2">
+            <HelpSubsection title="Статуси">
+              <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+                {statusItems.map((item) => (
+                  <HelpMiniBlock key={item.title} title={item.title} text={item.text} />
+                ))}
+              </div>
+            </HelpSubsection>
+            <HelpSubsection title="CSV-імпорт">
+              <div className="space-y-3">
+                <HelpLine
+                  icon={Download}
+                  title="Шаблон"
+                  text="Скачай шаблон CSV у потрібному розділі, щоб колонки збігалися з форматом Memora."
+                />
+                <HelpLine
+                  icon={Upload}
+                  title="Попередній перегляд"
+                  text="Після вибору файлу видно готові рядки, дублікати й помилки. Дані додаються тільки після підтвердження."
+                />
+                <HelpLine
+                  icon={AlertCircle}
+                  title="Дублікати"
+                  text="Схожі записи за замовчуванням пропускаються. Якщо потрібно, можна явно дозволити додавання схожих матеріалів."
+                />
+              </div>
+            </HelpSubsection>
+          </div>
+        </HelpSection>
 
-      <HelpSection
-        id="help-materials"
-        icon={BookOpenCheck}
-        kicker="Матеріали і картки"
-        title="Матеріал це запис, а картки це вправи, які Memora з нього створює."
-      >
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          {materialItems.map((item) => (
-            <HelpCard key={item.title} icon={item.icon} title={item.title}>
-              {item.text}
+        <HelpSection
+          id="help-ratings"
+          icon={Gauge}
+          kicker="Оцінювання"
+          title="Оцінка керує наступною датою повторення."
+        >
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {ratingItems.map((rating) => (
+              <div
+                key={rating.label}
+                className={`rounded-lg border p-4 ${rating.tone}`}
+              >
+                <p className="font-semibold">{rating.label}</p>
+                <p className="mt-2 text-sm leading-6">{rating.text}</p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <HelpCard icon={Check} title="Головне правило">
+              Оцінюй те, що відбулося зараз: наскільки легко відповідь прийшла з
+              пам&apos;яті. Так розклад буде чесним і корисним.
             </HelpCard>
-          ))}
-        </div>
-        <div className="mt-4 grid gap-4 xl:grid-cols-2">
-          <div className="rounded-lg border border-[#263140] bg-[#0d131c] p-4">
-            <h3 className="font-semibold">Статуси</h3>
-            <div className="mt-4 grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
-              {statusItems.map((item) => (
-                <HelpMiniBlock key={item.title} title={item.title} text={item.text} />
-              ))}
-            </div>
-          </div>
-          <div className="rounded-lg border border-[#263140] bg-[#0d131c] p-4">
-            <h3 className="font-semibold">CSV-імпорт</h3>
-            <div className="mt-4 space-y-3">
-              <HelpLine
-                icon={Download}
-                title="Шаблон"
-                text="Скачай шаблон CSV у потрібному розділі, щоб колонки збігалися з форматом Memora."
-              />
-              <HelpLine
-                icon={Upload}
-                title="Попередній перегляд"
-                text="Після вибору файлу видно готові рядки, дублікати й помилки. Дані додаються тільки після підтвердження."
-              />
-              <HelpLine
-                icon={AlertCircle}
-                title="Дублікати"
-                text="Схожі записи за замовчуванням пропускаються. Якщо потрібно, можна явно дозволити додавання схожих матеріалів."
-              />
-            </div>
-          </div>
-        </div>
-      </HelpSection>
-
-      <HelpSection
-        id="help-ratings"
-        icon={Gauge}
-        kicker="Оцінювання"
-        title="Оцінка керує наступною датою повторення."
-      >
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          {ratingItems.map((rating) => (
-            <div
-              key={rating.label}
-              className={`rounded-lg border p-4 ${rating.tone}`}
-            >
-              <p className="font-semibold">{rating.label}</p>
-              <p className="mt-2 text-sm leading-6">{rating.text}</p>
-            </div>
-          ))}
-        </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-2">
-          <HelpCard icon={Check} title="Головне правило">
-            Оцінюй те, що відбулося зараз: наскільки легко відповідь прийшла з
-            пам&apos;яті. Так розклад буде чесним і корисним.
-          </HelpCard>
-          <HelpCard icon={AlertCircle} title="Коли не треба додавати нове">
-            Якщо багато карток отримують «Знову» або «Важко», краще спочатку
-            розібрати старі повторення і відредагувати нечіткі формулювання.
-          </HelpCard>
-        </div>
-      </HelpSection>
-
-      <HelpSection
-        id="help-progress"
-        icon={BarChart3}
-        kicker="Прогрес і дані"
-        title="Прогрес потрібен для контролю якості, а не для постійного самоконтролю."
-      >
-        <div className="grid gap-4 xl:grid-cols-2">
-          <div className="rounded-lg border border-[#263140] bg-[#0d131c] p-4">
-            <h3 className="font-semibold">Що дивитися в прогресі</h3>
-            <div className="mt-4 space-y-3">
-              <HelpLine
-                icon={Activity}
-                title="Історія повторень"
-                text="Показує останні оцінені картки, час відповіді й результат. Це допомагає побачити, що реально повторювалось."
-              />
-              <HelpLine
-                icon={Gauge}
-                title="Слабкі місця"
-                text="Якщо тема або картка часто падає, проблема може бути в знанні або у формулюванні самої картки."
-              />
-              <HelpLine
-                icon={BookOpenCheck}
-                title="Матеріали"
-                text="Огляд кількості англійських і QA-карток, джерел матеріалів та останніх доданих записів."
-              />
-            </div>
-          </div>
-          <div className="rounded-lg border border-[#263140] bg-[#0d131c] p-4">
-            <h3 className="font-semibold">Резервні копії</h3>
-            <div className="mt-4 space-y-3">
-              <HelpLine
-                icon={Download}
-                title="Експорт JSON"
-                text="Повна копія бази: матеріали, картки, розклад, історія повторень і налаштування."
-              />
-              <HelpLine
-                icon={Download}
-                title="CSV-експорт"
-                text="Окремі файли для англійських слів і QA. Зручно для перегляду або переносу списків."
-              />
-              <HelpLine
-                icon={Upload}
-                title="Відновлення"
-                text="Restore працює через preview: спочатку бачиш, що у файлі, потім підтверджуєш заміну поточних даних."
-              />
-            </div>
-          </div>
-        </div>
-      </HelpSection>
-
-      <HelpSection
-        id="help-profile"
-        icon={UserCircle}
-        kicker="Профіль і налаштування"
-        title="Налаштування винесені з практики, щоб головний екран не відволікав."
-      >
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {profileSettings.map((item) => (
-            <HelpCard key={item.title} icon={item.icon} title={item.title}>
-              {item.text}
+            <HelpCard icon={AlertCircle} title="Коли не треба додавати нове">
+              Якщо багато карток отримують «Знову» або «Важко», краще спочатку
+              розібрати старі повторення і відредагувати нечіткі формулювання.
             </HelpCard>
-          ))}
-        </div>
-        <div className="mt-4 rounded-lg border border-[#263140] bg-[#0d131c] p-4">
-          <h3 className="font-semibold">Як зрозуміти, що все йде добре</h3>
-          <div className="mt-4 grid gap-3 md:grid-cols-3">
-            <HelpMiniBlock
-              title="Черга зменшується"
-              text="Після практики кількість карток на сьогодні має падати або ставати нулем."
-            />
-            <HelpMiniBlock
-              title="Помилки зрозумілі"
-              text="Ти бачиш, які теми просідають, і можеш відредагувати погані формулювання."
-            />
-            <HelpMiniBlock
-              title="Нові не витісняють повторення"
-              text="Краще стабільно повторювати старе, ніж щодня додавати багато нового."
-            />
           </div>
-        </div>
-      </HelpSection>
+        </HelpSection>
 
-      <HelpSection
-        id="help-map"
-        icon={FileText}
-        kicker="Карта сервісу"
-        title="Що за що відповідає."
-      >
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {sectionItems.map((item) => (
-            <HelpCard key={item.title} icon={item.icon} title={item.title}>
-              {item.text}
-            </HelpCard>
-          ))}
-        </div>
-      </HelpSection>
+        <HelpSection
+          id="help-progress"
+          icon={BarChart3}
+          kicker="Прогрес"
+          title="Прогрес потрібен для контролю якості, а не для постійного самоконтролю."
+        >
+          <div className="grid gap-3 md:grid-cols-2">
+            {progressItems.map((item) => (
+              <HelpCard key={item.title} icon={item.icon} title={item.title}>
+                {item.text}
+              </HelpCard>
+            ))}
+          </div>
+        </HelpSection>
+
+        <HelpSection
+          id="help-profile"
+          icon={UserCircle}
+          kicker="Профіль і дані"
+          title="Налаштування винесені з практики, щоб головний екран не відволікав."
+        >
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {profileSettings.map((item) => (
+              <HelpCard key={item.title} icon={item.icon} title={item.title}>
+                {item.text}
+              </HelpCard>
+            ))}
+          </div>
+          <HelpSubsection className="mt-4" title="Як зрозуміти, що все йде добре">
+            <div className="grid gap-3 md:grid-cols-3">
+              <HelpMiniBlock
+                title="Черга зменшується"
+                text="Після практики кількість карток на сьогодні має падати або ставати нулем."
+              />
+              <HelpMiniBlock
+                title="Помилки зрозумілі"
+                text="Ти бачиш, які теми просідають, і можеш відредагувати погані формулювання."
+              />
+              <HelpMiniBlock
+                title="Нові не витісняють повторення"
+                text="Краще стабільно повторювати старе, ніж щодня додавати багато нового."
+              />
+            </div>
+          </HelpSubsection>
+        </HelpSection>
+
+        <HelpSection
+          id="help-map"
+          icon={FileText}
+          kicker="Карта сервісу"
+          title="Що за що відповідає."
+        >
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {sectionItems.map((item) => (
+              <HelpCard key={item.title} icon={item.icon} title={item.title}>
+                {item.text}
+              </HelpCard>
+            ))}
+          </div>
+        </HelpSection>
+      </div>
+
+      <aside className="xl:sticky xl:top-4 xl:self-start">
+        <ShellPanel className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-[#14352f] text-[#52e0c4]">
+              <FileText className="size-4" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold">Зміст</p>
+              <p className="text-xs text-[#9aa8ba]">Перейди до потрібного блоку.</p>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
+            {tocItems.map((item) => (
+              <HelpTocLink key={item.href} {...item} />
+            ))}
+          </div>
+        </ShellPanel>
+      </aside>
     </div>
   );
 }
@@ -3470,6 +3462,25 @@ function HelpCard({
         <h3 className="min-w-0 font-semibold leading-6">{title}</h3>
       </div>
       <p className="mt-3 text-sm leading-6 text-[#9aa8ba]">{children}</p>
+    </div>
+  );
+}
+
+function HelpSubsection({
+  children,
+  className = "",
+  title,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  title: string;
+}) {
+  return (
+    <div
+      className={`rounded-lg border border-[#263140] bg-[#0d131c] p-4 ${className}`}
+    >
+      <h3 className="font-semibold">{title}</h3>
+      <div className="mt-4">{children}</div>
     </div>
   );
 }
