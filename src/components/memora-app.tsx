@@ -78,7 +78,6 @@ import {
 import {
   getDueQueue,
   summarizeState,
-  topicStats,
 } from "@/lib/memora/store";
 import {
   buildStreakStats,
@@ -95,6 +94,7 @@ import type {
   ModuleType,
   Note,
   QueueSummary,
+  ReviewLog,
   ReviewRating,
   StudyCard,
   StudyMode,
@@ -867,16 +867,15 @@ export function MemoraApp() {
               onPasswordReset={handlePasswordReset}
               onPasswordUpdate={handlePasswordUpdate}
               onProfileSave={handleProfileSave}
+              onRestoreBackup={handleRestoreBackup}
               onSettingsChange={(settings) => void handleSettingsChange(settings)}
             />
           ) : activeView === "help" ? (
             <HelpWorkspace />
           ) : activeView === "analytics" ? (
             <AnalyticsWorkspace
-              isBusy={isMutating}
               state={state}
               summary={summary}
-              onRestoreBackup={handleRestoreBackup}
             />
           ) : contentModule ? (
             <ContentManager
@@ -3523,6 +3522,7 @@ function AccountWorkspace({
   onPasswordReset,
   onPasswordUpdate,
   onProfileSave,
+  onRestoreBackup,
   onSettingsChange,
 }: {
   isBusy: boolean;
@@ -3533,6 +3533,7 @@ function AccountWorkspace({
   onPasswordReset: (email: string) => Promise<void>;
   onPasswordUpdate: (password: string) => Promise<void>;
   onProfileSave: (draft: UserProfileDraft) => Promise<void>;
+  onRestoreBackup: (backup: BackupDocument) => Promise<void>;
   onSettingsChange: (settings: AppSettings) => void;
 }) {
   const [draft, setDraft] = useState<UserProfileDraft>(() =>
@@ -3721,84 +3722,94 @@ function AccountWorkspace({
         />
       </div>
 
-      <ShellPanel className="p-4 md:p-5">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h2 className="text-lg font-semibold">Безпека</h2>
+      <div className="space-y-5">
+        <ShellPanel className="p-4 md:p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-semibold">Безпека</h2>
+            </div>
+            <ShieldCheck className="size-5 text-[#2dd4bf]" />
           </div>
-          <ShieldCheck className="size-5 text-[#2dd4bf]" />
-        </div>
 
-        {isPasswordRecovery ? (
-          <div className="mt-4 rounded-lg border border-[#256b60] bg-[#102b27] p-3 text-sm leading-6 text-[#8df3dd]">
-            Режим відновлення активний. Введи новий пароль нижче.
+          {isPasswordRecovery ? (
+            <div className="mt-4 rounded-lg border border-[#256b60] bg-[#102b27] p-3 text-sm leading-6 text-[#8df3dd]">
+              Режим відновлення активний. Введи новий пароль нижче.
+            </div>
+          ) : null}
+          {securityError ? (
+            <StatusBanner tone="error" message={securityError} />
+          ) : null}
+
+          <div className="mt-4 rounded-lg border border-[#263140] bg-[#0d131c] p-4">
+            <p className="text-sm font-semibold">Відновлення пароля</p>
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+              <input
+                className="h-11 min-w-0 flex-1 rounded-lg border border-[#263140] bg-[#0b111a] px-3 text-sm text-[#eef4ff] outline-none transition placeholder:text-[#6f7d90] focus:border-[#2dd4bf] focus:ring-4 focus:ring-[#2dd4bf]/20"
+                type="email"
+                value={resetEmail}
+                onChange={(event) => setResetEmail(event.target.value)}
+                placeholder="you@example.com"
+              />
+              <button
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#263140] px-4 py-2 text-sm font-medium text-[#c7d0dd] transition hover:border-[#2dd4bf] hover:text-[#52e0c4] disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={isBusy}
+                onClick={() => void sendPasswordReset()}
+                type="button"
+              >
+                <Mail className="size-4" />
+                Надіслати
+              </button>
+            </div>
           </div>
-        ) : null}
-        {securityError ? (
-          <StatusBanner tone="error" message={securityError} />
-        ) : null}
 
-        <div className="mt-4 rounded-lg border border-[#263140] bg-[#0d131c] p-4">
-          <p className="text-sm font-semibold">Відновлення пароля</p>
-          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-            <input
-              className="h-11 min-w-0 flex-1 rounded-lg border border-[#263140] bg-[#0b111a] px-3 text-sm text-[#eef4ff] outline-none transition placeholder:text-[#6f7d90] focus:border-[#2dd4bf] focus:ring-4 focus:ring-[#2dd4bf]/20"
-              type="email"
-              value={resetEmail}
-              onChange={(event) => setResetEmail(event.target.value)}
-              placeholder="you@example.com"
-            />
+          <form className="mt-4 space-y-4" onSubmit={updatePassword}>
+            <label className="block">
+              <span className="text-sm font-medium text-[#c7d0dd]">
+                Новий пароль
+              </span>
+              <input
+                className="mt-1 h-11 w-full rounded-lg border border-[#263140] bg-[#0b111a] px-3 text-sm text-[#eef4ff] outline-none transition placeholder:text-[#6f7d90] focus:border-[#2dd4bf] focus:ring-4 focus:ring-[#2dd4bf]/20"
+                autoComplete="new-password"
+                minLength={8}
+                type="password"
+                value={newPassword}
+                onChange={(event) => setNewPassword(event.target.value)}
+                placeholder="Мінімум 8 символів"
+              />
+            </label>
+            <label className="block">
+              <span className="text-sm font-medium text-[#c7d0dd]">
+                Повтори пароль
+              </span>
+              <input
+                className="mt-1 h-11 w-full rounded-lg border border-[#263140] bg-[#0b111a] px-3 text-sm text-[#eef4ff] outline-none transition placeholder:text-[#6f7d90] focus:border-[#2dd4bf] focus:ring-4 focus:ring-[#2dd4bf]/20"
+                autoComplete="new-password"
+                minLength={8}
+                type="password"
+                value={confirmPassword}
+                onChange={(event) => setConfirmPassword(event.target.value)}
+                placeholder="Ще раз новий пароль"
+              />
+            </label>
             <button
-              className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#263140] px-4 py-2 text-sm font-medium text-[#c7d0dd] transition hover:border-[#2dd4bf] hover:text-[#52e0c4] disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={isBusy}
-              onClick={() => void sendPasswordReset()}
-              type="button"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#2dd4bf] px-4 py-3 text-sm font-semibold text-[#071018] transition hover:bg-[#5eead4] disabled:cursor-not-allowed disabled:bg-[#344052] disabled:text-[#8d9aab]"
+              disabled={isBusy || newPassword.length < 8 || confirmPassword.length < 8}
+              type="submit"
             >
-              <Mail className="size-4" />
-              Надіслати
+              <KeyRound className="size-4" />
+              Оновити пароль
             </button>
-          </div>
-        </div>
+          </form>
+        </ShellPanel>
+      </div>
 
-        <form className="mt-4 space-y-4" onSubmit={updatePassword}>
-          <label className="block">
-            <span className="text-sm font-medium text-[#c7d0dd]">
-              Новий пароль
-            </span>
-            <input
-              className="mt-1 h-11 w-full rounded-lg border border-[#263140] bg-[#0b111a] px-3 text-sm text-[#eef4ff] outline-none transition placeholder:text-[#6f7d90] focus:border-[#2dd4bf] focus:ring-4 focus:ring-[#2dd4bf]/20"
-              autoComplete="new-password"
-              minLength={8}
-              type="password"
-              value={newPassword}
-              onChange={(event) => setNewPassword(event.target.value)}
-              placeholder="Мінімум 8 символів"
-            />
-          </label>
-          <label className="block">
-            <span className="text-sm font-medium text-[#c7d0dd]">
-              Повтори пароль
-            </span>
-            <input
-              className="mt-1 h-11 w-full rounded-lg border border-[#263140] bg-[#0b111a] px-3 text-sm text-[#eef4ff] outline-none transition placeholder:text-[#6f7d90] focus:border-[#2dd4bf] focus:ring-4 focus:ring-[#2dd4bf]/20"
-              autoComplete="new-password"
-              minLength={8}
-              type="password"
-              value={confirmPassword}
-              onChange={(event) => setConfirmPassword(event.target.value)}
-              placeholder="Ще раз новий пароль"
-            />
-          </label>
-          <button
-            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#2dd4bf] px-4 py-3 text-sm font-semibold text-[#071018] transition hover:bg-[#5eead4] disabled:cursor-not-allowed disabled:bg-[#344052] disabled:text-[#8d9aab]"
-            disabled={isBusy || newPassword.length < 8 || confirmPassword.length < 8}
-            type="submit"
-          >
-            <KeyRound className="size-4" />
-            Оновити пароль
-          </button>
-        </form>
-      </ShellPanel>
+      <div className="xl:col-span-2">
+        <BackupPanel
+          isBusy={isBusy}
+          state={state}
+          onRestoreBackup={onRestoreBackup}
+        />
+      </div>
     </div>
   );
 }
@@ -3834,77 +3845,20 @@ function ReadOnlyField({
 }
 
 function AnalyticsWorkspace({
-  isBusy,
-  onRestoreBackup,
   state,
   summary,
 }: {
-  isBusy: boolean;
-  onRestoreBackup: (backup: BackupDocument) => Promise<void>;
   state: MemoraState;
   summary: QueueSummary;
 }) {
-  const recentLogs = state.reviewLogs.slice(-8).reverse();
+  const recentLogs = state.reviewLogs.slice(-6).reverse();
 
   return (
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
-      <AnalyticsPanel state={state} summary={summary} />
-      <ShellPanel className="p-4 md:p-5">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-semibold">Історія</h2>
-          </div>
-          <Activity className="size-5 text-[#2dd4bf]" />
-        </div>
-        <div className="mt-4 space-y-3">
-          {recentLogs.length === 0 ? (
-            <div className="rounded-lg border border-[#263140] bg-[#151d28] p-5">
-              <EmptyState
-                icon={Activity}
-                title="Повторень ще немає"
-                description="Оцінені картки з'являться тут."
-              />
-            </div>
-          ) : (
-            recentLogs.map((log) => {
-              const card = state.cards.find((item) => item.id === log.cardId);
-
-              return (
-                <div
-                  key={log.id}
-                  className="rounded-lg border border-[#263140] bg-[#0d131c] p-3"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <Badge tone={log.module === "english" ? "green" : "violet"}>
-                      {log.rating}
-                    </Badge>
-                    <span className="text-xs text-[#9aa8ba]">
-                      {formatDate(log.reviewedAt)}
-                    </span>
-                  </div>
-                  <p className="mt-3 truncate text-sm font-medium">
-                    {card?.prompt ?? "Повторена картка"}
-                  </p>
-                  <p className="mt-1 text-xs text-[#9aa8ba]">
-                    {log.wasCorrect ? "Згадано" : "Потрібно повторити"} /{" "}
-                    {Math.round(log.elapsedMs / 1000)} сек
-                  </p>
-                </div>
-              );
-            })
-          )}
-        </div>
-      </ShellPanel>
-      <div className="xl:col-span-2">
-        <DeckPanel state={state} />
-      </div>
-      <div className="xl:col-span-2">
-        <BackupPanel
-          isBusy={isBusy}
-          state={state}
-          onRestoreBackup={onRestoreBackup}
-        />
-      </div>
+      <ProgressOverviewPanel state={state} summary={summary} />
+      <RecentReviewsPanel logs={recentLogs} state={state} />
+      <WeakCardsPanel state={state} />
+      <MaterialProgressPanel state={state} />
     </div>
   );
 }
@@ -4126,15 +4080,153 @@ function ExportButton({
   );
 }
 
-function DeckPanel({ state }: { state: MemoraState }) {
+function ProgressOverviewPanel({
+  state,
+  summary,
+}: {
+  state: MemoraState;
+  summary: QueueSummary;
+}) {
+  const last7Logs = reviewsInLastDays(state.reviewLogs, 7);
+  const last30Logs = reviewsInLastDays(state.reviewLogs, 30);
+  const last30Accuracy = reviewAccuracy(last30Logs);
+
+  return (
+    <ShellPanel className="p-4 md:p-5">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold">Навчальна динаміка</h2>
+        </div>
+        <Sparkles className="size-5 text-[#f2a84a]" />
+      </div>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <MiniStat label="За 7 днів" value={last7Logs.length.toString()} />
+        <MiniStat label="За 30 днів" value={last30Logs.length.toString()} />
+        <MiniStat label="Якість" value={formatPercent(last30Accuracy)} />
+        <MiniStat label="У черзі" value={summary.totalDue.toString()} />
+      </div>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <MiniStat label="Невдалих спроб" value={summary.lapses.toString()} />
+        <MiniStat label="Проблемних карток" value={summary.leeches.toString()} />
+        <MiniStat label="Добре закріплені" value={summary.matureCards.toString()} />
+      </div>
+    </ShellPanel>
+  );
+}
+
+function RecentReviewsPanel({
+  logs,
+  state,
+}: {
+  logs: ReviewLog[];
+  state: MemoraState;
+}) {
+  return (
+    <ShellPanel className="p-4 md:p-5">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold">Останні повторення</h2>
+        </div>
+        <Activity className="size-5 text-[#2dd4bf]" />
+      </div>
+
+      <div className="mt-4 space-y-3">
+        {logs.length === 0 ? (
+          <div className="rounded-lg border border-[#263140] bg-[#151d28] p-5">
+            <EmptyState
+              icon={Activity}
+              title="Повторень ще немає"
+              description="Оцінені картки з'являться тут."
+            />
+          </div>
+        ) : (
+          logs.map((log) => {
+            const card = state.cards.find((item) => item.id === log.cardId);
+
+            return (
+              <div
+                key={log.id}
+                className="rounded-lg border border-[#263140] bg-[#0d131c] p-3"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <Badge tone={log.wasCorrect ? "green" : "violet"}>
+                    {labelReviewRating(log.rating)}
+                  </Badge>
+                  <span className="text-xs text-[#9aa8ba]">
+                    {formatDate(log.reviewedAt)}
+                  </span>
+                </div>
+                <p className="mt-3 line-clamp-2 text-sm font-medium">
+                  {card?.prompt ?? "Повторена картка"}
+                </p>
+                <p className="mt-1 text-xs text-[#9aa8ba]">
+                  {log.wasCorrect ? "Згадано" : "Потрібно повторити"} /{" "}
+                  {Math.round(log.elapsedMs / 1000)} сек
+                </p>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </ShellPanel>
+  );
+}
+
+function WeakCardsPanel({ state }: { state: MemoraState }) {
+  const weakCards = getWeakCards(state);
+
+  return (
+    <ShellPanel className="p-4 md:p-5">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold">Слабкі картки</h2>
+        </div>
+        <AlertCircle className="size-5 text-[#ef6351]" />
+      </div>
+
+      <div className="mt-4 space-y-3">
+        {weakCards.length === 0 ? (
+          <div className="rounded-lg border border-[#263140] bg-[#151d28] p-5">
+            <EmptyState
+              icon={Check}
+              title="Явних слабких карток немає"
+              description="Тут з'являться картки, які часто повертаються після помилок."
+            />
+          </div>
+        ) : (
+          weakCards.map((card) => (
+            <div
+              key={card.id}
+              className="rounded-lg border border-[#263140] bg-[#0d131c] p-3"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <p className="line-clamp-2 text-sm font-medium">{card.prompt}</p>
+                <Badge tone={card.module === "english" ? "green" : "violet"}>
+                  {card.module === "english" ? "Англ." : "QA"}
+                </Badge>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2 text-xs text-[#9aa8ba]">
+                <span>помилок: {card.schedule.lapses}</span>
+                <span>повторень: {card.schedule.reps}</span>
+                <span>наступний раз: {formatDate(card.schedule.due)}</span>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </ShellPanel>
+  );
+}
+
+function MaterialProgressPanel({ state }: { state: MemoraState }) {
+  const activeNotes = state.notes.filter((note) => note.status === "active");
+  const suspendedNotes = state.notes.filter((note) => note.status === "suspended");
+  const archivedNotes = state.notes.filter((note) => note.status === "archived");
   const activeCards = state.cards.filter((card) => card.status === "active");
   const englishCards = activeCards.filter((card) => card.module === "english");
   const qaCards = activeCards.filter((card) => card.module === "qa");
-  const sourceCounts = {
-    seed: state.notes.filter((note) => note.source === "seed").length,
-    user: state.notes.filter((note) => note.source === "user").length,
-    imported: state.notes.filter((note) => note.source === "imported").length,
-  };
 
   return (
     <ShellPanel className="p-4 md:p-5">
@@ -4144,23 +4236,26 @@ function DeckPanel({ state }: { state: MemoraState }) {
         </div>
         <BookOpenCheck className="size-5 text-[#2dd4bf]" />
       </div>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <MiniStat label="В навчанні" value={activeNotes.length.toString()} />
+        <MiniStat label="На паузі" value={suspendedNotes.length.toString()} />
+        <MiniStat label="В архіві" value={archivedNotes.length.toString()} />
+      </div>
+
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <DeckStat
-          title="Англійські слова"
+          title="Англійські картки"
           value={englishCards.length}
           tone="green"
         />
         <DeckStat
-          title="QA та тестування"
+          title="QA картки"
           value={qaCards.length}
           tone="violet"
         />
       </div>
-      <div className="mt-4 grid gap-2 sm:grid-cols-3">
-        <MiniStat label="Приклади Memora" value={sourceCounts.seed.toString()} />
-        <MiniStat label="Додані вручну" value={sourceCounts.user.toString()} />
-        <MiniStat label="Імпорт" value={sourceCounts.imported.toString()} />
-      </div>
+
       <div className="mt-4 divide-y divide-[#263140]">
         {state.notes.length === 0 ? (
           <div className="py-4">
@@ -4171,7 +4266,7 @@ function DeckPanel({ state }: { state: MemoraState }) {
             />
           </div>
         ) : (
-          state.notes.slice(-5).map((note) => (
+          state.notes.slice(-4).map((note) => (
             <div key={note.id} className="flex items-center justify-between gap-3 py-3">
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">{note.title}</p>
@@ -4190,54 +4285,47 @@ function DeckPanel({ state }: { state: MemoraState }) {
   );
 }
 
-function AnalyticsPanel({
-  state,
-  summary,
-}: {
-  state: MemoraState;
-  summary: QueueSummary;
-}) {
-  const topics = topicStats(state);
+function reviewsInLastDays(logs: ReviewLog[], days: number) {
+  const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+  return logs.filter((log) => new Date(log.reviewedAt).getTime() >= cutoff);
+}
 
-  return (
-    <ShellPanel className="p-4 md:p-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold">Повторення</h2>
-        </div>
-        <Sparkles className="size-5 text-[#f2a84a]" />
-      </div>
-      <div className="mt-4 grid gap-3 sm:grid-cols-3">
-        <MiniStat label="Повторень" value={state.reviewLogs.length.toString()} />
-        <MiniStat label="Невдалих спроб" value={summary.lapses.toString()} />
-        <MiniStat label="Проблемних карток" value={summary.leeches.toString()} />
-      </div>
-      <div className="mt-5 space-y-3">
-        {topics.length === 0 ? (
-          <p className="rounded-lg border border-[#263140] bg-[#151d28] p-4 text-sm leading-6 text-[#9aa8ba]">
-            Точність за темами з’явиться після перших повторень.
-          </p>
-        ) : (
-          topics.map((topic) => (
-            <div key={topic.topic}>
-              <div className="flex items-center justify-between text-sm">
-                <span className="font-medium capitalize">{topic.topic}</span>
-                <span className="font-mono text-[#9aa8ba]">
-                  {formatPercent(topic.accuracy)}
-                </span>
-              </div>
-              <div className="mt-2 h-2 rounded-full bg-[#273142]">
-                <div
-                  className="h-2 rounded-full bg-[#2dd4bf]"
-                  style={{ width: `${Math.round((topic.accuracy ?? 0) * 100)}%` }}
-                />
-              </div>
-            </div>
-          ))
-        )}
-      </div>
-    </ShellPanel>
+function reviewAccuracy(logs: ReviewLog[]) {
+  if (logs.length === 0) return null;
+  return logs.filter((log) => log.wasCorrect).length / logs.length;
+}
+
+function getWeakCards(state: MemoraState) {
+  const recentlyFailedCardIds = new Set(
+    state.reviewLogs
+      .filter((log) => !log.wasCorrect)
+      .slice(-30)
+      .map((log) => log.cardId),
   );
+
+  return state.cards
+    .filter(
+      (card) =>
+        card.status === "active" &&
+        (card.schedule.lapses > 0 || recentlyFailedCardIds.has(card.id)),
+    )
+    .sort(
+      (left, right) =>
+        right.schedule.lapses - left.schedule.lapses ||
+        right.schedule.reps - left.schedule.reps,
+    )
+    .slice(0, 5);
+}
+
+function labelReviewRating(rating: ReviewRating) {
+  const labels: Record<ReviewRating, string> = {
+    again: "Знову",
+    hard: "Важко",
+    good: "Добре",
+    easy: "Легко",
+  };
+
+  return labels[rating];
 }
 
 function TextInput({
