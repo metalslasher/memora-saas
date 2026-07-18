@@ -104,7 +104,6 @@ import type {
 } from "@/lib/memora/types";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
-type DraftMode = "english" | "qa";
 type AppView = "today" | "english" | "qa" | "analytics" | "account" | "help";
 type ItemStatus = "active" | "suspended" | "archived";
 type IconType = typeof Target;
@@ -346,11 +345,6 @@ export function MemoraApp() {
   const navigateToView = useCallback((view: AppView) => {
     setActiveView(view);
     setIsMobileMenuOpen(false);
-  }, []);
-
-  const handleOpenNote = useCallback((note: Note) => {
-    setActiveView(note.module);
-    setSelectedNoteId(note.id);
   }, []);
 
   async function handleSignIn(email: string, password: string) {
@@ -608,6 +602,7 @@ export function MemoraApp() {
 
     setIsMutating(true);
     setErrorMessage(null);
+    setStatusMessage(null);
 
     try {
       const nextState = unwrapActionState(await addEnglishNoteAction(draft));
@@ -627,6 +622,7 @@ export function MemoraApp() {
 
     setIsMutating(true);
     setErrorMessage(null);
+    setStatusMessage(null);
 
     try {
       const nextState = unwrapActionState(await addQaNoteAction(draft));
@@ -806,55 +802,57 @@ export function MemoraApp() {
           ) : null}
 
           {activeView === "today" ? (
-            <ShellPanel className="p-3 md:p-4">
-              <ModeSelector
-                value={state.settings.studyMode}
-                onChange={(studyMode) => {
-                  void handleSettingsChange({
-                    ...state.settings,
-                    studyMode,
-                  });
-                  resetPracticeUi();
-                }}
-              />
-              <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-5">
-                <Metric
-                  icon={ListChecks}
-                  label="Повторити"
-                  value={summary.dueReviews.toString()}
-                  accent="bg-[#2dd4bf]"
-                />
-                <Metric
-                  icon={Plus}
-                  label="Нові"
-                  value={summary.newAvailable.toString()}
-                  accent="bg-[#8b7cf6]"
-                />
-                <Metric
-                  icon={Clock3}
-                  label="Час"
-                  value={`${summary.estimatedMinutes} хв`}
-                  accent="bg-[#f2a84a]"
-                />
-                <Metric
-                  icon={Gauge}
-                  label="Якість"
-                  value={formatPercent(summary.retention)}
-                  accent="bg-[#ef6351]"
-                />
-                <Metric
-                  icon={Flame}
-                  label="Закріплені"
-                  value={summary.matureCards.toString()}
-                  accent="bg-[#202938]"
-                  className="col-span-2 md:col-span-1"
-                />
-              </div>
-            </ShellPanel>
-          ) : null}
+            <div className="space-y-4 md:space-y-5">
+              <ShellPanel className="p-3 md:p-4">
+                <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(320px,380px)]">
+                  <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+                    <Metric
+                      icon={ListChecks}
+                      label="Повторити"
+                      value={summary.dueReviews.toString()}
+                      accent="bg-[#2dd4bf]"
+                    />
+                    <Metric
+                      icon={Plus}
+                      label="Нові"
+                      value={summary.newAvailable.toString()}
+                      accent="bg-[#8b7cf6]"
+                    />
+                    <Metric
+                      icon={Clock3}
+                      label="Час"
+                      value={`${summary.estimatedMinutes} хв`}
+                      accent="bg-[#f2a84a]"
+                    />
+                    <Metric
+                      icon={Gauge}
+                      label="Якість"
+                      value={formatPercent(summary.retention)}
+                      accent="bg-[#ef6351]"
+                    />
+                    <Metric
+                      icon={Flame}
+                      label="Закріплені"
+                      value={summary.matureCards.toString()}
+                      accent="bg-[#202938]"
+                      className="col-span-2 md:col-span-1"
+                    />
+                  </div>
 
-          {activeView === "today" ? (
-            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px] xl:gap-5">
+                  <ModeSelector
+                    className="self-stretch xl:self-center"
+                    value={state.settings.studyMode}
+                    onChange={(studyMode) => {
+                      void handleSettingsChange({
+                        ...state.settings,
+                        studyMode,
+                      });
+                      resetPracticeUi();
+                    }}
+                  />
+                </div>
+              </ShellPanel>
+
               <StudyPanel
                 card={activeCard}
                 queueLength={queue.length}
@@ -867,16 +865,6 @@ export function MemoraApp() {
                 onReview={(rating) => void submitReview(rating)}
                 onSuspend={(cardId) => void handleSuspend(cardId)}
               />
-
-              <div className="space-y-5">
-                <AddNotePanel
-                  isBusy={isMutating}
-                  notes={state.notes}
-                  onAddEnglish={handleAddEnglish}
-                  onAddQa={handleAddQa}
-                  onOpenNote={handleOpenNote}
-                />
-              </div>
             </div>
           ) : activeView === "account" ? (
             <AccountWorkspace
@@ -908,6 +896,8 @@ export function MemoraApp() {
               moduleType={contentModule}
               notes={contentNotes}
               selectedNote={selectedNote}
+              onAddEnglish={handleAddEnglish}
+              onAddQa={handleAddQa}
               onCardStatusChange={(cardId, status) =>
                 void handleCardStatusChange(cardId, status)
               }
@@ -1357,14 +1347,18 @@ function NavItem({
 }
 
 function ModeSelector({
+  className = "",
   value,
   onChange,
 }: {
+  className?: string;
   value: StudyMode;
   onChange: (mode: StudyMode) => void;
 }) {
   return (
-    <div className="grid w-full grid-cols-3 gap-1 rounded-lg border border-[#263140] bg-[#151d28] p-1">
+    <div
+      className={`grid w-full grid-cols-3 gap-1 rounded-lg border border-[#263140] bg-[#151d28] p-1 ${className}`}
+    >
       {(Object.keys(modeLabels) as StudyMode[]).map((mode) => (
         <button
           key={mode}
@@ -1595,312 +1589,6 @@ function EmptyState({
   );
 }
 
-function AddNotePanel({
-  isBusy,
-  notes,
-  onAddEnglish,
-  onAddQa,
-  onOpenNote,
-}: {
-  isBusy: boolean;
-  notes: Note[];
-  onAddEnglish: (draft: EnglishDraft) => Promise<void>;
-  onAddQa: (draft: QaDraft) => Promise<void>;
-  onOpenNote: (note: Note) => void;
-}) {
-  const [mode, setMode] = useState<DraftMode>("english");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [allowDuplicate, setAllowDuplicate] = useState(false);
-  const [english, setEnglish] = useState<EnglishDraft>({
-    lemma: "",
-    translation: "",
-    example: "",
-  });
-  const [qa, setQa] = useState<QaDraft>({
-    term: "",
-    definition: "",
-    example: "",
-  });
-
-  const normalizedEnglish = useMemo(
-    () => normalizeEnglishDraft(english),
-    [english],
-  );
-  const normalizedQa = useMemo(() => normalizeQaDraft(qa), [qa]);
-  const canSubmit =
-    mode === "english"
-      ? Boolean(normalizedEnglish.lemma && normalizedEnglish.translation)
-      : Boolean(normalizedQa.term && normalizedQa.definition);
-  const previewCards = useMemo(
-    () =>
-      mode === "english"
-        ? generateEnglishCards(normalizedEnglish)
-        : generateQaCards(normalizedQa),
-    [mode, normalizedEnglish, normalizedQa],
-  );
-  const duplicateMatches = useMemo(
-    () =>
-      mode === "english"
-        ? findDuplicateNotes(notes, {
-            module: "english",
-            lemma: normalizedEnglish.lemma,
-          })
-        : findDuplicateNotes(notes, {
-            module: "qa",
-            term: normalizedQa.term,
-          }),
-    [mode, normalizedEnglish.lemma, normalizedQa.term, notes],
-  );
-  const validationMessages = useMemo(() => {
-    if (mode === "english") {
-      return [
-        normalizedEnglish.lemma.length > 0 && normalizedEnglish.lemma.length < 2
-          ? "Слово або фраза надто короткі."
-          : null,
-        normalizedEnglish.translation.length > 0 &&
-        normalizedEnglish.translation.length < 2
-          ? "Значення надто коротке."
-          : null,
-      ].filter(Boolean) as string[];
-    }
-
-    return [
-      normalizedQa.term.length > 0 && normalizedQa.term.length < 2
-        ? "Термін надто короткий."
-        : null,
-      normalizedQa.definition.length > 0 && normalizedQa.definition.length < 12
-        ? "Пояснення надто коротке."
-        : null,
-    ].filter(Boolean) as string[];
-  }, [mode, normalizedEnglish, normalizedQa]);
-  const blockingDuplicate = duplicateMatches.length > 0 && !allowDuplicate;
-  const submitDisabled = !canSubmit || blockingDuplicate || isBusy || isSubmitting;
-  const primaryDuplicate = duplicateMatches.at(0)?.note ?? null;
-
-  return (
-    <ShellPanel className="p-4">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold">Додати матеріал</h2>
-        </div>
-        <div className="grid grid-cols-2 rounded-lg border border-[#263140] bg-[#151d28] p-1">
-          <button
-            className={`rounded-md px-3 py-2 text-sm font-medium ${
-              mode === "english"
-                ? "bg-[#2dd4bf] text-[#071018] shadow-sm"
-                : "text-[#9aa8ba]"
-            }`}
-            onClick={() => {
-              setMode("english");
-              setAllowDuplicate(false);
-              setSuccessMessage(null);
-            }}
-            title="Англійський матеріал"
-          >
-            Англ.
-          </button>
-          <button
-            className={`rounded-md px-3 py-2 text-sm font-medium ${
-              mode === "qa"
-                ? "bg-[#2dd4bf] text-[#071018] shadow-sm"
-                : "text-[#9aa8ba]"
-            }`}
-            onClick={() => {
-              setMode("qa");
-              setAllowDuplicate(false);
-              setSuccessMessage(null);
-            }}
-            title="Термін або поняття з тестування"
-          >
-            QA
-          </button>
-        </div>
-      </div>
-
-      <div className="mt-4 space-y-3">
-        {mode === "english" ? (
-          <>
-            <TextInput
-              label="Слово або фраза"
-              value={english.lemma}
-              onChange={(lemma) => {
-                setEnglish((current) => ({ ...current, lemma }));
-                setAllowDuplicate(false);
-                setSuccessMessage(null);
-              }}
-              placeholder="flaky test"
-            />
-            <TextInput
-              label="Значення"
-              value={english.translation}
-              onChange={(translation) =>
-                setEnglish((current) => ({ ...current, translation }))
-              }
-              placeholder="нестабільний тест"
-            />
-            <TextInput
-              label="Приклад"
-              value={english.example}
-              onChange={(example) =>
-                setEnglish((current) => ({ ...current, example }))
-              }
-              placeholder="This flaky test fails only in CI."
-            />
-          </>
-        ) : (
-          <>
-            <TextInput
-              label="Термін"
-              value={qa.term}
-              onChange={(term) => {
-                setQa((current) => ({ ...current, term }));
-                setAllowDuplicate(false);
-                setSuccessMessage(null);
-              }}
-              placeholder="Smoke testing"
-            />
-            <TextInput
-              label="Пояснення"
-              value={qa.definition}
-              onChange={(definition) =>
-                setQa((current) => ({ ...current, definition }))
-              }
-              placeholder="Швидка перевірка, що критичні функції досі працюють."
-            />
-            <TextInput
-              label="Приклад"
-              value={qa.example}
-              onChange={(example) => setQa((current) => ({ ...current, example }))}
-              placeholder="Після деплою запусти smoke-перевірки."
-            />
-          </>
-        )}
-      </div>
-
-      {validationMessages.length > 0 ? (
-        <div className="mt-3 rounded-lg border border-[#3b4656] bg-[#121a25] px-3 py-2 text-sm text-[#c7d0dd]">
-          {validationMessages.map((message) => (
-            <p key={message}>{message}</p>
-          ))}
-        </div>
-      ) : null}
-
-      {duplicateMatches.length > 0 ? (
-        <div className="mt-3 rounded-lg border border-[#8a6a2d] bg-[#231b0d] p-3 text-sm text-[#f7d58b]">
-          <div className="flex items-center gap-2 font-semibold text-[#ffd98a]">
-            <AlertCircle className="size-4" />
-            Схожий запис уже є
-          </div>
-          <div className="mt-2 space-y-2">
-            {duplicateMatches.map((match) => (
-              <div
-                key={match.note.id}
-                className="rounded-md border border-[#3a2e18] bg-[#15110a] p-2"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-medium text-[#fff0c2]">{match.note.title}</span>
-                  <span className="rounded bg-[#3a2e18] px-2 py-0.5 text-xs uppercase tracking-[0.12em]">
-                    {match.confidence}
-                  </span>
-                </div>
-                <p className="mt-1 text-xs text-[#d9b76f]">
-                  Схожість за полем: {labelDuplicateField(match.matchedOn)}. Стан: {labelStatus(match.note.status)}.
-                </p>
-              </div>
-            ))}
-          </div>
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <button
-              className="rounded-lg border border-[#8a6a2d] px-3 py-2 font-medium text-[#fff0c2] transition hover:bg-[#3a2e18]"
-              disabled={!primaryDuplicate}
-              onClick={() => {
-                if (primaryDuplicate) onOpenNote(primaryDuplicate);
-              }}
-            >
-              Відкрити наявну
-            </button>
-            <button
-              className="rounded-lg bg-[#f2a84a] px-3 py-2 font-semibold text-[#071018] transition hover:bg-[#ffc063]"
-              onClick={() => setAllowDuplicate(true)}
-            >
-              Створити все одно
-            </button>
-          </div>
-        </div>
-      ) : null}
-
-      {previewCards.length > 0 ? (
-        <div className="mt-3 rounded-lg border border-[#263140] bg-[#0b111a] p-3">
-          <div className="flex items-center gap-2 text-sm font-semibold text-[#c7d0dd]">
-            <Sparkles className="size-4 text-[#52e0c4]" />
-            Картки
-          </div>
-          <div className="mt-3 space-y-2">
-            {previewCards.map((card) => (
-              <div
-                key={card.type}
-                className="rounded-md border border-[#202938] bg-[#101822] p-2"
-              >
-                <p className="text-xs uppercase tracking-[0.12em] text-[#6f7d90]">
-                  {labelCardType(card.type)}
-                </p>
-                <p className="mt-1 text-sm font-medium text-[#eef4ff]">
-                  {card.prompt}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      <button
-        className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-[#2dd4bf] px-4 py-3 text-sm font-semibold text-[#071018] transition hover:bg-[#5eead4] disabled:cursor-not-allowed disabled:bg-[#344052] disabled:text-[#8d9aab]"
-        disabled={submitDisabled}
-        onClick={async () => {
-          if (submitDisabled) return;
-
-          setIsSubmitting(true);
-          setSuccessMessage(null);
-
-          try {
-            if (mode === "english") {
-              await onAddEnglish(normalizedEnglish);
-              setEnglish({ lemma: "", translation: "", example: "" });
-              setSuccessMessage("Додано англійський матеріал та 2 картки.");
-            } else {
-              await onAddQa(normalizedQa);
-              setQa({ term: "", definition: "", example: "" });
-              setSuccessMessage("Додано матеріал з тестування та 2 картки.");
-            }
-            setAllowDuplicate(false);
-          } catch {
-            // Parent component surfaces the Supabase error and keeps the draft intact.
-          } finally {
-            setIsSubmitting(false);
-          }
-        }}
-      >
-        {isSubmitting ? (
-          <Loader2 className="size-4 animate-spin" />
-        ) : (
-          <Plus className="size-4" />
-        )}
-        {blockingDuplicate
-          ? "Схожий запис"
-          : allowDuplicate
-            ? "Додати все одно"
-            : "Додати"}
-      </button>
-      {successMessage ? (
-        <p className="mt-3 rounded-lg border border-[#256b60] bg-[#102b27] px-3 py-2 text-sm text-[#8df3dd]">
-          {successMessage}
-        </p>
-      ) : null}
-    </ShellPanel>
-  );
-}
-
 function SettingsPanel({
   state,
   onChange,
@@ -1970,6 +1658,8 @@ function ContentManager({
   moduleType,
   notes,
   selectedNote,
+  onAddEnglish,
+  onAddQa,
   onCardStatusChange,
   onImport,
   onNoteContentChange,
@@ -1982,6 +1672,8 @@ function ContentManager({
   moduleType: ModuleType;
   notes: Note[];
   selectedNote: Note | null;
+  onAddEnglish: (draft: EnglishDraft) => Promise<void>;
+  onAddQa: (draft: QaDraft) => Promise<void>;
   onCardStatusChange: (cardId: string, status: ItemStatus) => void;
   onImport: (
     rows: ClientImportCommitRow[],
@@ -2039,6 +1731,15 @@ function ContentManager({
               .length.toString()}
           />
         </div>
+
+        <NewMaterialPanel
+          isBusy={isBusy}
+          moduleType={moduleType}
+          notes={notes}
+          onAddEnglish={onAddEnglish}
+          onAddQa={onAddQa}
+          onNoteSelect={onNoteSelect}
+        />
 
         <CsvImportPanel
           isBusy={isBusy}
@@ -2107,6 +1808,244 @@ function ContentManager({
         onNoteStatusChange={onNoteStatusChange}
       />
     </div>
+  );
+}
+
+function NewMaterialPanel({
+  isBusy,
+  moduleType,
+  notes,
+  onAddEnglish,
+  onAddQa,
+  onNoteSelect,
+}: {
+  isBusy: boolean;
+  moduleType: ModuleType;
+  notes: Note[];
+  onAddEnglish: (draft: EnglishDraft) => Promise<void>;
+  onAddQa: (draft: QaDraft) => Promise<void>;
+  onNoteSelect: (noteId: string) => void;
+}) {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [allowDuplicate, setAllowDuplicate] = useState(false);
+  const [localMessage, setLocalMessage] = useState<string | null>(null);
+  const [english, setEnglish] = useState<EnglishDraft>({
+    lemma: "",
+    translation: "",
+    example: "",
+  });
+  const [qa, setQa] = useState<QaDraft>({
+    term: "",
+    definition: "",
+    example: "",
+  });
+  const normalizedEnglish = useMemo(
+    () => normalizeEnglishDraft(english),
+    [english],
+  );
+  const normalizedQa = useMemo(() => normalizeQaDraft(qa), [qa]);
+  const isEnglish = moduleType === "english";
+  const canSubmit = isEnglish
+    ? Boolean(normalizedEnglish.lemma && normalizedEnglish.translation)
+    : Boolean(normalizedQa.term && normalizedQa.definition);
+  const previewCards = useMemo(
+    () =>
+      isEnglish
+        ? generateEnglishCards(normalizedEnglish)
+        : generateQaCards(normalizedQa),
+    [isEnglish, normalizedEnglish, normalizedQa],
+  );
+  const duplicateMatches = useMemo(
+    () =>
+      isEnglish
+        ? findDuplicateNotes(notes, {
+            module: "english",
+            lemma: normalizedEnglish.lemma,
+          })
+        : findDuplicateNotes(notes, {
+            module: "qa",
+            term: normalizedQa.term,
+          }),
+    [isEnglish, normalizedEnglish.lemma, normalizedQa.term, notes],
+  );
+  const blockingDuplicate = duplicateMatches.length > 0 && !allowDuplicate;
+  const submitDisabled = !canSubmit || blockingDuplicate || isBusy || isSubmitting;
+  const primaryDuplicate = duplicateMatches.at(0)?.note ?? null;
+
+  function resetLocalState() {
+    setAllowDuplicate(false);
+    setLocalMessage(null);
+  }
+
+  async function submit() {
+    if (submitDisabled) return;
+
+    setIsSubmitting(true);
+    setLocalMessage(null);
+
+    try {
+      if (isEnglish) {
+        await onAddEnglish(normalizedEnglish);
+        setEnglish({ lemma: "", translation: "", example: "" });
+        setLocalMessage("Матеріал додано.");
+      } else {
+        await onAddQa(normalizedQa);
+        setQa({ term: "", definition: "", example: "" });
+        setLocalMessage("Матеріал додано.");
+      }
+      setAllowDuplicate(false);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  return (
+    <section
+      aria-label="Новий матеріал"
+      className="mt-4 rounded-lg border border-[#263140] bg-[#0d131c] p-3"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-sm font-semibold text-[#eef4ff]">Новий матеріал</h3>
+        {isEnglish ? (
+          <Languages className="size-4 text-[#52e0c4]" />
+        ) : (
+          <Code2 className="size-4 text-[#52e0c4]" />
+        )}
+      </div>
+
+      <div className="mt-3 space-y-3">
+        {isEnglish ? (
+          <>
+            <TextInput
+              label="Слово або фраза"
+              value={english.lemma}
+              onChange={(lemma) => {
+                setEnglish((current) => ({ ...current, lemma }));
+                resetLocalState();
+              }}
+              placeholder="flaky test"
+            />
+            <TextInput
+              label="Значення"
+              value={english.translation}
+              onChange={(translation) =>
+                setEnglish((current) => ({ ...current, translation }))
+              }
+              placeholder="нестабільний тест"
+            />
+            <TextInput
+              label="Приклад"
+              value={english.example}
+              onChange={(example) =>
+                setEnglish((current) => ({ ...current, example }))
+              }
+              placeholder="This flaky test fails only in CI."
+            />
+          </>
+        ) : (
+          <>
+            <TextInput
+              label="Термін"
+              value={qa.term}
+              onChange={(term) => {
+                setQa((current) => ({ ...current, term }));
+                resetLocalState();
+              }}
+              placeholder="Smoke testing"
+            />
+            <TextInput
+              label="Пояснення"
+              value={qa.definition}
+              onChange={(definition) =>
+                setQa((current) => ({ ...current, definition }))
+              }
+              placeholder="Швидка перевірка критичних функцій."
+            />
+            <TextInput
+              label="Приклад"
+              value={qa.example}
+              onChange={(example) => setQa((current) => ({ ...current, example }))}
+              placeholder="Після деплою запусти smoke-перевірки."
+            />
+          </>
+        )}
+      </div>
+
+      {duplicateMatches.length > 0 ? (
+        <div className="mt-3 rounded-lg border border-[#8a6a2d] bg-[#231b0d] p-3 text-sm text-[#f7d58b]">
+          <div className="flex items-center gap-2 font-semibold text-[#ffd98a]">
+            <AlertCircle className="size-4" />
+            Схожий запис уже є
+          </div>
+          <p className="mt-1 text-xs leading-5">
+            {duplicateMatches.map((match) => match.note.title).join(", ")}
+          </p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <button
+              className="rounded-lg border border-[#8a6a2d] px-3 py-2 text-xs font-medium text-[#fff0c2] transition hover:bg-[#3a2e18]"
+              disabled={!primaryDuplicate}
+              onClick={() => {
+                if (primaryDuplicate) onNoteSelect(primaryDuplicate.id);
+              }}
+              type="button"
+            >
+              Відкрити
+            </button>
+            <button
+              className="rounded-lg bg-[#f2a84a] px-3 py-2 text-xs font-semibold text-[#071018] transition hover:bg-[#ffc063]"
+              onClick={() => setAllowDuplicate(true)}
+              type="button"
+            >
+              Додати все одно
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {previewCards.length > 0 ? (
+        <details className="mt-3 rounded-lg border border-[#263140] bg-[#0b111a] p-3">
+          <summary className="flex cursor-pointer items-center gap-2 text-sm font-semibold text-[#c7d0dd]">
+            <Sparkles className="size-4 text-[#52e0c4]" />
+            Картки: {previewCards.length}
+          </summary>
+          <div className="mt-3 space-y-2">
+            {previewCards.map((card) => (
+              <div
+                key={card.type}
+                className="rounded-md border border-[#202938] bg-[#101822] p-2"
+              >
+                <p className="text-xs uppercase tracking-[0.12em] text-[#6f7d90]">
+                  {labelCardType(card.type)}
+                </p>
+                <p className="mt-1 text-sm font-medium text-[#eef4ff]">
+                  {card.prompt}
+                </p>
+              </div>
+            ))}
+          </div>
+        </details>
+      ) : null}
+
+      <button
+        className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-[#2dd4bf] px-4 py-3 text-sm font-semibold text-[#071018] transition hover:bg-[#5eead4] disabled:cursor-not-allowed disabled:bg-[#344052] disabled:text-[#8d9aab]"
+        disabled={submitDisabled}
+        onClick={() => void submit()}
+        type="button"
+      >
+        {isSubmitting ? (
+          <Loader2 className="size-4 animate-spin" />
+        ) : (
+          <Plus className="size-4" />
+        )}
+        {blockingDuplicate ? "Схожий запис" : "Додати"}
+      </button>
+
+      {localMessage ? (
+        <p className="mt-3 rounded-lg border border-[#256b60] bg-[#102b27] px-3 py-2 text-sm text-[#8df3dd]">
+          {localMessage}
+        </p>
+      ) : null}
+    </section>
   );
 }
 
@@ -4365,16 +4304,6 @@ function importRunStats(run: ImportRun, moduleType: ModuleType) {
     skipped: rows.filter((row) => row.status === "skipped").length,
     invalid: rows.filter((row) => row.status === "invalid").length,
   };
-}
-
-function labelDuplicateField(field: string) {
-  const labels: Record<string, string> = {
-    title: "назва",
-    "English phrase": "англійська фраза",
-    "QA term": "термін з тестування",
-  };
-
-  return labels[field] ?? field;
 }
 
 function formatPercent(value: number | null) {

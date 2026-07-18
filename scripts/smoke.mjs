@@ -95,7 +95,7 @@ async function signIn(page, userEmail, userPassword) {
 async function assertTodayView(page) {
   await page.getByRole("button", { name: "Практика", exact: true }).click();
   await expect(page.getByRole("button", { name: "Усе", exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Додати матеріал", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Додати матеріал", exact: true })).toHaveCount(0);
   await expect(page.getByLabel(/Серія навчання/)).toBeVisible();
   await expect(page.getByText("Повторити")).toBeVisible();
 }
@@ -125,17 +125,16 @@ async function assertAddAndEditEnglishNote(page) {
   const translation = `тестова фраза ${stamp}`;
   const updatedTranslation = `оновлена тестова фраза ${stamp}`;
 
-  await page.getByRole("button", { name: "Практика", exact: true }).click();
-  await page.getByRole("button", { name: "Англ." }).click();
-  await page.getByLabel("Слово або фраза").fill(phrase);
-  await page.getByLabel("Значення").fill(translation);
-  await page.getByLabel("Приклад").fill(`This is a ${phrase}.`);
-  await page.getByRole("button", { name: "Додати", exact: true }).click();
+  await page.getByRole("button", { name: "Англійські слова", exact: true }).click();
+  const newMaterial = page.getByRole("region", { name: "Новий матеріал" });
+  await newMaterial.getByLabel("Слово або фраза").fill(phrase);
+  await newMaterial.getByLabel("Значення").fill(translation);
+  await newMaterial.getByLabel("Приклад").fill(`This is a ${phrase}.`);
+  await newMaterial.getByRole("button", { name: "Додати", exact: true }).click();
   await expect(page.getByText("Додано англійський матеріал та 2 картки.")).toBeVisible({
     timeout: 20000,
   });
 
-  await page.getByRole("button", { name: "Англійські слова", exact: true }).click();
   await page.getByPlaceholder("Пошук").fill(phrase);
   await page.locator("button").filter({ hasText: phrase }).click();
   await page.getByLabel("Значення").fill(updatedTranslation);
