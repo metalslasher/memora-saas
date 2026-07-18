@@ -181,6 +181,10 @@ function unwrapProfile(result: {
   return result.profile;
 }
 
+function getPracticeQueueLength(state: MemoraState) {
+  return getDueQueue(state, state.settings.studyMode).length;
+}
+
 export function MemoraApp() {
   const [supabase] = useState(() => createSupabaseBrowserClient());
   const [authStatus, setAuthStatus] = useState<
@@ -196,6 +200,7 @@ export function MemoraApp() {
   const [responseText, setResponseText] = useState("");
   const [isRevealed, setIsRevealed] = useState(false);
   const [startedAt, setStartedAt] = useState(() => Date.now());
+  const [practiceSessionTotal, setPracticeSessionTotal] = useState(0);
   const [, setIsLoadingData] = useState(false);
   const [isMutating, setIsMutating] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -210,6 +215,16 @@ export function MemoraApp() {
     setIsRevealed(false);
     setStartedAt(Date.now());
   }, []);
+
+  const resetPracticeSession = useCallback(
+    (nextState: MemoraState | null) => {
+      resetPracticeUi();
+      setPracticeSessionTotal(
+        nextState ? getPracticeQueueLength(nextState) : 0,
+      );
+    },
+    [resetPracticeUi],
+  );
 
   const loadUserData = useCallback(
     async (nextUser: User, options: { force?: boolean } = {}) => {
@@ -234,6 +249,7 @@ export function MemoraApp() {
         const nextProfile = unwrapProfile(profileResult);
         setState(nextState);
         setProfile(nextProfile);
+        resetPracticeSession(nextState);
         loadedUserIdRef.current = nextUser.id;
       } catch (error) {
         setErrorMessage(formatError(error));
@@ -244,7 +260,7 @@ export function MemoraApp() {
         setIsLoadingData(false);
       }
     },
-    [],
+    [resetPracticeSession],
   );
 
   useEffect(() => {
@@ -267,6 +283,7 @@ export function MemoraApp() {
         setProfile(null);
         setState(null);
         setIsPasswordRecovery(false);
+        resetPracticeSession(null);
         return;
       }
 
@@ -291,7 +308,7 @@ export function MemoraApp() {
         setIsLoadingData(false);
         loadingUserIdRef.current = null;
         loadedUserIdRef.current = null;
-        resetPracticeUi();
+        resetPracticeSession(null);
         return;
       }
 
@@ -310,7 +327,7 @@ export function MemoraApp() {
       isMounted = false;
       subscription.unsubscribe();
     };
-  }, [loadUserData, resetPracticeUi, supabase]);
+  }, [loadUserData, resetPracticeSession, supabase]);
 
   const queue = useMemo(
     () => (state ? getDueQueue(state, state.settings.studyMode) : []),
@@ -412,7 +429,7 @@ export function MemoraApp() {
       setIsPasswordRecovery(false);
       loadingUserIdRef.current = null;
       loadedUserIdRef.current = null;
-      resetPracticeUi();
+      resetPracticeSession(null);
     } catch (error) {
       setErrorMessage(formatError(error));
     } finally {
@@ -425,14 +442,18 @@ export function MemoraApp() {
 
     const previousState = state;
     const nextState = { ...state, settings };
+    const isModeChange = settings.studyMode !== previousState.settings.studyMode;
     setState(nextState);
     setErrorMessage(null);
+    if (isModeChange) resetPracticeSession(nextState);
 
     try {
       const updatedState = unwrapActionState(await updateSettingsAction(settings));
       setState(updatedState);
+      if (isModeChange) resetPracticeSession(updatedState);
     } catch (error) {
       setState(previousState);
+      if (isModeChange) resetPracticeSession(previousState);
       setErrorMessage(formatError(error));
     }
   }
@@ -608,7 +629,7 @@ export function MemoraApp() {
       const nextState = unwrapActionState(await addEnglishNoteAction(draft));
       setState(nextState);
       setStatusMessage("Додано англійський матеріал та 2 картки.");
-      resetPracticeUi();
+      resetPracticeSession(nextState);
     } catch (error) {
       setErrorMessage(formatError(error));
       throw error;
@@ -628,7 +649,7 @@ export function MemoraApp() {
       const nextState = unwrapActionState(await addQaNoteAction(draft));
       setState(nextState);
       setStatusMessage("Додано матеріал з тестування та 2 картки.");
-      resetPracticeUi();
+      resetPracticeSession(nextState);
     } catch (error) {
       setErrorMessage(formatError(error));
       throw error;
@@ -672,7 +693,7 @@ export function MemoraApp() {
       if (!result.ok) throw new Error(result.error);
 
       setState(result.state);
-      resetPracticeUi();
+      resetPracticeSession(result.state);
       setStatusMessage(
         result.skippedDuplicates > 0
           ? `Додано з CSV: ${result.importedCount}; пропущено схожих записів: ${result.skippedDuplicates}; помилок: ${result.invalidRows}.`
@@ -703,7 +724,7 @@ export function MemoraApp() {
       const nextState = unwrapActionState(await restoreBackupAction(backup));
       setState(nextState);
       setSelectedNoteId(null);
-      resetPracticeUi();
+      resetPracticeSession(nextState);
       setStatusMessage(
         `Резервну копію відновлено: ${nextState.notes.length} матеріалів, ${nextState.cards.length} карток, ${nextState.reviewLogs.length} повторень.`,
       );
@@ -803,59 +824,55 @@ export function MemoraApp() {
 
           {activeView === "today" ? (
             <div className="space-y-4 md:space-y-5">
-              <ShellPanel className="p-3 md:p-4">
-                <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(320px,380px)]">
-                  <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-                    <Metric
-                      icon={ListChecks}
-                      label="Повторити"
-                      value={summary.dueReviews.toString()}
-                      accent="bg-[#2dd4bf]"
-                    />
-                    <Metric
-                      icon={Plus}
-                      label="Нові"
-                      value={summary.newAvailable.toString()}
-                      accent="bg-[#8b7cf6]"
-                    />
-                    <Metric
-                      icon={Clock3}
-                      label="Час"
-                      value={`${summary.estimatedMinutes} хв`}
-                      accent="bg-[#f2a84a]"
-                    />
-                    <Metric
-                      icon={Gauge}
-                      label="Якість"
-                      value={formatPercent(summary.retention)}
-                      accent="bg-[#ef6351]"
-                    />
-                    <Metric
-                      icon={Flame}
-                      label="Закріплені"
-                      value={summary.matureCards.toString()}
-                      accent="bg-[#202938]"
-                      className="col-span-2 md:col-span-1"
-                    />
-                  </div>
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+                <Metric
+                  icon={ListChecks}
+                  label="Повторити"
+                  value={summary.dueReviews.toString()}
+                  accent="bg-[#2dd4bf]"
+                />
+                <Metric
+                  icon={Plus}
+                  label="Нові"
+                  value={summary.newAvailable.toString()}
+                  accent="bg-[#8b7cf6]"
+                />
+                <Metric
+                  icon={Clock3}
+                  label="Час"
+                  value={`${summary.estimatedMinutes} хв`}
+                  accent="bg-[#f2a84a]"
+                />
+                <Metric
+                  icon={Gauge}
+                  label="Якість"
+                  value={formatPercent(summary.retention)}
+                  accent="bg-[#ef6351]"
+                />
+                <Metric
+                  icon={Flame}
+                  label="Закріплені"
+                  value={summary.matureCards.toString()}
+                  accent="bg-[#202938]"
+                  className="col-span-2 md:col-span-1"
+                />
+              </div>
 
-                  <ModeSelector
-                    className="self-stretch xl:self-center"
-                    value={state.settings.studyMode}
-                    onChange={(studyMode) => {
-                      void handleSettingsChange({
-                        ...state.settings,
-                        studyMode,
-                      });
-                      resetPracticeUi();
-                    }}
-                  />
-                </div>
-              </ShellPanel>
+              <ModeSelector
+                className="mx-auto max-w-xl"
+                value={state.settings.studyMode}
+                onChange={(studyMode) => {
+                  void handleSettingsChange({
+                    ...state.settings,
+                    studyMode,
+                  });
+                }}
+              />
 
               <StudyPanel
                 card={activeCard}
                 queueLength={queue.length}
+                sessionTotal={practiceSessionTotal}
                 responseText={responseText}
                 isRevealed={isRevealed}
                 isBusy={isMutating}
@@ -1436,6 +1453,7 @@ function Metric({
 function StudyPanel({
   card,
   queueLength,
+  sessionTotal,
   responseText,
   isRevealed,
   isBusy,
@@ -1447,6 +1465,7 @@ function StudyPanel({
 }: {
   card: StudyCard | null;
   queueLength: number;
+  sessionTotal: number;
   responseText: string;
   isRevealed: boolean;
   isBusy: boolean;
@@ -1457,6 +1476,25 @@ function StudyPanel({
   onSuspend: (cardId: string) => void;
 }) {
   if (!card) {
+    if (sessionTotal > 0) {
+      return (
+        <ShellPanel className="min-h-[360px] p-4 md:min-h-[420px] md:p-5">
+          <PracticeProgress
+            completed={sessionTotal}
+            remaining={0}
+            total={sessionTotal}
+          />
+          <div className="grid min-h-[260px] place-items-center">
+            <EmptyState
+              icon={Check}
+              title="Черга порожня"
+              description="Активних карток у цьому режимі немає."
+            />
+          </div>
+        </ShellPanel>
+      );
+    }
+
     return (
       <ShellPanel className="grid min-h-[360px] place-items-center p-6 md:min-h-[420px]">
         <EmptyState
@@ -1469,20 +1507,19 @@ function StudyPanel({
   }
 
   const revealDisabled = responseText.trim().length === 0;
-  const cardStage = card.schedule.reps === 0 ? "Нова" : "Повторення";
+  const totalCards = Math.max(sessionTotal, queueLength, 1);
+  const completedCards = Math.min(
+    totalCards,
+    Math.max(0, totalCards - queueLength),
+  );
 
   return (
     <ShellPanel className="p-4 md:p-5">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#263140] pb-4">
-        <p className="text-sm text-[#9aa8ba]">
-          {card.module === "english" ? "Англійська" : "QA"} /{" "}
-          {labelCardType(card.type)} / {cardStage}
-        </p>
-        <div className="flex items-center gap-2 text-sm text-[#9aa8ba]">
-          <Activity className="size-4" />
-          1 / {queueLength}
-        </div>
-      </div>
+      <PracticeProgress
+        completed={completedCards}
+        remaining={queueLength}
+        total={totalCards}
+      />
 
       <div className="mt-6">
         <p className="text-sm font-medium text-[#9aa8ba]">Питання</p>
@@ -1568,6 +1605,42 @@ function StudyPanel({
         </div>
       )}
     </ShellPanel>
+  );
+}
+
+function PracticeProgress({
+  completed,
+  remaining,
+  total,
+}: {
+  completed: number;
+  remaining: number;
+  total: number;
+}) {
+  if (total <= 0) return null;
+
+  const progressPercent = Math.min(
+    100,
+    Math.max(0, Math.round((completed / total) * 100)),
+  );
+
+  return (
+    <div className="rounded-lg border border-[#263140] bg-[#0b111a] p-3">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-sm font-medium text-[#c7d0dd]">
+          Залишилось {remaining}
+        </span>
+        <span className="font-mono text-xs text-[#9aa8ba]">
+          {completed} / {total}
+        </span>
+      </div>
+      <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#182230]">
+        <div
+          className="h-full rounded-full bg-[#2dd4bf] transition-[width] duration-300"
+          style={{ width: `${progressPercent}%` }}
+        />
+      </div>
+    </div>
   );
 }
 
