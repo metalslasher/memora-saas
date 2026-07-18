@@ -1585,27 +1585,26 @@ function PracticeProgress({
 }) {
   if (total <= 0) return null;
 
-  const progressPercent = Math.min(
-    100,
-    Math.max(0, Math.round((completed / total) * 100)),
+  const segmentCount = Math.min(total, 30);
+  const completedSegments = Math.min(
+    segmentCount,
+    Math.max(0, Math.round((completed / total) * segmentCount)),
   );
 
   return (
     <div
       aria-label={`Прогрес практики: ${completed} з ${total}`}
-      className="rounded-lg border border-[#263140] bg-[#0b111a] p-3"
+      className="grid h-2.5 w-full gap-1"
+      style={{ gridTemplateColumns: `repeat(${segmentCount}, minmax(0, 1fr))` }}
     >
-      <div className="flex items-center gap-3">
-        <div className="h-2 flex-1 overflow-hidden rounded-full bg-[#182230]">
-          <div
-            className="h-full rounded-full bg-[#2dd4bf] transition-[width] duration-300"
-            style={{ width: `${progressPercent}%` }}
-          />
-        </div>
-        <span className="w-12 shrink-0 text-right font-mono text-xs text-[#9aa8ba]">
-          {completed}/{total}
-        </span>
-      </div>
+      {Array.from({ length: segmentCount }).map((_, index) => (
+        <div
+          key={index}
+          className={`h-full rounded-full transition-colors duration-300 ${
+            index < completedSegments ? "bg-[#2dd4bf]" : "bg-[#182230]"
+          }`}
+        />
+      ))}
     </div>
   );
 }
