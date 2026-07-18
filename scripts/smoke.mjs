@@ -96,6 +96,7 @@ async function assertTodayView(page) {
   await page.getByRole("button", { name: "Практика", exact: true }).click();
   await expect(page.getByRole("button", { name: "Усе", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Додати матеріал", exact: true })).toBeVisible();
+  await expect(page.getByLabel(/Серія навчання/)).toBeVisible();
   await expect(page.getByText("Повторити")).toBeVisible();
 }
 

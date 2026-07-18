@@ -82,6 +82,11 @@ import {
   topicStats,
 } from "@/lib/memora/store";
 import {
+  buildStreakStats,
+  pluralizeDays,
+  type StreakStats,
+} from "@/lib/memora/streak";
+import {
   type NoteContentDraft,
 } from "@/lib/memora/remote-store";
 import type {
@@ -314,6 +319,10 @@ export function MemoraApp() {
   );
 
   const summary = useMemo(() => (state ? summarizeState(state) : null), [state]);
+  const streakStats = useMemo(
+    () => buildStreakStats(state?.reviewLogs ?? []),
+    [state],
+  );
 
   const activeCard =
     queue.find((card) => card.id === activeCardId) ?? queue.at(0) ?? null;
@@ -747,6 +756,7 @@ export function MemoraApp() {
         currentViewLabel={currentViewLabel}
         isBusy={isMutating}
         isOpen={isMobileMenuOpen}
+        streakStats={streakStats}
         userEmail={user?.email}
         onNavigate={navigateToView}
         onSignOut={() => {
@@ -769,6 +779,7 @@ export function MemoraApp() {
             </div>
 
             <div className="mt-6 space-y-3">
+              <StudyStreakWidget stats={streakStats} />
               <button
                 className="flex w-full items-center justify-center gap-2 rounded-lg border border-[#263140] px-3 py-2 text-sm font-medium text-[#c7d0dd] transition hover:border-[#2dd4bf] hover:text-[#52e0c4]"
                 title={user?.email ?? "Вийти"}
@@ -951,6 +962,74 @@ function NavigationList({
   );
 }
 
+function StudyStreakWidget({
+  className = "",
+  compact = false,
+  stats,
+}: {
+  className?: string;
+  compact?: boolean;
+  stats: StreakStats;
+}) {
+  const streakLabel = pluralizeDays(stats.count);
+  const cardLabel =
+    stats.count > 0
+      ? `${stats.count} ${streakLabel}`
+      : "Серія ще не почалась";
+
+  return (
+    <section
+      aria-label={`Серія навчання: ${cardLabel}`}
+      className={`overflow-hidden rounded-lg border border-[#263140] bg-[#101923] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] ${className}`}
+    >
+      <div className="flex items-center gap-3">
+        <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-[#2d2110] text-[#ffb45f]">
+          <Flame className="size-5 fill-[#ff7a38]/40" />
+        </div>
+        <div className="min-w-0">
+          <div className="flex items-baseline gap-2">
+            <span className="font-mono text-3xl font-semibold leading-none text-white">
+              {stats.count}
+            </span>
+            <span className="text-sm font-medium leading-5 text-[#c7d0dd]">
+              {streakLabel}
+            </span>
+          </div>
+          <p className="mt-1 truncate text-xs font-medium text-[#9aa8ba]">
+            {stats.message}
+          </p>
+        </div>
+      </div>
+
+      <div
+        className={`mt-3 grid grid-cols-7 ${compact ? "gap-1.5" : "gap-2"}`}
+      >
+        {stats.week.map((day) => (
+          <div
+            key={day.key}
+            className="grid justify-items-center gap-1"
+            title={`${day.label}: ${day.isCompleted ? "є практика" : "ще немає практики"}`}
+          >
+            <span className="text-[10px] font-medium text-[#9aa8ba]">
+              {day.label}
+            </span>
+            <span
+              className={`size-3 rounded-full border transition ${
+                day.isCompleted
+                  ? "border-[#52e0c4] bg-[#2dd4bf] shadow-[0_0_0_3px_rgba(45,212,191,0.12)]"
+                  : day.isToday
+                    ? "border-[#52e0c4] bg-transparent"
+                    : "border-[#3a4656] bg-[#121b27]"
+              }`}
+              aria-hidden="true"
+            />
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function MobileTopBar({
   activeView,
   currentViewLabel,
@@ -959,6 +1038,7 @@ function MobileTopBar({
   onNavigate,
   onSignOut,
   onToggle,
+  streakStats,
   userEmail,
 }: {
   activeView: AppView;
@@ -968,6 +1048,7 @@ function MobileTopBar({
   onNavigate: (view: AppView) => void;
   onSignOut: () => void;
   onToggle: () => void;
+  streakStats: StreakStats;
   userEmail?: string;
 }) {
   return (
@@ -996,6 +1077,7 @@ function MobileTopBar({
         <div className="border-t border-[#202938] px-3 pb-3">
           <ShellPanel className="p-3">
             <NavigationList activeView={activeView} onNavigate={onNavigate} />
+            <StudyStreakWidget className="mt-3" compact stats={streakStats} />
             <button
               className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-[#263140] px-3 py-2 text-sm font-medium text-[#c7d0dd]"
               title={userEmail ?? "Вийти"}
