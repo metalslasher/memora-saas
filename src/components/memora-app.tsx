@@ -859,7 +859,6 @@ export function MemoraApp() {
               </div>
 
               <ModeSelector
-                className="mx-auto max-w-xl"
                 value={state.settings.studyMode}
                 onChange={(studyMode) => {
                   void handleSettingsChange({
@@ -1481,7 +1480,6 @@ function StudyPanel({
         <ShellPanel className="min-h-[360px] p-4 md:min-h-[420px] md:p-5">
           <PracticeProgress
             completed={sessionTotal}
-            remaining={0}
             total={sessionTotal}
           />
           <div className="grid min-h-[260px] place-items-center">
@@ -1517,7 +1515,6 @@ function StudyPanel({
     <ShellPanel className="p-4 md:p-5">
       <PracticeProgress
         completed={completedCards}
-        remaining={queueLength}
         total={totalCards}
       />
 
@@ -1539,9 +1536,9 @@ function StudyPanel({
       </label>
 
       {!isRevealed ? (
-        <div className="mt-4 flex flex-wrap items-center gap-3">
+        <div className="mt-4 grid gap-3 sm:flex sm:flex-wrap sm:items-center">
           <button
-            className="inline-flex items-center gap-2 rounded-lg bg-[#2dd4bf] px-4 py-3 text-sm font-semibold text-[#071018] transition hover:bg-[#5eead4] disabled:cursor-not-allowed disabled:bg-[#344052] disabled:text-[#8d9aab]"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#2dd4bf] px-4 py-3 text-sm font-semibold text-[#071018] transition hover:bg-[#5eead4] disabled:cursor-not-allowed disabled:bg-[#344052] disabled:text-[#8d9aab] sm:w-auto"
             disabled={revealDisabled || isBusy}
             onClick={onReveal}
           >
@@ -1549,7 +1546,7 @@ function StudyPanel({
             <ChevronRight className="size-4" />
           </button>
           <button
-            className="inline-flex items-center gap-2 rounded-lg border border-[#263140] px-4 py-3 text-sm font-medium text-[#c7d0dd] transition hover:border-[#ef6351] hover:text-[#ff8d7f]"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[#263140] px-4 py-3 text-sm font-medium text-[#c7d0dd] transition hover:border-[#ef6351] hover:text-[#ff8d7f] sm:w-auto"
             title="Призупинити цю картку"
             disabled={isBusy}
             onClick={() => onSuspend(card.id)}
@@ -1572,7 +1569,7 @@ function StudyPanel({
               </p>
             ) : null}
           </div>
-          <div className="flex flex-wrap gap-3">
+          <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
             <GradeButton
               tone="red"
               label="Знову"
@@ -1610,11 +1607,9 @@ function StudyPanel({
 
 function PracticeProgress({
   completed,
-  remaining,
   total,
 }: {
   completed: number;
-  remaining: number;
   total: number;
 }) {
   if (total <= 0) return null;
@@ -1625,20 +1620,20 @@ function PracticeProgress({
   );
 
   return (
-    <div className="rounded-lg border border-[#263140] bg-[#0b111a] p-3">
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-sm font-medium text-[#c7d0dd]">
-          Залишилось {remaining}
+    <div
+      aria-label={`Прогрес практики: ${completed} з ${total}`}
+      className="rounded-lg border border-[#263140] bg-[#0b111a] p-3"
+    >
+      <div className="flex items-center gap-3">
+        <div className="h-2 flex-1 overflow-hidden rounded-full bg-[#182230]">
+          <div
+            className="h-full rounded-full bg-[#2dd4bf] transition-[width] duration-300"
+            style={{ width: `${progressPercent}%` }}
+          />
+        </div>
+        <span className="w-12 shrink-0 text-right font-mono text-xs text-[#9aa8ba]">
+          {completed}/{total}
         </span>
-        <span className="font-mono text-xs text-[#9aa8ba]">
-          {completed} / {total}
-        </span>
-      </div>
-      <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#182230]">
-        <div
-          className="h-full rounded-full bg-[#2dd4bf] transition-[width] duration-300"
-          style={{ width: `${progressPercent}%` }}
-        />
       </div>
     </div>
   );
@@ -1664,7 +1659,7 @@ function GradeButton({
 
   return (
     <button
-      className={`inline-flex min-w-24 items-center justify-center rounded-lg px-4 py-3 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-55 ${classes[tone]}`}
+      className={`inline-flex w-full min-w-24 items-center justify-center rounded-lg px-4 py-3 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-55 sm:w-auto ${classes[tone]}`}
       disabled={disabled}
       onClick={onClick}
     >
