@@ -3794,9 +3794,9 @@ function AccountWorkspace({
   }
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
-      <div className="space-y-5">
-        <ShellPanel className="p-4 md:p-5">
+    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(480px,0.72fr)]">
+      <div className="flex flex-col gap-5">
+        <ShellPanel className="p-4 md:p-5 xl:min-h-[368px]">
           <div className="flex items-start justify-between gap-4">
             <div>
               <h2 className="text-lg font-semibold">Профіль</h2>
@@ -3980,82 +3980,15 @@ function AccountWorkspace({
 
         <BackupPanel
           isBusy={isBusy}
-          state={state}
-          onRestoreBackup={onRestoreBackup}
-        />
-        <DangerZonePanel
-          isBusy={isBusy}
           materialCount={state.notes.length}
           reviewCount={state.reviewLogs.length}
+          state={state}
           onClearMaterials={onClearMaterials}
           onResetLearningStats={onResetLearningStats}
+          onRestoreBackup={onRestoreBackup}
         />
       </div>
     </div>
-  );
-}
-
-function DangerZonePanel({
-  isBusy,
-  materialCount,
-  reviewCount,
-  onClearMaterials,
-  onResetLearningStats,
-}: {
-  isBusy: boolean;
-  materialCount: number;
-  reviewCount: number;
-  onClearMaterials: () => Promise<void>;
-  onResetLearningStats: () => Promise<void>;
-}) {
-  function confirmClearMaterials() {
-    const confirmed = window.confirm(
-      `Видалити всі матеріали (${materialCount}) разом з картками? Цю дію не можна скасувати.`,
-    );
-    if (!confirmed) return;
-
-    void onClearMaterials().catch(() => undefined);
-  }
-
-  function confirmResetStats() {
-    const confirmed = window.confirm(
-      `Обнулити статистику та історію повторень (${reviewCount})? Матеріали залишаться, але картки почнуть навчання заново.`,
-    );
-    if (!confirmed) return;
-
-    void onResetLearningStats().catch(() => undefined);
-  }
-
-  return (
-    <ShellPanel className="p-4 md:p-5">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h2 className="text-lg font-semibold">Очищення даних</h2>
-        </div>
-        <Trash2 className="size-5 text-[#ff8d7f]" />
-      </div>
-
-      <div className="mt-4 grid gap-3">
-        <button
-          className="flex w-full items-center justify-between gap-3 rounded-lg border border-[#4a2428] bg-[#171014] px-4 py-3 text-left text-sm font-semibold text-[#ffb1a7] transition hover:border-[#ef6351] hover:bg-[#251519] disabled:cursor-not-allowed disabled:opacity-55"
-          disabled={isBusy || materialCount === 0}
-          onClick={confirmClearMaterials}
-          type="button"
-        >
-          <span>Видалити всі матеріали</span>
-          <span className="font-mono text-xs text-[#ff8d7f]">{materialCount}</span>
-        </button>
-        <button
-          className="flex w-full items-center justify-between gap-3 rounded-lg border border-[#4a2428] bg-[#171014] px-4 py-3 text-left text-sm font-semibold text-[#ffb1a7] transition hover:border-[#ef6351] hover:bg-[#251519] disabled:cursor-not-allowed disabled:opacity-55"
-          disabled={isBusy || reviewCount === 0}
-          onClick={confirmResetStats}
-          type="button"
-        >
-          <span>Обнулити статистику</span>
-          <span className="font-mono text-xs text-[#ff8d7f]">{reviewCount}</span>
-        </button>
-      </div>
-    </ShellPanel>
   );
 }
 
@@ -4112,11 +4045,19 @@ function AnalyticsWorkspace({
 
 function BackupPanel({
   isBusy,
+  materialCount,
+  onClearMaterials,
+  onResetLearningStats,
   onRestoreBackup,
+  reviewCount,
   state,
 }: {
   isBusy: boolean;
+  materialCount: number;
+  onClearMaterials: () => Promise<void>;
+  onResetLearningStats: () => Promise<void>;
   onRestoreBackup: (backup: BackupDocument) => Promise<void>;
+  reviewCount: number;
   state: MemoraState;
 }) {
   const [backupDocument, setBackupDocument] = useState<BackupDocument | null>(null);
@@ -4172,6 +4113,24 @@ function BackupPanel({
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
+  function confirmClearMaterials() {
+    const confirmed = window.confirm(
+      `Видалити всі матеріали (${materialCount}) разом з картками? Цю дію не можна скасувати.`,
+    );
+    if (!confirmed) return;
+
+    void onClearMaterials().catch(() => undefined);
+  }
+
+  function confirmResetStats() {
+    const confirmed = window.confirm(
+      `Обнулити статистику та історію повторень (${reviewCount})? Матеріали залишаться, але картки почнуть навчання заново.`,
+    );
+    if (!confirmed) return;
+
+    void onResetLearningStats().catch(() => undefined);
+  }
+
   return (
     <ShellPanel className="p-4 md:p-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -4182,72 +4141,109 @@ function BackupPanel({
           {state.notes.length}
         </span>
       </div>
-      <div className="mt-4 grid gap-3 md:grid-cols-3">
-        <ExportButton
-          label="Повна копія JSON"
-          onClick={() =>
-            downloadTextFile(
-              `memora-backup-${dateStamp()}.json`,
-              createBackupJson(state),
-              "application/json;charset=utf-8",
-            )
-          }
-        />
-        <ExportButton
-          label="CSV зі словами"
-          onClick={() =>
-            downloadTextFile(
-              `memora-english-${dateStamp()}.csv`,
-              notesToCsv(state.notes, "english"),
-              "text/csv;charset=utf-8",
-            )
-          }
-        />
-        <ExportButton
-          label="CSV з QA"
-          onClick={() =>
-            downloadTextFile(
-              `memora-qa-${dateStamp()}.csv`,
-              notesToCsv(state.notes, "qa"),
-              "text/csv;charset=utf-8",
-            )
-          }
-        />
-      </div>
-      <div className="mt-4 rounded-lg border border-[#263140] bg-[#0d131c] p-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm font-semibold text-[#eef4ff]">
-              Відновлення
-            </p>
+      <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(170px,0.9fr)]">
+        <div className="min-w-0 space-y-3">
+          <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-1 2xl:grid-cols-3">
+            <ExportButton
+              label="Повна копія JSON"
+              onClick={() =>
+                downloadTextFile(
+                  `memora-backup-${dateStamp()}.json`,
+                  createBackupJson(state),
+                  "application/json;charset=utf-8",
+                )
+              }
+            />
+            <ExportButton
+              label="CSV зі словами"
+              onClick={() =>
+                downloadTextFile(
+                  `memora-english-${dateStamp()}.csv`,
+                  notesToCsv(state.notes, "english"),
+                  "text/csv;charset=utf-8",
+                )
+              }
+            />
+            <ExportButton
+              label="CSV з QA"
+              onClick={() =>
+                downloadTextFile(
+                  `memora-qa-${dateStamp()}.csv`,
+                  notesToCsv(state.notes, "qa"),
+                  "text/csv;charset=utf-8",
+                )
+              }
+            />
           </div>
-          <input
-            ref={fileInputRef}
-            accept="application/json,.json"
-            className="hidden"
-            onChange={(event) => void handleBackupFileChange(event)}
-            type="file"
-          />
-          <button
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-[#314055] px-4 text-sm font-semibold text-[#dce7f5] transition hover:border-[#2dd4bf] hover:bg-[#101a25] disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={isBusy}
-            onClick={() => fileInputRef.current?.click()}
-            type="button"
-          >
-            <Upload className="size-4" />
-            Обрати JSON-файл
-          </button>
+
+          <div className="rounded-lg border border-[#263140] bg-[#0d131c] p-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between lg:flex-col lg:items-stretch 2xl:flex-row 2xl:items-center">
+              <p className="text-sm font-semibold text-[#eef4ff]">
+                Відновлення
+              </p>
+              <input
+                ref={fileInputRef}
+                accept="application/json,.json"
+                className="hidden"
+                onChange={(event) => void handleBackupFileChange(event)}
+                type="file"
+              />
+              <button
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-[#314055] px-4 text-sm font-semibold text-[#dce7f5] transition hover:border-[#2dd4bf] hover:bg-[#101a25] disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={isBusy}
+                onClick={() => fileInputRef.current?.click()}
+                type="button"
+              >
+                <Upload className="size-4" />
+                Обрати JSON-файл
+              </button>
+            </div>
+
+            {restoreError ? (
+              <div className="mt-3 flex items-start gap-2 rounded-lg border border-[#ef4444]/30 bg-[#2b1216] p-3 text-sm leading-6 text-[#fecaca]">
+                <AlertCircle className="mt-0.5 size-4 shrink-0" />
+                <span>{restoreError}</span>
+              </div>
+            ) : null}
+          </div>
         </div>
 
-        {restoreError ? (
-          <div className="mt-4 flex items-start gap-2 rounded-lg border border-[#ef4444]/30 bg-[#2b1216] p-3 text-sm leading-6 text-[#fecaca]">
-            <AlertCircle className="mt-0.5 size-4 shrink-0" />
-            <span>{restoreError}</span>
+        <div className="rounded-lg border border-[#4a2428] bg-[#171014] p-3">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-sm font-semibold text-[#eef4ff]">
+              Очищення даних
+            </h3>
+            <Trash2 className="size-4 text-[#ff8d7f]" />
           </div>
-        ) : null}
+
+          <div className="mt-3 grid gap-2">
+            <button
+              className="flex min-h-11 w-full items-center justify-between gap-3 rounded-lg border border-[#4a2428] bg-[#1e1115] px-3 py-2 text-left text-sm font-semibold text-[#ffb1a7] transition hover:border-[#ef6351] hover:bg-[#251519] disabled:cursor-not-allowed disabled:opacity-55"
+              disabled={isBusy || materialCount === 0}
+              onClick={confirmClearMaterials}
+              type="button"
+            >
+              <span>Видалити всі матеріали</span>
+              <span className="font-mono text-xs text-[#ff8d7f]">
+                {materialCount}
+              </span>
+            </button>
+            <button
+              className="flex min-h-11 w-full items-center justify-between gap-3 rounded-lg border border-[#4a2428] bg-[#1e1115] px-3 py-2 text-left text-sm font-semibold text-[#ffb1a7] transition hover:border-[#ef6351] hover:bg-[#251519] disabled:cursor-not-allowed disabled:opacity-55"
+              disabled={isBusy || reviewCount === 0}
+              onClick={confirmResetStats}
+              type="button"
+            >
+              <span>Обнулити статистику</span>
+              <span className="font-mono text-xs text-[#ff8d7f]">
+                {reviewCount}
+              </span>
+            </button>
+          </div>
+        </div>
 
         {backupPreview ? (
-          <div className="mt-4 rounded-lg border border-[#314055] bg-[#0b111a] p-4">
+          <div className="rounded-lg border border-[#314055] bg-[#0b111a] p-4 lg:col-span-2">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <PreviewMetric
                 label="Дата копії"
