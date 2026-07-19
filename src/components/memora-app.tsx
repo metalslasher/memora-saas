@@ -7,8 +7,6 @@ import {
   BookOpenCheck,
   Brain,
   Check,
-  ChevronsLeft,
-  ChevronsRight,
   ChevronRight,
   Clock3,
   Code2,
@@ -872,33 +870,15 @@ export function MemoraApp() {
             <div>
               <div
                 className={`flex items-center ${
-                  isSidebarCollapsed
-                    ? "flex-col justify-center gap-3"
-                    : "justify-between gap-3"
+                  isSidebarCollapsed ? "justify-center" : "justify-start"
                 }`}
               >
-                <BrandLockup isCollapsed={isSidebarCollapsed} />
-                <button
-                  aria-label={
-                    isSidebarCollapsed
-                      ? "Розгорнути бокове меню"
-                      : "Згорнути бокове меню"
+                <BrandLockup
+                  isCollapsed={isSidebarCollapsed}
+                  onToggleSidebar={() =>
+                    setIsSidebarCollapsed((value) => !value)
                   }
-                  className="grid size-9 place-items-center rounded-lg border border-[#263140] text-[#9aa8ba] transition hover:border-[#2dd4bf] hover:text-[#52e0c4]"
-                  onClick={() => setIsSidebarCollapsed((value) => !value)}
-                  title={
-                    isSidebarCollapsed
-                      ? "Розгорнути бокове меню"
-                      : "Згорнути бокове меню"
-                  }
-                  type="button"
-                >
-                  {isSidebarCollapsed ? (
-                    <ChevronsRight className="size-4" />
-                  ) : (
-                    <ChevronsLeft className="size-4" />
-                  )}
-                </button>
+                />
               </div>
               <NavigationList
                 activeView={activeView}
@@ -1062,13 +1042,38 @@ export function MemoraApp() {
   );
 }
 
-function BrandLockup({ isCollapsed = false }: { isCollapsed?: boolean }) {
+function BrandLockup({
+  isCollapsed = false,
+  onToggleSidebar,
+}: {
+  isCollapsed?: boolean;
+  onToggleSidebar?: () => void;
+}) {
+  const toggleLabel = isCollapsed
+    ? "Розгорнути бокове меню"
+    : "Згорнути бокове меню";
+
   return (
     <div className="flex items-center gap-3">
-      <Brain
-        className="size-7 shrink-0 text-[#eef4ff] drop-shadow-[0_0_14px_rgba(238,244,255,0.28)]"
-        strokeWidth={1.8}
-      />
+      {onToggleSidebar ? (
+        <button
+          aria-label={toggleLabel}
+          className="group -m-1 grid size-9 place-items-center rounded-lg text-[#eef4ff] transition hover:text-[#52e0c4] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#2dd4bf]"
+          onClick={onToggleSidebar}
+          title={toggleLabel}
+          type="button"
+        >
+          <Brain
+            className="size-7 shrink-0 drop-shadow-[0_0_14px_rgba(238,244,255,0.28)] transition group-hover:drop-shadow-[0_0_18px_rgba(45,212,191,0.35)]"
+            strokeWidth={1.8}
+          />
+        </button>
+      ) : (
+        <Brain
+          className="size-7 shrink-0 text-[#eef4ff] drop-shadow-[0_0_14px_rgba(238,244,255,0.28)]"
+          strokeWidth={1.8}
+        />
+      )}
       <p className={`text-lg font-semibold leading-6 ${isCollapsed ? "sr-only" : ""}`}>
         Memora
       </p>
