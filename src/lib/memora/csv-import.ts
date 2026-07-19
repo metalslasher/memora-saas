@@ -54,6 +54,9 @@ const englishHeaderAliases: Record<string, keyof EnglishDraft> = {
   значення: "translation",
   переклад: "translation",
   українське_значення: "translation",
+  part_of_speech: "partOfSpeech",
+  pos: "partOfSpeech",
+  speech_part: "partOfSpeech",
   example: "example",
   example_en: "example",
   sentence: "example",
@@ -173,9 +176,9 @@ export function parseCsvImport(
 export function csvTemplate(module: ModuleType) {
   if (module === "english") {
     return [
-      "lemma_en,translation_uk,example_en",
-      "flaky test,нестабільний тест,This flaky test fails only in CI.",
-      "edge case,крайній випадок,This edge case breaks validation.",
+      "lemma_en,translation_uk,part_of_speech,example_en",
+      "flaky test,нестабільний тест,phrase,This flaky test fails only in CI.",
+      "edge case,крайній випадок,phrase,This edge case breaks validation.",
     ].join("\n");
   }
 
@@ -282,7 +285,12 @@ function draftFromRecord(
   module: ModuleType,
 ): CsvImportDraft {
   if (module === "english") {
-    const draft: EnglishDraft = { lemma: "", translation: "", example: "" };
+    const draft: EnglishDraft = {
+      lemma: "",
+      translation: "",
+      partOfSpeech: "",
+      example: "",
+    };
     mappedHeaders.forEach((field, index) => {
       if (field && field in draft) draft[field as keyof EnglishDraft] = record[index] ?? "";
     });
@@ -338,6 +346,7 @@ function labelField(module: ModuleType, field: keyof EnglishDraft | keyof QaDraf
       ? {
           lemma: "англійське слово або фраза",
           translation: "українське значення",
+          partOfSpeech: "частина мови",
           example: "приклад",
         }
       : {

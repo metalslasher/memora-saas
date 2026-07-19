@@ -20,9 +20,9 @@ describe("csv import", () => {
   it("parses English CSV rows and marks existing duplicates", () => {
     const preview = parseCsvImport(
       [
-        "lemma_en,translation_uk,example_en",
-        "flaky test,нестабільний тест,This flaky test fails only in CI.",
-        "edge case,крайній випадок,This edge case breaks validation.",
+        "lemma_en,translation_uk,part_of_speech,example_en",
+        "flaky test,нестабільний тест,phrase,This flaky test fails only in CI.",
+        "edge case,крайній випадок,phrase,This edge case breaks validation.",
       ].join("\n"),
       "english",
       [existingEnglishNote],
@@ -38,6 +38,7 @@ describe("csv import", () => {
     expect(preview.rows[1].draft).toMatchObject({
       lemma: "edge case",
       translation: "крайній випадок",
+      partOfSpeech: "phrase",
     });
   });
 

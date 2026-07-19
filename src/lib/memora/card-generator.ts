@@ -3,6 +3,7 @@ import type { CardType, ModuleType } from "./types";
 export type EnglishDraft = {
   lemma: string;
   translation: string;
+  partOfSpeech?: string;
   example: string;
 };
 
@@ -27,6 +28,7 @@ export function normalizeEnglishDraft(draft: EnglishDraft): EnglishDraft {
   return {
     lemma: cleanText(draft.lemma),
     translation: cleanText(draft.translation),
+    partOfSpeech: cleanText(draft.partOfSpeech ?? ""),
     example: cleanText(draft.example),
   };
 }
@@ -45,7 +47,7 @@ export function englishContentFromDraft(draft: EnglishDraft) {
   return {
     lemma_en: normalized.lemma,
     translation_uk: normalized.translation,
-    part_of_speech: "phrase",
+    part_of_speech: normalized.partOfSpeech || "phrase",
     example_en: normalized.example,
   };
 }
