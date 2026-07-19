@@ -46,6 +46,8 @@ pnpm smoke
 
 All commands should pass before deployment.
 
+Supabase note: the hosted project currently has older remote-only migration timestamps from the first setup. Do not run a blanket `supabase db push` until migration history is aligned. The current atomic restore RPC is stored in `supabase/migrations/20260719072833_atomic_restore_backup.sql` and has been applied to the linked database with `supabase db query --linked --file ...`.
+
 `pnpm smoke` checks the login screen by default. To run the authenticated browser flow, provide a test owner account:
 
 ```bash
@@ -54,7 +56,7 @@ $env:MEMORA_SMOKE_PASSWORD="your-password"
 pnpm smoke
 ```
 
-By default, the authenticated smoke flow creates and edits one timestamped English note. To verify navigation without changing learning data:
+By default, the authenticated smoke flow creates, edits, and duplicate-merges one timestamped English note. It also checks CSV preview, JSON export, restore preview/cancel, weak-card repair entry, and mobile navigation. To verify navigation without changing learning data:
 
 ```bash
 $env:MEMORA_SMOKE_MUTATE="0"
@@ -101,6 +103,6 @@ Use a clean browser session and the owner account.
 
 ## Known Production Follow-Ups
 
-- Extend automated browser tests to cover CSV import, JSON export, and JSON restore.
+- Align Supabase migration history before relying on `supabase db push` for future migrations.
+- Add a destructive restore-commit smoke test only against a disposable account.
 - Move large imports to a route handler or background job if personal CSV files become large.
-- Consider a Supabase SQL RPC for fully transactional restore if backup restore becomes a frequent workflow.

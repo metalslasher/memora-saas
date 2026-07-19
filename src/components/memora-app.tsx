@@ -53,10 +53,12 @@ import {
   updateSettingsAction,
 } from "@/app/actions";
 import {
+  englishContentFromDraft,
   generateEnglishCards,
   generateQaCards,
   normalizeEnglishDraft,
   normalizeQaDraft,
+  qaContentFromDraft,
   type EnglishDraft,
   type QaDraft,
 } from "@/lib/memora/card-generator";
@@ -872,6 +874,14 @@ export function MemoraApp() {
             <HelpWorkspace />
           ) : activeView === "analytics" ? (
             <AnalyticsWorkspace
+              onOpenNote={(noteId) => {
+                const note = state.notes.find((item) => item.id === noteId);
+                if (!note) return;
+
+                setSelectedNoteId(noteId);
+                setActiveView(note.module);
+                setIsMobileMenuOpen(false);
+              }}
               state={state}
               summary={summary}
             />
@@ -1805,6 +1815,7 @@ function ContentManager({
           notes={notes}
           onAddEnglish={onAddEnglish}
           onAddQa={onAddQa}
+          onMergeDuplicate={onNoteContentChange}
           onNoteSelect={onNoteSelect}
         />
 
@@ -1971,6 +1982,7 @@ function NewMaterialPanel({
   notes,
   onAddEnglish,
   onAddQa,
+  onMergeDuplicate,
   onNoteSelect,
 }: {
   isBusy: boolean;
@@ -1978,6 +1990,10 @@ function NewMaterialPanel({
   notes: Note[];
   onAddEnglish: (draft: EnglishDraft) => Promise<void>;
   onAddQa: (draft: QaDraft) => Promise<void>;
+  onMergeDuplicate: (
+    noteId: string,
+    content: NoteContentDraft,
+  ) => Promise<void>;
   onNoteSelect: (noteId: string | null) => void;
 }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -2048,6 +2064,32 @@ function NewMaterialPanel({
         setLocalMessage("Матеріал додано.");
       }
       setAllowDuplicate(false);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function mergeDuplicate() {
+    if (!primaryDuplicate || !canSubmit || isBusy || isSubmitting) return;
+
+    setIsSubmitting(true);
+    setLocalMessage(null);
+
+    try {
+      await onMergeDuplicate(
+        primaryDuplicate.id,
+        isEnglish
+          ? englishContentFromDraft(normalizedEnglish)
+          : qaContentFromDraft(normalizedQa),
+      );
+      onNoteSelect(primaryDuplicate.id);
+      if (isEnglish) {
+        setEnglish({ lemma: "", translation: "", example: "" });
+      } else {
+        setQa({ term: "", definition: "", example: "" });
+      }
+      setAllowDuplicate(false);
+      setLocalMessage("Існуючий матеріал оновлено.");
     } finally {
       setIsSubmitting(false);
     }
@@ -2134,7 +2176,7 @@ function NewMaterialPanel({
           <p className="mt-1 text-xs leading-5">
             {duplicateMatches.map((match) => match.note.title).join(", ")}
           </p>
-          <div className="mt-3 grid grid-cols-2 gap-2">
+          <div className="mt-3 grid gap-2 sm:grid-cols-3">
             <button
               className="rounded-lg border border-[#8a6a2d] px-3 py-2 text-xs font-medium text-[#fff0c2] transition hover:bg-[#3a2e18]"
               disabled={!primaryDuplicate}
@@ -2144,6 +2186,14 @@ function NewMaterialPanel({
               type="button"
             >
               Відкрити
+            </button>
+            <button
+              className="rounded-lg border border-[#2dd4bf] bg-[#123129] px-3 py-2 text-xs font-semibold text-[#8df3dd] transition hover:bg-[#163b33] disabled:cursor-not-allowed disabled:opacity-55"
+              disabled={!primaryDuplicate || !canSubmit || isBusy || isSubmitting}
+              onClick={() => void mergeDuplicate()}
+              type="button"
+            >
+              Оновити існуючий
             </button>
             <button
               className="rounded-lg bg-[#f2a84a] px-3 py-2 text-xs font-semibold text-[#071018] transition hover:bg-[#ffc063]"
@@ -3795,9 +3845,11 @@ function ReadOnlyField({
 }
 
 function AnalyticsWorkspace({
+  onOpenNote,
   state,
   summary,
 }: {
+  onOpenNote: (noteId: string) => void;
   state: MemoraState;
   summary: QueueSummary;
 }) {
@@ -3807,7 +3859,7 @@ function AnalyticsWorkspace({
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px] xl:items-start">
       <ProgressOverviewPanel state={state} summary={summary} />
       <RecentReviewsPanel logs={recentLogs} state={state} />
-      <WeakCardsPanel state={state} />
+      <WeakCardsPanel onOpenNote={onOpenNote} state={state} />
       <MaterialProgressPanel state={state} />
     </div>
   );
@@ -3866,6 +3918,15 @@ function BackupPanel({
       setRestoreError(formatError(error));
     }
   }
+
+  function clearRestorePreview() {
+    setBackupDocument(null);
+    setBackupPreview(null);
+    setRestoreError(null);
+    setIsRestoreConfirmed(false);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
   return (
     <ShellPanel className="p-4 md:p-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -3973,19 +4034,29 @@ function BackupPanel({
               <p className="text-xs leading-5 text-[#9aa8ba]">
                 Поточні дані буде замінено.
               </p>
-              <button
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#2dd4bf] px-4 text-sm font-semibold text-[#03110f] transition hover:bg-[#67e8d7] disabled:cursor-not-allowed disabled:bg-[#3a4b60] disabled:text-[#91a0b3]"
-                disabled={!isRestoreConfirmed || isBusy}
-                onClick={() => void handleRestoreClick()}
-                type="button"
-              >
-                {isBusy ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <Upload className="size-4" />
-                )}
-                Відновити копію
-              </button>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <button
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#314055] px-4 text-sm font-semibold text-[#dce7f5] transition hover:border-[#2dd4bf] hover:bg-[#101a25] disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={isBusy}
+                  onClick={clearRestorePreview}
+                  type="button"
+                >
+                  Скасувати
+                </button>
+                <button
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#2dd4bf] px-4 text-sm font-semibold text-[#03110f] transition hover:bg-[#67e8d7] disabled:cursor-not-allowed disabled:bg-[#3a4b60] disabled:text-[#91a0b3]"
+                  disabled={!isRestoreConfirmed || isBusy}
+                  onClick={() => void handleRestoreClick()}
+                  type="button"
+                >
+                  {isBusy ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Upload className="size-4" />
+                  )}
+                  Відновити копію
+                </button>
+              </div>
             </div>
           </div>
         ) : null}
@@ -4129,8 +4200,15 @@ function RecentReviewsPanel({
   );
 }
 
-function WeakCardsPanel({ state }: { state: MemoraState }) {
+function WeakCardsPanel({
+  onOpenNote,
+  state,
+}: {
+  onOpenNote: (noteId: string) => void;
+  state: MemoraState;
+}) {
   const weakCards = getWeakCards(state);
+  const notesById = new Map(state.notes.map((note) => [note.id, note]));
 
   return (
     <ShellPanel className="p-4 md:p-5">
@@ -4154,24 +4232,45 @@ function WeakCardsPanel({ state }: { state: MemoraState }) {
             />
           </div>
         ) : (
-          weakCards.map((card) => (
-            <div
-              key={card.id}
-              className="rounded-lg border border-[#263140] bg-[#0d131c] p-3"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <p className="line-clamp-2 text-sm font-medium">{card.prompt}</p>
-                <Badge tone={card.module === "english" ? "green" : "violet"}>
-                  {card.module === "english" ? "Англ." : "QA"}
-                </Badge>
+          weakCards.map((card) => {
+            const note = notesById.get(card.noteId);
+
+            return (
+              <div
+                key={card.id}
+                className="rounded-lg border border-[#263140] bg-[#0d131c] p-3"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="line-clamp-2 text-sm font-medium">
+                      {card.prompt}
+                    </p>
+                    {note ? (
+                      <p className="mt-1 truncate text-xs text-[#9aa8ba]">
+                        {note.title}
+                      </p>
+                    ) : null}
+                  </div>
+                  <Badge tone={card.module === "english" ? "green" : "violet"}>
+                    {card.module === "english" ? "Англ." : "QA"}
+                  </Badge>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2 text-xs text-[#9aa8ba]">
+                  <span>помилок: {card.schedule.lapses}</span>
+                  <span>повторень: {card.schedule.reps}</span>
+                  <span>наступний раз: {formatDate(card.schedule.due)}</span>
+                </div>
+                <button
+                  className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[#263140] px-3 py-2 text-sm font-medium text-[#c7d0dd] transition hover:border-[#2dd4bf] hover:text-[#52e0c4]"
+                  onClick={() => onOpenNote(card.noteId)}
+                  type="button"
+                >
+                  <Save className="size-4" />
+                  Виправити матеріал
+                </button>
               </div>
-              <div className="mt-3 flex flex-wrap gap-2 text-xs text-[#9aa8ba]">
-                <span>помилок: {card.schedule.lapses}</span>
-                <span>повторень: {card.schedule.reps}</span>
-                <span>наступний раз: {formatDate(card.schedule.due)}</span>
-              </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     </ShellPanel>

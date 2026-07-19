@@ -120,19 +120,22 @@ Acceptance criteria:
 
 ## Release 6: Content Repair And Leech Flow
 
+Status: partially implemented for weak-card repair. Full leech marking/recommendations remain deferred.
+
 Deliverables:
 
-- Leech detection.
-- Leech list.
-- Edit/suspend/split recommendations.
-- Note repair UI.
+- Weak-card detection from lapses/recent failed reviews. Implemented.
+- Weak-card list. Implemented in Progress.
+- Note repair UI. Implemented through weak-card-to-note editor flow.
+- Leech detection. Deferred.
+- Edit/suspend/split recommendations. Deferred.
 
 Acceptance criteria:
 
-- Repeatedly failed cards are marked as leech.
-- User can inspect leech cards from dashboard.
-- User can edit or suspend leech notes.
-- Leech status is visible but not punitive.
+- User can inspect weak cards from Progress. Implemented.
+- User can open the source material from a weak card and edit it. Implemented.
+- Repeatedly failed cards are marked as leech. Deferred.
+- Leech status is visible but not punitive. Deferred.
 
 ## MVP Test Plan
 

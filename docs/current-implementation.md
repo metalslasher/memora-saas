@@ -29,17 +29,17 @@ Implemented:
 - Manual note creation for English and QA in their dedicated content-manager sections.
 - New-material success feedback after generated cards are created.
 - Generated-card preview before saving new material.
-- Duplicate detection with open-existing and create-anyway paths.
+- Duplicate detection with open-existing, merge/update-existing, and create-anyway paths.
 - CSV import for English and QA from content manager views, with delimiter detection, row-level validation, duplicate preview, downloadable templates, persistent import history, and server-side duplicate filtering.
 - Backup/export from Profile: full JSON backup plus English and QA CSV exports.
-- Restore from JSON backup with file validation, preview counts, explicit confirmation, and Supabase-backed replacement of notes, cards, schedules, and review history.
+- Restore from JSON backup with file validation, preview counts, cancel/confirm flow, and a Supabase RPC that atomically replaces decks, notes, cards, review history, and CSV import history.
 - Real sidebar navigation for Practice, English words, QA/testing, Progress, Profile, and Help.
 - In-app Help workspace with Ukrainian guide copy, learning-loop visualization, section explanations, review-rating guidance, content workflows, profile/data explanations, and a table of contents.
 - Ukrainian-first visible product interface.
 - Product UI no longer shows MVP/dev/sync labels in the main sidebar.
 - English and QA content manager views with note search, note grid, top-level create/import panels, modal note details, editable source fields, generated-card inspection, and status controls.
 - Content manager has empty states for no notes/imports/cards, human-readable statuses, generated-card explanations, and quick field cleanup for note editing.
-- Progress workspace with learning dynamics, recent attempts, weak-card review, and material overview. Long lists scroll inside their panels instead of stretching the page.
+- Progress workspace with learning dynamics, recent attempts, weak-card review, weak-card-to-note repair flow, and material overview. Long lists scroll inside their panels instead of stretching the page.
 - Review logs and basic analytics.
 - Card suspension from the study view.
 - Dark-only product theme across the full interface.
@@ -53,7 +53,7 @@ These are intentionally temporary for the current MVP:
 - Browser-side Supabase is still used for Auth; learning mutations now go through server actions and still rely on RLS.
 - CSV import uses synchronous server actions for small personal files; larger imports should move to route handlers or background jobs later.
 - No curated external seed corpus yet; current seed data is a small hand-authored starter set.
-- JSON restore intentionally does not overwrite CSV import history; import runs stay as audit/history records.
+- Supabase migration history in the hosted project has older remote-only timestamps from the initial setup. Avoid a blanket `supabase db push` until migration history is repaired; the atomic restore RPC was applied directly with `supabase db query --linked --file ...`.
 
 ## Files To Know
 
@@ -86,7 +86,11 @@ Verified locally:
 - `pnpm lint`
 - `pnpm test`
 - `pnpm build`
-- Supabase MCP checks:
+- Supabase linked DB query:
+  - `restore_memora_backup(backup_state jsonb)` exists in `public`
+  - `authenticated` can execute the restore RPC
+  - Supabase advisors only report Auth leaked-password protection as disabled
+- Earlier Supabase checks:
   - migrations applied: `initial_memora_schema`, `fix_memora_advisors`, `add_auth_uid_defaults`
   - cleanup migration applied: `dedupe_seed_and_unique_decks`
   - schema/security advisors have no RLS/table issues
@@ -111,13 +115,13 @@ Verified locally:
   - no browser console errors.
 - Automated smoke script:
   - `pnpm smoke` verifies the login screen.
-  - with `MEMORA_SMOKE_EMAIL` and `MEMORA_SMOKE_PASSWORD`, it verifies Practice, Help, Profile, English/QA content views, and add/edit English note flow.
+  - with `MEMORA_SMOKE_EMAIL` and `MEMORA_SMOKE_PASSWORD`, it verifies Practice, Help, Profile, English/QA content views, CSV preview, backup export, restore preview/cancel, weak-card repair entry, mobile navigation, and add/edit/merge English note flow.
 
 ## Recommended Next Step
 
-Build Release 1 properly:
+Recommended next hardening:
 
-1. Add stronger merge/update flows for duplicates, not only skip/create-anyway.
+1. Repair/align Supabase migration history so future migrations can be pushed with `supabase db push` safely.
 2. Move larger import/background work to route handlers or jobs when needed.
-3. Extend `pnpm smoke` to cover CSV import, JSON export, and JSON restore flows.
-4. Consider a Supabase SQL RPC for fully transactional backup restore if restore becomes a frequent workflow.
+3. Add a dedicated restore-commit smoke test against a disposable account or disposable backup.
+4. Add more focused tests around weak-card repair after repeated failed reviews.

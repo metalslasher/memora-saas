@@ -1,4 +1,6 @@
 import { chromium, expect } from "@playwright/test";
+import os from "node:os";
+import path from "node:path";
 
 const baseUrl = process.env.MEMORA_SMOKE_URL ?? "http://localhost:3000";
 const email = process.env.MEMORA_SMOKE_EMAIL;
@@ -10,7 +12,11 @@ async function main() {
   await assertServerReady();
 
   const browser = await launchBrowser();
-  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  const context = await browser.newContext({
+    acceptDownloads: true,
+    viewport: { width: 1440, height: 1000 },
+  });
+  const page = await context.newPage();
 
   page.on("console", (message) => {
     if (message.type() === "error") {
@@ -36,6 +42,10 @@ async function main() {
     await signIn(page, email, password);
     await assertPracticeView(page);
     await assertHelpAndAccount(page);
+    await assertCsvImportPreview(page);
+    await assertBackupExportAndRestorePreview(page);
+    await assertProgressWeakCardEdit(page);
+    await assertMobileNavigation(page);
 
     if (shouldMutate) {
       await assertAddAndEditEnglishNote(page);
@@ -46,6 +56,7 @@ async function main() {
     await assertNoConsoleErrors();
     console.log("Smoke OK: authenticated UI flow.");
   } finally {
+    await context.close();
     await browser.close();
   }
 }
@@ -114,6 +125,8 @@ async function assertHelpAndAccount(page) {
   await expect(page.getByRole("heading", { name: "Навчання", exact: true })).toBeVisible();
   await expect(page.locator('input[type="range"]')).toHaveAttribute("max", "50");
   await expect(page.getByRole("heading", { name: "Безпека", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Надіслати", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Оновити пароль", exact: true })).toBeDisabled();
   await expect(page.getByRole("heading", { name: "Дані", exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "Англійські слова", exact: true }).click();
@@ -127,6 +140,77 @@ async function assertHelpAndAccount(page) {
   await expect(page.getByText("Імпорт QA-термінів", { exact: true })).toBeVisible();
   await expect(page.getByPlaceholder("Пошук")).toBeVisible();
   await expect(page.getByText("Усього", { exact: true })).toBeVisible();
+}
+
+async function assertCsvImportPreview(page) {
+  const stamp = Date.now();
+  const csv = [
+    "lemma_en,translation_uk,example_en",
+    `smoke csv ${stamp},csv перевірка ${stamp},This CSV smoke row stays in preview.`,
+  ].join("\n");
+
+  await page.getByRole("button", { name: "Англійські слова", exact: true }).click();
+  await page
+    .locator('input[type="file"][accept*=".csv"]')
+    .setInputFiles({
+      name: `memora-smoke-${stamp}.csv`,
+      mimeType: "text/csv",
+      buffer: Buffer.from(csv, "utf8"),
+    });
+
+  await expect(page.getByText(`memora-smoke-${stamp}.csv`)).toBeVisible();
+  await expect(page.getByText("Готові", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Додати \d+ з CSV/ })).toBeVisible();
+}
+
+async function assertBackupExportAndRestorePreview(page) {
+  await page.getByRole("button", { name: "Профіль", exact: true }).click();
+
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Повна копія JSON" }).click();
+  const download = await downloadPromise;
+  const restorePath = path.join(os.tmpdir(), `memora-smoke-backup-${Date.now()}.json`);
+  await download.saveAs(restorePath);
+
+  await page
+    .locator('input[type="file"][accept*="json"]')
+    .setInputFiles(restorePath);
+
+  await expect(page.getByText("Дата копії", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Відновити копію", exact: true })).toBeDisabled();
+  await page.getByRole("button", { name: "Скасувати", exact: true }).click();
+  await expect(page.getByText("Дата копії", { exact: true })).toHaveCount(0);
+}
+
+async function assertProgressWeakCardEdit(page) {
+  await page.getByRole("button", { name: "Прогрес", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Слабкі картки", exact: true })).toBeVisible();
+
+  const editButtons = page.getByRole("button", { name: "Виправити матеріал", exact: true });
+  if ((await editButtons.count()) === 0) {
+    console.log("Weak-card edit check skipped because there are no weak cards yet.");
+    return;
+  }
+
+  await editButtons.first().click();
+  await expect(page.getByRole("dialog", { name: "Деталі матеріалу" })).toBeVisible({
+    timeout: 10000,
+  });
+  await page.getByRole("button", { name: "Закрити", exact: true }).last().click();
+}
+
+async function assertMobileNavigation(page) {
+  await page.setViewportSize({ width: 430, height: 932 });
+  await expect(page.getByLabel("Відкрити меню")).toBeVisible();
+  await page.getByLabel("Відкрити меню").click();
+  await expect(page.getByRole("button", { name: "Прогрес", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Прогрес", exact: true }).click();
+  await expect(page.getByLabel("Відкрити меню")).toBeVisible();
+
+  await page.getByLabel("Відкрити меню").click();
+  await page.getByRole("button", { name: "Практика", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Усе", exact: true })).toBeVisible();
+  await page.setViewportSize({ width: 1440, height: 1000 });
 }
 
 async function assertAddAndEditEnglishNote(page) {
@@ -153,6 +237,19 @@ async function assertAddAndEditEnglishNote(page) {
   await expect(page.getByText("Матеріал збережено.")).toBeVisible({
     timeout: 20000,
   });
+  await details.getByRole("button", { name: "Закрити" }).last().click();
+
+  const mergeTranslation = `злита тестова фраза ${stamp}`;
+  await newMaterial.getByLabel("Слово або фраза").fill(phrase);
+  await newMaterial.getByLabel("Значення").fill(mergeTranslation);
+  await newMaterial.getByLabel("Приклад").fill(`Merged duplicate for ${phrase}.`);
+  await expect(newMaterial.getByText("Схожий запис уже є")).toBeVisible();
+  await newMaterial.getByRole("button", { name: "Оновити існуючий" }).click();
+  const mergedDetails = page.getByRole("dialog", { name: "Деталі матеріалу" });
+  await expect(mergedDetails).toBeVisible({
+    timeout: 20000,
+  });
+  await expect(mergedDetails.getByLabel("Значення")).toHaveValue(mergeTranslation);
 }
 
 async function assertNoNextOverlay(page) {

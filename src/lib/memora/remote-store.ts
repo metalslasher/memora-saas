@@ -304,91 +304,11 @@ export async function remoteRestoreBackup(
   userId: string,
   backupState: MemoraState,
 ): Promise<MemoraState> {
-  const { error: deleteError } = await supabase
-    .from("decks")
-    .delete()
-    .neq("id", "00000000-0000-0000-0000-000000000000");
+  const { error } = await supabase.rpc("restore_memora_backup", {
+    backup_state: backupState,
+  });
 
-  if (deleteError) throw deleteError;
-
-  const { data: decks, error: deckError } = await supabase
-    .from("decks")
-    .insert([
-      {
-        user_id: userId,
-        module_type: "english",
-        title: deckTitles.english,
-        settings: backupState.settings,
-      },
-      {
-        user_id: userId,
-        module_type: "qa",
-        title: deckTitles.qa,
-        settings: backupState.settings,
-      },
-    ])
-    .select("id,module_type,title,settings");
-
-  if (deckError) throw deckError;
-
-  const deckByModule = new Map(
-    ((decks ?? []) as DbDeck[]).map((deck) => [deck.module_type, deck.id]),
-  );
-  const noteIdByBackupId = new Map(
-    backupState.notes.map((note) => [note.id, createUuid()]),
-  );
-  const cardIdByBackupId = new Map(
-    backupState.cards.map((card) => [card.id, createUuid()]),
-  );
-
-  await insertRowsInChunks(
-    supabase,
-    "notes",
-    backupState.notes.map((note) => ({
-      id: noteIdByBackupId.get(note.id),
-      user_id: userId,
-      deck_id: deckByModule.get(note.module),
-      note_type: note.module === "english" ? "english_vocab" : "qa_concept",
-      source: note.source,
-      content_json: note.content,
-      status: note.status,
-      created_at: note.createdAt,
-    })),
-  );
-
-  await insertRowsInChunks(
-    supabase,
-    "cards",
-    backupState.cards.map((card) =>
-      restoredCardInsert(
-        userId,
-        cardIdByBackupId.get(card.id)!,
-        noteIdByBackupId.get(card.noteId)!,
-        card,
-      ),
-    ),
-  );
-
-  await insertRowsInChunks(
-    supabase,
-    "review_logs",
-    backupState.reviewLogs.map((log) => ({
-      id: createUuid(),
-      user_id: userId,
-      card_id: cardIdByBackupId.get(log.cardId),
-      note_id: noteIdByBackupId.get(log.noteId),
-      module_type: log.module,
-      reviewed_at: log.reviewedAt,
-      rating: log.rating,
-      elapsed_ms: log.elapsedMs,
-      response_text: log.responseText || null,
-      was_correct: log.wasCorrect,
-      due_before: log.dueBefore || null,
-      due_after: log.dueAfter || null,
-      schedule_before: log.dueBefore ? { due: log.dueBefore } : {},
-      schedule_after: log.dueAfter ? { due: log.dueAfter } : {},
-    })),
-  );
+  if (error) throw error;
 
   return loadRemoteMemoraState(supabase, userId);
 }
@@ -847,21 +767,6 @@ async function insertCards(
   if (error) throw error;
 }
 
-async function insertRowsInChunks(
-  supabase: SupabaseClient,
-  table: string,
-  rows: Array<Record<string, unknown>>,
-  chunkSize = 500,
-) {
-  for (let index = 0; index < rows.length; index += chunkSize) {
-    const chunk = rows.slice(index, index + chunkSize);
-    if (chunk.length === 0) continue;
-
-    const { error } = await supabase.from(table).insert(chunk);
-    if (error) throw error;
-  }
-}
-
 async function insertEnglishNoteWithCards(
   supabase: SupabaseClient,
   deckId: string,
@@ -998,39 +903,6 @@ function buildCardInsert(
     card_type: card.type,
     ...cardTemplateContentPatch(card),
     ...scheduleToCardPatch(card.schedule),
-  };
-}
-
-function restoredCardInsert(
-  userId: string,
-  cardId: string,
-  noteId: string,
-  card: StudyCard,
-) {
-  const schedulePatch = scheduleToCardPatch(card.schedule);
-
-  return {
-    id: cardId,
-    user_id: userId,
-    note_id: noteId,
-    card_type: card.type,
-    status: card.status,
-    ...schedulePatch,
-    state:
-      card.status === "active"
-        ? schedulePatch.state
-        : card.status,
-    prompt_json: {
-      text: card.prompt,
-      module: card.module,
-      priority: card.priority,
-      tags: card.tags,
-    },
-    answer_json: {
-      text: card.answer,
-      explanation: card.explanation,
-      example: card.example,
-    },
   };
 }
 
@@ -1198,10 +1070,6 @@ function sameJson(left: unknown, right: unknown) {
 
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function createUuid() {
-  return crypto.randomUUID();
 }
 
 function mapNote(note: DbNote, decks: DbDeck[]): Note {
