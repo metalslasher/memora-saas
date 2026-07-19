@@ -1135,9 +1135,11 @@ function LoadingScreen() {
           <span className="absolute bottom-2 left-3 size-1.5 rounded-full bg-[#7c6df2] shadow-[0_0_18px_rgba(124,109,242,0.75)]" />
           <span className="absolute right-2 top-1/2 size-1.5 -translate-y-1/2 rounded-full bg-[#ffb45f] shadow-[0_0_18px_rgba(255,180,95,0.65)]" />
         </div>
-        <div className="relative grid size-14 place-items-center rounded-lg border border-[#263140] bg-[#101923] text-[#eef4ff] shadow-[0_18px_70px_rgba(45,212,191,0.16)]">
-          <Brain className="size-6" />
-        </div>
+        <div className="absolute inset-8 rounded-full bg-[#2dd4bf]/10 blur-xl" />
+        <Brain
+          className="relative size-8 text-[#eef4ff] drop-shadow-[0_0_18px_rgba(238,244,255,0.42)]"
+          strokeWidth={1.8}
+        />
         <span className="sr-only">Завантаження</span>
       </div>
     </main>
