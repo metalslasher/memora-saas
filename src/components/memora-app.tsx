@@ -7,6 +7,8 @@ import {
   BookOpenCheck,
   Brain,
   Check,
+  ChevronsLeft,
+  ChevronsRight,
   ChevronRight,
   Clock3,
   Code2,
@@ -190,6 +192,7 @@ export function MemoraApp() {
   const [state, setState] = useState<MemoraState | null>(null);
   const [activeView, setActiveView] = useState<AppView>("today");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
   const [responseText, setResponseText] = useState("");
@@ -856,27 +859,73 @@ export function MemoraApp() {
       />
 
       <div className="mx-auto flex w-full max-w-[1440px] gap-4 px-3 pb-4 pt-3 md:px-5 lg:gap-5 lg:px-6 lg:py-4">
-        <aside className="hidden lg:sticky lg:top-4 lg:block lg:h-[calc(100vh-2rem)] lg:w-72">
-          <ShellPanel className="flex h-full flex-col justify-between p-4">
+        <aside
+          className={`hidden shrink-0 transition-[width] duration-300 lg:sticky lg:top-4 lg:block lg:h-[calc(100vh-2rem)] ${
+            isSidebarCollapsed ? "lg:w-20" : "lg:w-72"
+          }`}
+        >
+          <ShellPanel
+            className={`flex h-full flex-col justify-between ${
+              isSidebarCollapsed ? "p-3" : "p-4"
+            }`}
+          >
             <div>
-              <BrandLockup />
+              <div
+                className={`flex items-center ${
+                  isSidebarCollapsed
+                    ? "flex-col justify-center gap-3"
+                    : "justify-between gap-3"
+                }`}
+              >
+                <BrandLockup isCollapsed={isSidebarCollapsed} />
+                <button
+                  aria-label={
+                    isSidebarCollapsed
+                      ? "Розгорнути бокове меню"
+                      : "Згорнути бокове меню"
+                  }
+                  className="grid size-9 place-items-center rounded-lg border border-[#263140] text-[#9aa8ba] transition hover:border-[#2dd4bf] hover:text-[#52e0c4]"
+                  onClick={() => setIsSidebarCollapsed((value) => !value)}
+                  title={
+                    isSidebarCollapsed
+                      ? "Розгорнути бокове меню"
+                      : "Згорнути бокове меню"
+                  }
+                  type="button"
+                >
+                  {isSidebarCollapsed ? (
+                    <ChevronsRight className="size-4" />
+                  ) : (
+                    <ChevronsLeft className="size-4" />
+                  )}
+                </button>
+              </div>
               <NavigationList
                 activeView={activeView}
-                className="mt-7"
+                className={isSidebarCollapsed ? "mt-6" : "mt-7"}
+                isCollapsed={isSidebarCollapsed}
                 onNavigate={navigateToView}
               />
             </div>
 
             <div className="mt-6 space-y-3">
-              <StudyStreakWidget stats={streakStats} />
+              {isSidebarCollapsed ? (
+                <CollapsedStreakButton stats={streakStats} />
+              ) : (
+                <StudyStreakWidget stats={streakStats} />
+              )}
               <button
-                className="flex w-full items-center justify-center gap-2 rounded-lg border border-[#263140] px-3 py-2 text-sm font-medium text-[#c7d0dd] transition hover:border-[#2dd4bf] hover:text-[#52e0c4]"
+                className={`flex w-full items-center justify-center gap-2 rounded-lg border border-[#263140] text-sm font-medium text-[#c7d0dd] transition hover:border-[#2dd4bf] hover:text-[#52e0c4] ${
+                  isSidebarCollapsed ? "h-11 px-0" : "px-3 py-2"
+                }`}
                 title={user?.email ?? "Вийти"}
                 disabled={isMutating}
                 onClick={() => void handleSignOut()}
               >
                 <LogOut className="size-4" />
-                Вийти
+                <span className={isSidebarCollapsed ? "sr-only" : ""}>
+                  Вийти
+                </span>
               </button>
             </div>
           </ShellPanel>
@@ -1013,14 +1062,16 @@ export function MemoraApp() {
   );
 }
 
-function BrandLockup() {
+function BrandLockup({ isCollapsed = false }: { isCollapsed?: boolean }) {
   return (
     <div className="flex items-center gap-3">
       <Brain
         className="size-7 shrink-0 text-[#eef4ff] drop-shadow-[0_0_14px_rgba(238,244,255,0.28)]"
         strokeWidth={1.8}
       />
-      <p className="text-lg font-semibold leading-6">Memora</p>
+      <p className={`text-lg font-semibold leading-6 ${isCollapsed ? "sr-only" : ""}`}>
+        Memora
+      </p>
     </div>
   );
 }
@@ -1028,10 +1079,12 @@ function BrandLockup() {
 function NavigationList({
   activeView,
   className = "",
+  isCollapsed = false,
   onNavigate,
 }: {
   activeView: AppView;
   className?: string;
+  isCollapsed?: boolean;
   onNavigate: (view: AppView) => void;
 }) {
   return (
@@ -1042,10 +1095,30 @@ function NavigationList({
           icon={item.icon}
           label={item.label}
           active={activeView === item.view}
+          isCollapsed={isCollapsed}
           onClick={() => onNavigate(item.view)}
         />
       ))}
     </nav>
+  );
+}
+
+function CollapsedStreakButton({ stats }: { stats: StreakStats }) {
+  const streakVisual = getStreakVisual(stats.count);
+  const StreakIcon = streakVisual.icon;
+
+  return (
+    <div
+      aria-label={`Серія навчання: ${stats.count} ${pluralizeDays(stats.count)}`}
+      className="grid h-11 w-full place-items-center rounded-lg border border-[#263140] bg-[#101923]"
+      title={`Серія: ${stats.count} ${pluralizeDays(stats.count)}`}
+    >
+      <div
+        className={`grid size-8 place-items-center rounded-lg ${streakVisual.containerClass}`}
+      >
+        <StreakIcon className={`size-4 ${streakVisual.iconClass}`} />
+      </div>
+    </div>
   );
 }
 
@@ -1453,25 +1526,31 @@ function NavItem({
   icon: Icon,
   label,
   active = false,
+  isCollapsed = false,
   onClick,
 }: {
   icon: IconType;
   label: string;
   active?: boolean;
+  isCollapsed?: boolean;
   onClick: () => void;
 }) {
   return (
     <button
-      className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium ${
+      aria-label={label}
+      className={`flex w-full items-center rounded-lg text-sm font-medium transition ${
+        isCollapsed ? "h-11 justify-center px-0" : "gap-3 px-3 py-2 text-left"
+      } ${
         active
           ? "bg-[#14352f] text-[#52e0c4]"
           : "text-[#9aa8ba] hover:bg-[#151d28]"
       }`}
       onClick={onClick}
+      title={label}
       type="button"
     >
       <Icon className="size-4" />
-      {label}
+      <span className={isCollapsed ? "sr-only" : ""}>{label}</span>
     </button>
   );
 }
@@ -3520,7 +3599,7 @@ function HelpWorkspace() {
         </HelpSection>
       </div>
 
-      <aside className="xl:sticky xl:top-4 xl:self-start">
+      <aside className="order-first xl:sticky xl:top-4 xl:order-none xl:self-start">
         <ShellPanel className="p-4">
           <div className="flex items-center gap-3">
             <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-[#14352f] text-[#52e0c4]">
@@ -4140,8 +4219,8 @@ function BackupPanel({
           {state.notes.length}
         </span>
       </div>
-      <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(280px,360px)]">
-        <div className="min-w-0 space-y-3">
+      <div className="mt-4 grid items-stretch gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(280px,360px)]">
+        <div className="grid min-w-0 grid-rows-[auto_1fr] gap-3">
           <div className="grid gap-2 sm:grid-cols-3">
             <ExportButton
               label="Повна копія JSON"
@@ -4175,8 +4254,8 @@ function BackupPanel({
             />
           </div>
 
-          <div className="rounded-lg border border-[#263140] bg-[#0d131c] p-3">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-h-20 rounded-lg border border-[#263140] bg-[#0d131c] p-3">
+            <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm font-semibold text-[#eef4ff]">
                 Відновлення
               </p>
@@ -4207,7 +4286,7 @@ function BackupPanel({
           </div>
         </div>
 
-        <div className="rounded-lg border border-[#4a2428] bg-[#171014] p-3">
+        <div className="h-full rounded-lg border border-[#4a2428] bg-[#171014] p-3">
           <div className="flex items-center justify-between gap-3">
             <h3 className="text-sm font-semibold text-[#eef4ff]">
               Очищення даних
