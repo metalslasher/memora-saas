@@ -46,7 +46,7 @@ pnpm smoke
 
 All commands should pass before deployment.
 
-Supabase note: the hosted project currently has older remote-only migration timestamps from the first setup. Do not run a blanket `supabase db push` until migration history is aligned. The current atomic restore RPC is stored in `supabase/migrations/20260719072833_atomic_restore_backup.sql` and has been applied to the linked database with `supabase db query --linked --file ...`.
+Supabase note: the hosted project currently has older remote-only migration timestamps from the first setup. Do not run a blanket `supabase db push` until migration history is aligned. The atomic restore RPC and maintenance RPCs are stored in migrations and were applied to the linked database with `supabase db query --linked --file ...`.
 
 `pnpm smoke` checks the login screen by default. To run the authenticated browser flow, provide a test owner account:
 
@@ -56,7 +56,7 @@ $env:MEMORA_SMOKE_PASSWORD="your-password"
 pnpm smoke
 ```
 
-By default, the authenticated smoke flow creates, edits, and duplicate-merges one timestamped English note. It also checks CSV preview, JSON export, restore preview/cancel, weak-card repair entry, and mobile navigation. To verify navigation without changing learning data:
+By default, the authenticated smoke flow creates, edits, and duplicate-merges one timestamped English note. It also checks the practice answer dialog, CSV preview, JSON export, restore preview/cancel, weak-card repair entry, profile settings, and mobile navigation. To verify navigation without changing learning data:
 
 ```bash
 $env:MEMORA_SMOKE_MUTATE="0"
@@ -82,16 +82,17 @@ Use a clean browser session and the owner account.
 1. Open the app locally or on the Vercel preview URL.
 2. Sign in.
 3. Confirm Practice shows metrics, the mode selector, segmented progress, and the current card.
-4. Reveal one card, submit a rating, and confirm the next queue state loads.
+4. Reveal one card, confirm the answer dialog appears, submit a rating, and confirm the next queue state loads.
 5. Add one English note from the English words section and confirm generated cards appear.
 6. Add one QA note from the QA/testing section and confirm generated cards appear.
-7. Open English and QA content manager views, open a note modal, edit a note field, and save.
+7. Open English and QA content manager views, open a note modal, edit a note field, save, and confirm pause/delete controls are visible.
 8. Import a small CSV preview in English or QA and confirm duplicate preview works.
 9. Export JSON backup from Profile.
 10. Select the exported JSON backup, confirm the restore preview, and cancel unless intentionally testing restore.
 11. If intentionally testing restore, first download a fresh JSON backup, then restore and confirm counts match the preview.
 12. Open Profile, update profile/study settings, and confirm the saved state remains after refresh.
-13. Sign out and sign back in.
+13. Confirm the destructive cleanup buttons are present but do not run them outside a disposable account.
+14. Sign out and sign back in.
 
 ## Verified Production Checks
 

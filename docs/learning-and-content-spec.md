@@ -73,7 +73,7 @@ Implementation notes:
 | `relearning` | Lapsed and being repaired |
 | `suspended` | Temporarily removed from scheduling |
 | `leech` | Repeatedly failed; needs rewrite or split |
-| `archived` | Removed from active product surface but retained for history |
+| `archived` | Legacy retained status; current UI uses full material deletion instead |
 
 Allowed transitions:
 
@@ -86,7 +86,7 @@ Allowed transitions:
 - Any active state -> `suspended`
 - `suspended` -> previous active state when restored
 - Any active state -> `leech` after repeated lapses
-- Any state -> `archived`
+- Current UI: any material can be deleted after confirmation; legacy archived rows are treated as outside active learning.
 
 Leech behavior:
 
@@ -135,7 +135,7 @@ An English note stores one lexical item or phrase plus support fields.
 | `cefr_or_frequency_band` | No | A1-C2 or frequency band |
 | `distractors` | No | Common confusions |
 | `source` | Yes | curated, user, imported |
-| `status` | Yes | active, suspended, archived |
+| `status` | Yes | active, suspended; archived may exist as legacy data |
 
 Recommended English card types:
 
@@ -175,7 +175,7 @@ A QA note supports definitional, contrastive, scenario, decision, and code/tool 
 | `tags` | Yes | manual, automation, interview, selenium, playwright |
 | `difficulty` | Yes | basic, intermediate, advanced |
 | `source` | Yes | ISTQB, MDN, Playwright, Selenium, OWASP, user |
-| `status` | Yes | active, suspended, archived |
+| `status` | Yes | active, suspended; archived may exist as legacy data |
 
 Recommended QA card types:
 

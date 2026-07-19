@@ -12,7 +12,7 @@ Implemented:
 - `ts-fsrs` scheduler adapter with 0.90 desired retention, same-day learning steps, and relearning steps.
 - Supabase browser client using `.env.local` publishable credentials.
 - Supabase Auth sign-in/sign-up gate.
-- Profile workspace with email, English level, learning goal, study settings, password reset email, password update flow after Supabase recovery links, and backup/restore tools.
+- Profile workspace with email, English level, learning goal, numeric daily-new-card setting, review-button mode selector, password reset email, password update flow after Supabase recovery links, backup/restore tools, and destructive data cleanup actions.
 - Next.js server actions for authenticated learning mutations.
 - PostgreSQL schema and migrations under `supabase/migrations`.
 - Row level security on all public app tables.
@@ -22,10 +22,10 @@ Implemented:
 - Ukrainian-first card templates for generated English and QA cards.
 - Idempotent starter-content upgrade for existing Supabase seed rows without resetting review schedules.
 - Daily queue sorted as reviews first, then new cards.
-- Practice queue is the focused daily learning screen: metrics, mode selector, segmented progress, typed attempt, reveal, answer panel, and self-grade buttons.
-- Review interaction: prompt -> typed attempt -> reveal -> self-grade.
-- Simple review buttons by default: `Again`, `Good`.
-- Optional advanced buttons: `Again`, `Hard`, `Good`, `Easy`.
+- Practice queue is the focused daily learning screen: metrics, mode selector, segmented progress, typed attempt, reveal, answer dialog, and self-grade buttons.
+- Review interaction: prompt -> typed attempt -> answer dialog -> self-grade -> next card.
+- Simple review buttons by default: `Знову`, `Добре`.
+- Optional advanced buttons: `Знову`, `Важко`, `Добре`, `Легко`.
 - Manual note creation for English and QA in their dedicated content-manager sections.
 - New-material success feedback after generated cards are created.
 - Generated-card preview before saving new material.
@@ -33,11 +33,12 @@ Implemented:
 - CSV import for English and QA from content manager views, with delimiter detection, row-level validation, duplicate preview, downloadable templates, persistent import history, and server-side duplicate filtering.
 - Backup/export from Profile: full JSON backup plus English and QA CSV exports.
 - Restore from JSON backup with file validation, preview counts, cancel/confirm flow, and a Supabase RPC that atomically replaces decks, notes, cards, review history, and CSV import history.
+- Maintenance RPCs for deleting all materials and resetting learning statistics without touching authentication data.
 - Real sidebar navigation for Practice, English words, QA/testing, Progress, Profile, and Help.
 - In-app Help workspace with Ukrainian guide copy, learning-loop visualization, section explanations, review-rating guidance, content workflows, profile/data explanations, and a table of contents.
 - Ukrainian-first visible product interface.
 - Product UI no longer shows MVP/dev/sync labels in the main sidebar.
-- English and QA content manager views with note search, note grid, top-level create/import panels, modal note details, editable source fields, generated-card inspection, and status controls.
+- English and QA content manager views with note search, note grid, top-level create/import panels, modal note details, editable source fields, generated-card inspection, pause controls, and full material deletion.
 - Content manager has empty states for no notes/imports/cards, human-readable statuses, generated-card explanations, and quick field cleanup for note editing.
 - Progress workspace with learning dynamics, recent attempts, weak-card review, weak-card-to-note repair flow, and material overview. Long lists scroll inside their panels instead of stretching the page.
 - Review logs and basic analytics.
@@ -89,6 +90,8 @@ Verified locally:
 - Supabase linked DB query:
   - `restore_memora_backup(backup_state jsonb)` exists in `public`
   - `authenticated` can execute the restore RPC
+  - `clear_memora_materials()` and `reset_memora_learning_stats()` exist in `public`
+  - `authenticated` can execute both maintenance RPCs
   - Supabase advisors only report Auth leaked-password protection as disabled
 - Earlier Supabase checks:
   - migrations applied: `initial_memora_schema`, `fix_memora_advisors`, `add_auth_uid_defaults`
@@ -111,11 +114,11 @@ Verified locally:
   - English view renders content manager, editable note fields, and generated cards,
   - QA view renders QA note fields and generated cards,
   - Progress view renders learning dynamics, recent attempts, weak cards, and materials,
-  - Profile view renders settings, security, export, and restore,
+  - Profile view renders profile settings, security, export, restore, and data cleanup,
   - no browser console errors.
 - Automated smoke script:
   - `pnpm smoke` verifies the login screen.
-  - with `MEMORA_SMOKE_EMAIL` and `MEMORA_SMOKE_PASSWORD`, it verifies Practice, Help, Profile, English/QA content views, CSV preview, backup export, restore preview/cancel, weak-card repair entry, mobile navigation, and add/edit/merge English note flow.
+  - with `MEMORA_SMOKE_EMAIL` and `MEMORA_SMOKE_PASSWORD`, it verifies Practice including the answer dialog, Help, Profile, English/QA content views, CSV preview, backup export, restore preview/cancel, weak-card repair entry, mobile navigation, and add/edit/merge English note flow.
 
 ## Recommended Next Step
 

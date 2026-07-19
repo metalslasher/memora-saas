@@ -313,6 +313,28 @@ export async function remoteRestoreBackup(
   return loadRemoteMemoraState(supabase, userId);
 }
 
+export async function remoteClearMaterials(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<MemoraState> {
+  const { error } = await supabase.rpc("clear_memora_materials");
+
+  if (error) throw error;
+
+  return loadRemoteMemoraState(supabase, userId);
+}
+
+export async function remoteResetLearningStats(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<MemoraState> {
+  const { error } = await supabase.rpc("reset_memora_learning_stats");
+
+  if (error) throw error;
+
+  return loadRemoteMemoraState(supabase, userId);
+}
+
 export async function remoteReviewCard(
   supabase: SupabaseClient,
   state: MemoraState,
@@ -476,6 +498,32 @@ export async function remoteUpdateCardStatus(
                 : { ...card.schedule, state: "Review" as const },
           }
         : card,
+    ),
+  };
+}
+
+export async function remoteDeleteNote(
+  supabase: SupabaseClient,
+  state: MemoraState,
+  noteId: string,
+): Promise<MemoraState> {
+  const currentNote = state.notes.find((note) => note.id === noteId);
+  if (!currentNote) return state;
+
+  const noteCardIds = state.cards
+    .filter((card) => card.noteId === noteId)
+    .map((card) => card.id);
+
+  const { error } = await supabase.from("notes").delete().eq("id", noteId);
+
+  if (error) throw error;
+
+  return {
+    ...state,
+    notes: state.notes.filter((note) => note.id !== noteId),
+    cards: state.cards.filter((card) => card.noteId !== noteId),
+    reviewLogs: state.reviewLogs.filter(
+      (log) => log.noteId !== noteId && !noteCardIds.includes(log.cardId),
     ),
   };
 }

@@ -17,10 +17,13 @@ import {
   ensureRemoteProfile,
   loadRemoteProfile,
   loadRemoteMemoraState,
+  remoteClearMaterials,
   remoteAddEnglishNote,
   remoteAddQaNote,
+  remoteDeleteNote,
   remoteImportEnglishNotes,
   remoteImportQaNotes,
+  remoteResetLearningStats,
   remoteReviewCard,
   remoteRestoreBackup,
   remoteSuspendCard,
@@ -155,6 +158,30 @@ export async function restoreBackupAction(backup: unknown): Promise<ActionResult
   }
 }
 
+export async function clearMaterialsAction(): Promise<ActionResult> {
+  try {
+    const { supabase, user } = await getAuthenticatedContext();
+    const nextState = await remoteClearMaterials(supabase, user.id);
+    revalidatePath("/");
+
+    return ok(nextState);
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+export async function resetLearningStatsAction(): Promise<ActionResult> {
+  try {
+    const { supabase, user } = await getAuthenticatedContext();
+    const nextState = await remoteResetLearningStats(supabase, user.id);
+    revalidatePath("/");
+
+    return ok(nextState);
+  } catch (error) {
+    return fail(error);
+  }
+}
+
 export async function reviewCardAction(input: {
   cardId: string;
   rating: ReviewRating;
@@ -250,6 +277,19 @@ export async function updateNoteContentAction(
       cleanNoteId,
       content,
     );
+    revalidatePath("/");
+
+    return ok(nextState);
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+export async function deleteNoteAction(noteId: string): Promise<ActionResult> {
+  try {
+    const cleanNoteId = validateId(noteId, "Матеріал");
+    const { supabase, state } = await getStateContext();
+    const nextState = await remoteDeleteNote(supabase, state, cleanNoteId);
     revalidatePath("/");
 
     return ok(nextState);

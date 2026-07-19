@@ -89,6 +89,8 @@ Use enums or constrained text for these values:
 - `note_status`: `active`, `suspended`, `archived`
 - `import_status`: `uploaded`, `validating`, `ready`, `processing`, `completed`, `failed`
 
+`archived` remains in the enum for legacy compatibility, but the product UI now uses confirmed hard deletion for notes/materials instead of adding new archive entries.
+
 Useful indexes:
 
 - `cards(due_at, state)`

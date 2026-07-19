@@ -109,6 +109,15 @@ async function assertPracticeView(page) {
   await expect(page.getByRole("heading", { name: "Додати матеріал", exact: true })).toHaveCount(0);
   await expect(page.getByLabel(/Серія навчання/)).toBeVisible();
   await expect(page.getByText("Повторити")).toBeVisible();
+
+  const answerBox = page.locator("textarea").first();
+  if (await answerBox.isVisible().catch(() => false)) {
+    await answerBox.fill("smoke");
+    await page.getByRole("button", { name: "Перевірити відповідь" }).click();
+    await expect(page.getByRole("dialog", { name: "Правильна відповідь" })).toBeVisible();
+    await page.getByLabel("Закрити відповідь").last().click();
+    await expect(page.getByRole("dialog", { name: "Правильна відповідь" })).toHaveCount(0);
+  }
 }
 
 async function assertHelpAndAccount(page) {
@@ -122,12 +131,14 @@ async function assertHelpAndAccount(page) {
   await expect(page.getByText("Мова інтерфейсу")).toHaveCount(0);
   await expect(page.getByText("Часовий пояс")).toHaveCount(0);
   await expect(page.getByText("Хвилин на день")).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "Навчання", exact: true })).toBeVisible();
-  await expect(page.locator('input[type="range"]')).toHaveAttribute("max", "50");
+  await expect(page.getByLabel("Нових карток на день")).toBeVisible();
+  await expect(page.locator('input[type="number"][max="50"]')).toBeVisible();
+  await expect(page.getByLabel("Оцінювання")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Безпека", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Надіслати", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Оновити пароль", exact: true })).toBeDisabled();
   await expect(page.getByRole("heading", { name: "Дані", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Очищення даних", exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "Англійські слова", exact: true }).click();
   await expect(page.getByRole("region", { name: "Новий матеріал" })).toBeVisible();

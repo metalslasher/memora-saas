@@ -58,7 +58,7 @@ Acceptance criteria:
 - User can study Ukrainian -> English cards.
 - User can study English -> Ukrainian cards.
 - Productive translation and cloze cards work.
-- User can add/edit/suspend/archive English notes.
+- User can add, edit, pause, and delete English notes.
 - Generated cards stay linked to the source note.
 
 ## Release 3: QA Knowledge Module

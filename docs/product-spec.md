@@ -136,7 +136,7 @@ Acceptance criteria:
 
 - User can create English vocabulary notes.
 - User can create QA notes.
-- User can tag, edit, suspend, and archive notes.
+- User can tag, edit, pause, and delete notes.
 - User can preview generated cards before or after note creation.
 
 ### Inspect Performance
@@ -170,8 +170,8 @@ Actions:
 - Edit fields.
 - Add examples.
 - Add or remove tags.
-- Suspend note or card.
-- Archive note.
+- Pause note or card.
+- Delete note when it is no longer needed.
 - Split overloaded note into smaller notes.
 - Mark repeated failures as leech.
 
@@ -246,8 +246,7 @@ MVP is complete when:
 - QA module supports glossary, contrast, and scenario card types.
 - Review flow forces attempt before reveal.
 - Feedback is shown after reveal.
-- User can add, edit, suspend, archive, and tag notes.
+- User can add, edit, pause, delete, and tag notes.
 - CSV import supports English and QA schemas.
 - Dashboard shows due reviews, retention, lapses, mature cards, and daily workload.
 - Review logs are persisted and recoverable.
-

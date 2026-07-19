@@ -3,7 +3,6 @@
 import {
   Activity,
   AlertCircle,
-  Archive,
   BarChart3,
   BookOpenCheck,
   Brain,
@@ -30,6 +29,7 @@ import {
   ShieldCheck,
   Sparkles,
   Target,
+  Trash2,
   Upload,
   UserCircle,
   X,
@@ -40,10 +40,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   addEnglishNoteAction,
   addQaNoteAction,
+  clearMaterialsAction,
+  deleteNoteAction,
   importEnglishNotesAction,
   importQaNotesAction,
   loadProfileAction,
   loadMemoraStateAction,
+  resetLearningStatsAction,
   reviewCardAction,
   restoreBackupAction,
   suspendCardAction,
@@ -193,6 +196,9 @@ export function MemoraApp() {
   const [isRevealed, setIsRevealed] = useState(false);
   const [startedAt, setStartedAt] = useState(() => Date.now());
   const [practiceSessionTotal, setPracticeSessionTotal] = useState(0);
+  const [optimisticCompletedCardIds, setOptimisticCompletedCardIds] = useState(
+    () => new Set<string>(),
+  );
   const [isMutating, setIsMutating] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -215,6 +221,7 @@ export function MemoraApp() {
       setPracticeSessionTotal(
         nextState ? getPracticeQueueLength(nextState) : 0,
       );
+      setOptimisticCompletedCardIds(new Set());
     },
     [resetPracticeUi],
   );
@@ -320,8 +327,13 @@ export function MemoraApp() {
   }, [loadUserData, resetPracticeSession, supabase]);
 
   const queue = useMemo(
-    () => (state ? getDueQueue(state, state.settings.studyMode) : []),
-    [state],
+    () =>
+      state
+        ? getDueQueue(state, state.settings.studyMode).filter(
+            (card) => !optimisticCompletedCardIds.has(card.id),
+          )
+        : [],
+    [optimisticCompletedCardIds, state],
   );
 
   const summary = useMemo(() => (state ? summarizeState(state) : null), [state]);
@@ -516,22 +528,46 @@ export function MemoraApp() {
     }
 
     const elapsedMs = Date.now() - startedAt;
+    const reviewedCardId = activeCard.id;
+    const reviewedResponse = responseText.trim();
     setIsMutating(true);
     setErrorMessage(null);
     setStatusMessage(null);
+    setOptimisticCompletedCardIds((current) => {
+      const next = new Set(current);
+      next.add(reviewedCardId);
+      return next;
+    });
+    setActiveCardId(null);
+    setIsRevealed(false);
+    setResponseText("");
+    setStartedAt(Date.now());
 
     try {
       const nextState = unwrapActionState(
         await reviewCardAction({
-          cardId: activeCard.id,
+          cardId: reviewedCardId,
           rating,
-          responseText: responseText.trim(),
+          responseText: reviewedResponse,
           elapsedMs,
         }),
       );
       setState(nextState);
       resetPracticeUi();
+      setOptimisticCompletedCardIds((current) => {
+        const next = new Set(current);
+        next.delete(reviewedCardId);
+        return next;
+      });
     } catch (error) {
+      setOptimisticCompletedCardIds((current) => {
+        const next = new Set(current);
+        next.delete(reviewedCardId);
+        return next;
+      });
+      setActiveCardId(reviewedCardId);
+      setResponseText(reviewedResponse);
+      setIsRevealed(true);
       setErrorMessage(formatError(error));
     } finally {
       setIsMutating(false);
@@ -573,6 +609,27 @@ export function MemoraApp() {
       setStatusMessage(`Матеріал оновлено: ${labelStatus(status)}.`);
     } catch (error) {
       setErrorMessage(formatError(error));
+    } finally {
+      setIsMutating(false);
+    }
+  }
+
+  async function handleNoteDelete(noteId: string) {
+    if (!state || isMutating) return;
+
+    setIsMutating(true);
+    setErrorMessage(null);
+    setStatusMessage(null);
+
+    try {
+      const nextState = unwrapActionState(await deleteNoteAction(noteId));
+      setState(nextState);
+      setSelectedNoteId(null);
+      resetPracticeSession(nextState);
+      setStatusMessage("Матеріал видалено.");
+    } catch (error) {
+      setErrorMessage(formatError(error));
+      throw error;
     } finally {
       setIsMutating(false);
     }
@@ -720,6 +777,47 @@ export function MemoraApp() {
     }
   }
 
+  async function handleClearMaterials() {
+    if (!state || isMutating) return;
+
+    setIsMutating(true);
+    setErrorMessage(null);
+    setStatusMessage(null);
+
+    try {
+      const nextState = unwrapActionState(await clearMaterialsAction());
+      setState(nextState);
+      setSelectedNoteId(null);
+      resetPracticeSession(nextState);
+      setStatusMessage("Усі матеріали видалено.");
+    } catch (error) {
+      setErrorMessage(formatError(error));
+      throw error;
+    } finally {
+      setIsMutating(false);
+    }
+  }
+
+  async function handleResetLearningStats() {
+    if (!state || isMutating) return;
+
+    setIsMutating(true);
+    setErrorMessage(null);
+    setStatusMessage(null);
+
+    try {
+      const nextState = unwrapActionState(await resetLearningStatsAction());
+      setState(nextState);
+      resetPracticeSession(nextState);
+      setStatusMessage("Статистику навчання обнулено.");
+    } catch (error) {
+      setErrorMessage(formatError(error));
+      throw error;
+    } finally {
+      setIsMutating(false);
+    }
+  }
+
   if (authStatus === "loading") {
     return <LoadingScreen />;
   }
@@ -852,13 +950,14 @@ export function MemoraApp() {
                 reviewButtons={state.settings.reviewButtons}
                 onResponseChange={setResponseText}
                 onReveal={() => setIsRevealed(true)}
+                onHideAnswer={() => setIsRevealed(false)}
                 onReview={(rating) => void submitReview(rating)}
                 onSuspend={(cardId) => void handleSuspend(cardId)}
               />
             </div>
           ) : activeView === "account" ? (
             <AccountWorkspace
-              key={profile?.updatedAt ?? user?.id ?? "account"}
+              key={`${profile?.updatedAt ?? user?.id ?? "account"}:${state.settings.dailyNewLimit}:${state.settings.reviewButtons}`}
               isBusy={isMutating}
               isPasswordRecovery={isPasswordRecovery}
               profile={profile}
@@ -868,7 +967,9 @@ export function MemoraApp() {
               onPasswordUpdate={handlePasswordUpdate}
               onProfileSave={handleProfileSave}
               onRestoreBackup={handleRestoreBackup}
-              onSettingsChange={(settings) => void handleSettingsChange(settings)}
+              onSettingsChange={handleSettingsChange}
+              onClearMaterials={handleClearMaterials}
+              onResetLearningStats={handleResetLearningStats}
             />
           ) : activeView === "help" ? (
             <HelpWorkspace />
@@ -896,6 +997,7 @@ export function MemoraApp() {
               onAddEnglish={handleAddEnglish}
               onAddQa={handleAddQa}
               onNoteContentChange={handleNoteContentChange}
+              onNoteDelete={handleNoteDelete}
               onNoteSelect={setSelectedNoteId}
               onNoteStatusChange={(noteId, status) =>
                 void handleNoteStatusChange(noteId, status)
@@ -914,9 +1016,10 @@ export function MemoraApp() {
 function BrandLockup() {
   return (
     <div className="flex items-center gap-3">
-      <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-[#202938] text-white">
-        <Brain className="size-5" />
-      </div>
+      <Brain
+        className="size-7 shrink-0 text-[#eef4ff] drop-shadow-[0_0_14px_rgba(238,244,255,0.28)]"
+        strokeWidth={1.8}
+      />
       <p className="text-lg font-semibold leading-6">Memora</p>
     </div>
   );
@@ -1089,8 +1192,8 @@ function MobileTopBar({
       </div>
 
       {isOpen ? (
-        <div className="border-t border-[#202938] px-3 pb-3">
-          <ShellPanel className="p-3">
+        <div className="absolute left-3 right-3 top-[calc(100%+0.5rem)]">
+          <ShellPanel className="bg-[#10161f] p-3">
             <NavigationList activeView={activeView} onNavigate={onNavigate} />
             <StudyStreakWidget className="mt-3" compact stats={streakStats} />
             <button
@@ -1218,18 +1321,19 @@ function AuthPanel({
     <main className="min-h-screen bg-[#070a0f] px-4 py-6 text-[#eef4ff]">
       <div className="mx-auto grid min-h-[calc(100vh-3rem)] w-full max-w-5xl place-items-center">
         <ShellPanel className="grid w-full overflow-hidden md:grid-cols-[minmax(0,1fr)_420px]">
-          <div className="flex min-h-[460px] flex-col justify-center border-b border-[#263140] bg-[#0d131c] p-6 md:min-h-[520px] md:border-b-0 md:border-r">
+          <div className="flex min-h-[360px] flex-col justify-start border-b border-[#263140] bg-[#0d131c] p-6 md:min-h-[420px] md:border-b-0 md:border-r md:p-7">
             <div>
               <div className="flex items-center gap-3">
-                <div className="grid size-11 place-items-center rounded-lg bg-[#202938] text-white">
-                  <Brain className="size-5" />
-                </div>
+                <Brain
+                  className="size-8 shrink-0 text-[#eef4ff] drop-shadow-[0_0_14px_rgba(238,244,255,0.28)]"
+                  strokeWidth={1.8}
+                />
                 <div>
                   <p className="text-xl font-semibold">Memora</p>
                   <p className="text-sm text-[#9aa8ba]">Простір для навчання</p>
                 </div>
               </div>
-              <h1 className="mt-10 max-w-xl text-3xl font-semibold leading-tight md:text-4xl">
+              <h1 className="mt-9 max-w-xl text-3xl font-semibold leading-tight md:text-4xl">
                 Вчи англійські слова й терміни з тестування через регулярне пригадування.
               </h1>
               <p className="mt-4 max-w-lg text-sm leading-6 text-[#9aa8ba]">
@@ -1239,7 +1343,7 @@ function AuthPanel({
             </div>
           </div>
 
-          <form className="p-5 md:p-6" onSubmit={submitAuth}>
+          <form className="p-5 md:p-7" onSubmit={submitAuth}>
             <div className="grid grid-cols-2 rounded-lg border border-[#263140] bg-[#151d28] p-1">
               <button
                 type="button"
@@ -1438,6 +1542,7 @@ function StudyPanel({
   reviewButtons,
   onResponseChange,
   onReveal,
+  onHideAnswer,
   onReview,
   onSuspend,
 }: {
@@ -1450,6 +1555,7 @@ function StudyPanel({
   reviewButtons: "simple" | "advanced";
   onResponseChange: (value: string) => void;
   onReveal: () => void;
+  onHideAnswer: () => void;
   onReview: (rating: ReviewRating) => void;
   onSuspend: (cardId: string) => void;
 }) {
@@ -1531,77 +1637,123 @@ function StudyPanel({
               disabled={isBusy}
               onClick={() => onSuspend(card.id)}
             >
-              <Archive className="size-4" />
+              <PauseCircle className="size-4" />
               Поставити на паузу
             </button>
           </div>
         </div>
-      ) : (
-        <div className="mt-6 space-y-3">
-          <div className="rounded-lg border border-[#2dd4bf]/35 bg-[#10211f] p-3 sm:p-4">
-            <p className="text-sm font-medium text-[#9aa8ba]">
+      ) : null}
+
+      {isRevealed ? (
+        <AnswerDialog
+          card={card}
+          isBusy={isBusy}
+          reviewButtons={reviewButtons}
+          onClose={onHideAnswer}
+          onReview={onReview}
+        />
+      ) : null}
+    </ShellPanel>
+  );
+}
+
+function AnswerDialog({
+  card,
+  isBusy,
+  reviewButtons,
+  onClose,
+  onReview,
+}: {
+  card: StudyCard;
+  isBusy: boolean;
+  reviewButtons: "simple" | "advanced";
+  onClose: () => void;
+  onReview: (rating: ReviewRating) => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 grid place-items-center bg-[#02050a]/70 px-3 py-5 backdrop-blur-md"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Правильна відповідь"
+    >
+      <button
+        className="absolute inset-0 cursor-default"
+        aria-label="Закрити відповідь"
+        onClick={onClose}
+        type="button"
+      />
+      <div className="relative max-h-[calc(100vh-2.5rem)] w-full max-w-2xl overflow-y-auto rounded-lg border border-[#263140] bg-[#10161f] p-4 shadow-[0_24px_90px_rgba(0,0,0,0.5)] md:p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-[#52e0c4]">
               Правильна відповідь
             </p>
-            <p className="mt-2 text-xl font-semibold">{card.answer}</p>
-
-            <div
-              className={`mt-4 grid gap-2 sm:flex sm:flex-wrap sm:gap-3 ${
-                reviewButtons === "advanced" ? "grid-cols-4" : "grid-cols-2"
-              }`}
+            <h3
+              className="mt-2 text-2xl font-semibold leading-tight text-[#eef4ff]"
             >
-              <GradeButton
-                tone="red"
-                label="Знову"
-                disabled={isBusy}
-                onClick={() => onReview("again")}
-              />
-              {reviewButtons === "advanced" ? (
-                <GradeButton
-                  tone="amber"
-                  label="Важко"
-                  disabled={isBusy}
-                  onClick={() => onReview("hard")}
-                />
-              ) : null}
-              <GradeButton
-                tone="green"
-                label="Добре"
-                disabled={isBusy}
-                onClick={() => onReview("good")}
-              />
-              {reviewButtons === "advanced" ? (
-                <GradeButton
-                  tone="dark"
-                  label="Легко"
-                  disabled={isBusy}
-                  onClick={() => onReview("easy")}
-                />
-              ) : null}
-            </div>
-
-            <p className="mt-3 text-sm leading-6 text-[#c7d0dd]">
-              {card.explanation}
-            </p>
-            {card.example ? (
-              <p className="mt-3 rounded-md bg-[#0b111a] p-3 text-sm text-[#c7d0dd]">
-                {card.example}
-              </p>
-            ) : null}
+              {card.answer}
+            </h3>
           </div>
+          <button
+            className="grid size-10 shrink-0 place-items-center rounded-lg border border-[#263140] text-[#9aa8ba] transition hover:border-[#2dd4bf] hover:text-[#52e0c4]"
+            aria-label="Закрити відповідь"
+            onClick={onClose}
+            type="button"
+          >
+            <X className="size-5" />
+          </button>
+        </div>
 
-          {responseText.trim() ? (
-            <div className="rounded-lg border border-[#263140] bg-[#0b111a] p-3">
-              <p className="text-xs font-medium uppercase tracking-[0.12em] text-[#6f7d90]">
-                Ти написав
-              </p>
-              <p className="mt-1 text-sm leading-6 text-[#c7d0dd]">
-                {responseText}
-              </p>
-            </div>
+        {card.explanation ? (
+          <p className="mt-4 text-sm leading-6 text-[#c7d0dd]">
+            {card.explanation}
+          </p>
+        ) : null}
+        {card.example ? (
+          <p className="mt-4 rounded-lg border border-[#263140] bg-[#0b111a] p-3 text-sm leading-6 text-[#c7d0dd]">
+            {card.example}
+          </p>
+        ) : null}
+
+        <div
+          className={`mt-5 grid gap-2 ${
+            reviewButtons === "advanced"
+              ? "grid-cols-2 sm:grid-cols-4"
+              : "grid-cols-2"
+          }`}
+        >
+          <GradeButton
+            tone="red"
+            label="Знову"
+            disabled={isBusy}
+            onClick={() => onReview("again")}
+          />
+          {reviewButtons === "advanced" ? (
+            <GradeButton
+              tone="amber"
+              label="Важко"
+              disabled={isBusy}
+              onClick={() => onReview("hard")}
+            />
+          ) : null}
+          <GradeButton
+            tone="green"
+            label="Добре"
+            disabled={isBusy}
+            onClick={() => onReview("good")}
+          />
+          {reviewButtons === "advanced" ? (
+            <GradeButton
+              tone="dark"
+              label="Легко"
+              disabled={isBusy}
+              onClick={() => onReview("easy")}
+            />
           ) : null}
         </div>
-      )}
-    </ShellPanel>
+      </div>
+    </div>
   );
 }
 
@@ -1658,9 +1810,10 @@ function GradeButton({
 
   return (
     <button
-      className={`inline-flex w-full min-w-0 items-center justify-center rounded-lg px-2 py-3 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-55 sm:w-auto sm:min-w-24 sm:px-4 ${classes[tone]}`}
+      className={`inline-flex h-12 w-full min-w-0 items-center justify-center rounded-lg px-3 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-55 ${classes[tone]}`}
       disabled={disabled}
       onClick={onClick}
+      type="button"
     >
       {label}
     </button>
@@ -1687,74 +1840,6 @@ function EmptyState({
   );
 }
 
-function SettingsPanel({
-  settings,
-  onChange,
-}: {
-  settings: AppSettings;
-  onChange: (settings: AppSettings) => void;
-}) {
-  const latestSettingsRef = useRef(settings);
-
-  useEffect(() => {
-    latestSettingsRef.current = settings;
-  }, [settings]);
-
-  function updateSettings(settingsPatch: Partial<AppSettings>) {
-    const nextSettings = {
-      ...latestSettingsRef.current,
-      ...settingsPatch,
-    };
-
-    latestSettingsRef.current = nextSettings;
-    onChange(nextSettings);
-  }
-
-  return (
-    <ShellPanel className="p-4">
-      <h2 className="text-lg font-semibold">Навчання</h2>
-      <div className="mt-4 space-y-4">
-        <label className="block">
-          <span className="text-sm font-medium">Нових на день</span>
-          <input
-            className="mt-2 w-full accent-[#2dd4bf]"
-            type="range"
-            min="0"
-            max="50"
-            value={settings.dailyNewLimit}
-            onChange={(event) =>
-              updateSettings({ dailyNewLimit: Number(event.target.value) })
-            }
-          />
-          <span className="font-mono text-sm text-[#9aa8ba]">
-            {settings.dailyNewLimit}/день
-          </span>
-        </label>
-
-        <div>
-          <p className="text-sm font-medium">Оцінювання</p>
-          <div className="mt-2 grid grid-cols-2 gap-2">
-            {(["simple", "advanced"] as const).map((mode) => (
-              <button
-                key={mode}
-                className={`rounded-lg border px-3 py-2 text-sm font-medium capitalize ${
-                  settings.reviewButtons === mode
-                    ? "border-[#2dd4bf] bg-[#14352f] text-[#52e0c4]"
-                    : "border-[#263140] text-[#9aa8ba]"
-                }`}
-                onClick={() => updateSettings({ reviewButtons: mode })}
-                type="button"
-              >
-                {mode === "simple" ? "2 кнопки" : "4 кнопки"}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-    </ShellPanel>
-  );
-}
-
 function ContentManager({
   cards,
   imports,
@@ -1766,6 +1851,7 @@ function ContentManager({
   onAddQa,
   onImport,
   onNoteContentChange,
+  onNoteDelete,
   onNoteSelect,
   onNoteStatusChange,
 }: {
@@ -1786,6 +1872,7 @@ function ContentManager({
     noteId: string,
     content: NoteContentDraft,
   ) => Promise<void>;
+  onNoteDelete: (noteId: string) => Promise<void>;
   onNoteSelect: (noteId: string | null) => void;
   onNoteStatusChange: (noteId: string, status: ItemStatus) => void;
 }) {
@@ -1885,6 +1972,8 @@ function ContentManager({
             moduleType={moduleType}
             note={selectedNote}
             onNoteContentChange={onNoteContentChange}
+            onNoteDelete={onNoteDelete}
+            onClose={() => onNoteSelect(null)}
             onNoteStatusChange={onNoteStatusChange}
           />
         </NoteDetailModal>
@@ -2496,8 +2585,8 @@ function ImportHistoryPanel({
         <span className="font-mono text-sm text-[#9aa8ba]">{visibleRuns.length}</span>
       </div>
 
-      <div className="scrollbar-hidden mt-3 max-h-44 space-y-2 overflow-y-auto">
-        {visibleRuns.length === 0 ? (
+      {visibleRuns.length === 0 ? (
+        <div className="mt-3">
           <div className="rounded-lg border border-[#263140] bg-[#0b111a] p-5">
             <EmptyState
               icon={FileText}
@@ -2505,8 +2594,10 @@ function ImportHistoryPanel({
               description="Імпорти з'являться тут."
             />
           </div>
-        ) : (
-          visibleRuns.map((run) => {
+        </div>
+      ) : (
+        <div className="scrollbar-hidden mt-3 max-h-44 space-y-2 overflow-y-auto">
+          {visibleRuns.map((run) => {
             const stats = importRunStats(run, moduleType);
             const issueRows = run.rows
               .filter(
@@ -2553,9 +2644,9 @@ function ImportHistoryPanel({
                 ) : null}
               </div>
             );
-          })
-        )}
-      </div>
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -2566,16 +2657,20 @@ function NoteDetailPanel({
   moduleType,
   note,
   onNoteContentChange,
+  onNoteDelete,
+  onClose,
   onNoteStatusChange,
 }: {
   cards: StudyCard[];
   isBusy: boolean;
   moduleType: ModuleType;
   note: Note | null;
+  onClose: () => void;
   onNoteContentChange: (
     noteId: string,
     content: NoteContentDraft,
   ) => Promise<void>;
+  onNoteDelete: (noteId: string) => Promise<void>;
   onNoteStatusChange: (noteId: string, status: ItemStatus) => void;
 }) {
   if (!note) {
@@ -2603,6 +2698,14 @@ function NoteDetailPanel({
           disabled={isBusy}
           status={note.status}
           onChange={(status) => onNoteStatusChange(note.id, status)}
+          onDelete={() => {
+            const shouldDelete = window.confirm(
+              "Видалити цей матеріал разом з усіма його картками й історією повторень?",
+            );
+            if (!shouldDelete) return;
+
+            void onNoteDelete(note.id).then(onClose).catch(() => undefined);
+          }}
         />
       </div>
 
@@ -2840,15 +2943,16 @@ function StatusControls({
   disabled,
   status,
   onChange,
+  onDelete,
 }: {
   disabled: boolean;
   status: ItemStatus;
   onChange: (status: ItemStatus) => void;
+  onDelete: () => void;
 }) {
   const controls = [
     { status: "active" as const, label: "В навчанні", icon: PlayCircle },
     { status: "suspended" as const, label: "Пауза", icon: PauseCircle },
-    { status: "archived" as const, label: "Архів", icon: Archive },
   ];
 
   return (
@@ -2875,6 +2979,16 @@ function StatusControls({
           </button>
         );
       })}
+      <button
+        className="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-[#4a2428] px-3 py-2 text-sm font-medium text-[#ff8d7f] transition hover:border-[#ef6351] hover:bg-[#2a1518] disabled:cursor-not-allowed disabled:opacity-55"
+        disabled={disabled}
+        onClick={onDelete}
+        title="Видалити матеріал"
+        type="button"
+      >
+        <Trash2 className="size-4" />
+        <span>Видалити</span>
+      </button>
     </div>
   );
 }
@@ -2910,7 +3024,7 @@ function HelpWorkspace() {
       href: "#help-materials",
       icon: BookOpenCheck,
       title: "Матеріали",
-      text: "слова, QA, картки, статуси, CSV",
+      text: "слова, QA, картки, пауза, CSV",
     },
     {
       href: "#help-ratings",
@@ -3037,7 +3151,7 @@ function HelpWorkspace() {
     {
       icon: Languages,
       title: "Англійські слова",
-      text: "База англійських слів і фраз. Тут можна шукати, редагувати, ставити матеріали на паузу, архівувати й імпортувати CSV.",
+      text: "База англійських слів і фраз. Тут можна шукати, редагувати, ставити матеріали на паузу, видаляти й імпортувати CSV.",
     },
     {
       icon: Code2,
@@ -3094,8 +3208,8 @@ function HelpWorkspace() {
       text: "Тимчасово прибрано з черги. Корисно для нечітких або зайвих карток, які ще не хочеш видаляти.",
     },
     {
-      title: "В архіві",
-      text: "Матеріал більше не потрібен у навчанні, але лишається в базі для історії.",
+      title: "Видалити",
+      text: "Повністю прибирає матеріал разом з його картками та історією повторень. Перед видаленням Memora попросить підтвердження.",
     },
   ];
 
@@ -3136,7 +3250,7 @@ function HelpWorkspace() {
     {
       icon: BookOpenCheck,
       title: "Матеріали",
-      text: "Показує кількість матеріалів і карток у навчанні, на паузі, в архіві та за джерелом додавання.",
+      text: "Показує кількість матеріалів і карток у навчанні, на паузі та за джерелом додавання.",
     },
     {
       icon: Gauge,
@@ -3170,6 +3284,11 @@ function HelpWorkspace() {
       icon: Download,
       title: "Дані",
       text: "Повна JSON-копія, CSV-експорт і відновлення з preview. Це захист твоєї особистої бази знань.",
+    },
+    {
+      icon: Trash2,
+      title: "Очищення даних",
+      text: "Окремі кнопки видаляють усі матеріали або обнуляють статистику. Це незворотні дії, тому вони винесені окремо й потребують підтвердження.",
     },
     {
       icon: KeyRound,
@@ -3585,10 +3704,12 @@ function AccountWorkspace({
   profile,
   state,
   user,
+  onClearMaterials,
   onPasswordReset,
   onPasswordUpdate,
   onProfileSave,
   onRestoreBackup,
+  onResetLearningStats,
   onSettingsChange,
 }: {
   isBusy: boolean;
@@ -3596,14 +3717,22 @@ function AccountWorkspace({
   profile: UserProfile | null;
   state: MemoraState;
   user: User | null;
+  onClearMaterials: () => Promise<void>;
   onPasswordReset: (email: string) => Promise<void>;
   onPasswordUpdate: (password: string) => Promise<void>;
   onProfileSave: (draft: UserProfileDraft) => Promise<void>;
   onRestoreBackup: (backup: BackupDocument) => Promise<void>;
-  onSettingsChange: (settings: AppSettings) => void;
+  onResetLearningStats: () => Promise<void>;
+  onSettingsChange: (settings: AppSettings) => Promise<void>;
 }) {
   const [draft, setDraft] = useState<UserProfileDraft>(() =>
     profileToDraft(profile),
+  );
+  const [settingsDraft, setSettingsDraft] = useState<AppSettings>(
+    () => state.settings,
+  );
+  const [dailyNewLimitInput, setDailyNewLimitInput] = useState(
+    () => state.settings.dailyNewLimit.toString(),
   );
   const [resetEmail, setResetEmail] = useState(user?.email ?? profile?.email ?? "");
   const [newPassword, setNewPassword] = useState("");
@@ -3615,8 +3744,22 @@ function AccountWorkspace({
     event.preventDefault();
     setProfileError(null);
 
+    const dailyNewLimit = Number.parseInt(dailyNewLimitInput, 10);
+    if (
+      !Number.isInteger(dailyNewLimit) ||
+      dailyNewLimit < 0 ||
+      dailyNewLimit > 50
+    ) {
+      setProfileError("Кількість нових карток має бути числом від 0 до 50.");
+      return;
+    }
+
     try {
       await onProfileSave(draft);
+      await onSettingsChange({
+        ...settingsDraft,
+        dailyNewLimit,
+      });
     } catch (error) {
       setProfileError(formatError(error));
     }
@@ -3703,6 +3846,42 @@ function AccountWorkspace({
               }
             />
 
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="block">
+                <span className="text-sm font-medium text-[#c7d0dd]">
+                  Нових карток на день
+                </span>
+                <input
+                  className="mt-1 h-11 w-full rounded-lg border border-[#263140] bg-[#0b111a] px-3 text-sm text-[#eef4ff] outline-none transition placeholder:text-[#6f7d90] focus:border-[#2dd4bf] focus:ring-4 focus:ring-[#2dd4bf]/20"
+                  inputMode="numeric"
+                  max={50}
+                  min={0}
+                  type="number"
+                  value={dailyNewLimitInput}
+                  onChange={(event) => setDailyNewLimitInput(event.target.value)}
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-medium text-[#c7d0dd]">
+                  Оцінювання
+                </span>
+                <select
+                  className="mt-1 h-11 w-full rounded-lg border border-[#263140] bg-[#0b111a] px-3 text-sm text-[#eef4ff] outline-none transition focus:border-[#2dd4bf] focus:ring-4 focus:ring-[#2dd4bf]/20"
+                  value={settingsDraft.reviewButtons}
+                  onChange={(event) =>
+                    setSettingsDraft((current) => ({
+                      ...current,
+                      reviewButtons: event.target.value as AppSettings["reviewButtons"],
+                    }))
+                  }
+                >
+                  <option value="simple">2 кнопки</option>
+                  <option value="advanced">4 кнопки</option>
+                </select>
+              </label>
+            </div>
+
             <button
               className="inline-flex items-center gap-2 rounded-lg bg-[#2dd4bf] px-4 py-3 text-sm font-semibold text-[#071018] transition hover:bg-[#5eead4] disabled:cursor-not-allowed disabled:bg-[#344052] disabled:text-[#8d9aab]"
               disabled={isBusy}
@@ -3713,15 +3892,10 @@ function AccountWorkspace({
               ) : (
                 <Save className="size-4" />
               )}
-              Зберегти профіль
+              Зберегти зміни
             </button>
           </form>
         </ShellPanel>
-
-        <SettingsPanel
-          settings={state.settings}
-          onChange={onSettingsChange}
-        />
       </div>
 
       <div className="space-y-5">
@@ -3809,8 +3983,79 @@ function AccountWorkspace({
           state={state}
           onRestoreBackup={onRestoreBackup}
         />
+        <DangerZonePanel
+          isBusy={isBusy}
+          materialCount={state.notes.length}
+          reviewCount={state.reviewLogs.length}
+          onClearMaterials={onClearMaterials}
+          onResetLearningStats={onResetLearningStats}
+        />
       </div>
     </div>
+  );
+}
+
+function DangerZonePanel({
+  isBusy,
+  materialCount,
+  reviewCount,
+  onClearMaterials,
+  onResetLearningStats,
+}: {
+  isBusy: boolean;
+  materialCount: number;
+  reviewCount: number;
+  onClearMaterials: () => Promise<void>;
+  onResetLearningStats: () => Promise<void>;
+}) {
+  function confirmClearMaterials() {
+    const confirmed = window.confirm(
+      `Видалити всі матеріали (${materialCount}) разом з картками? Цю дію не можна скасувати.`,
+    );
+    if (!confirmed) return;
+
+    void onClearMaterials().catch(() => undefined);
+  }
+
+  function confirmResetStats() {
+    const confirmed = window.confirm(
+      `Обнулити статистику та історію повторень (${reviewCount})? Матеріали залишаться, але картки почнуть навчання заново.`,
+    );
+    if (!confirmed) return;
+
+    void onResetLearningStats().catch(() => undefined);
+  }
+
+  return (
+    <ShellPanel className="p-4 md:p-5">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-semibold">Очищення даних</h2>
+        </div>
+        <Trash2 className="size-5 text-[#ff8d7f]" />
+      </div>
+
+      <div className="mt-4 grid gap-3">
+        <button
+          className="flex w-full items-center justify-between gap-3 rounded-lg border border-[#4a2428] bg-[#171014] px-4 py-3 text-left text-sm font-semibold text-[#ffb1a7] transition hover:border-[#ef6351] hover:bg-[#251519] disabled:cursor-not-allowed disabled:opacity-55"
+          disabled={isBusy || materialCount === 0}
+          onClick={confirmClearMaterials}
+          type="button"
+        >
+          <span>Видалити всі матеріали</span>
+          <span className="font-mono text-xs text-[#ff8d7f]">{materialCount}</span>
+        </button>
+        <button
+          className="flex w-full items-center justify-between gap-3 rounded-lg border border-[#4a2428] bg-[#171014] px-4 py-3 text-left text-sm font-semibold text-[#ffb1a7] transition hover:border-[#ef6351] hover:bg-[#251519] disabled:cursor-not-allowed disabled:opacity-55"
+          disabled={isBusy || reviewCount === 0}
+          onClick={confirmResetStats}
+          type="button"
+        >
+          <span>Обнулити статистику</span>
+          <span className="font-mono text-xs text-[#ff8d7f]">{reviewCount}</span>
+        </button>
+      </div>
+    </ShellPanel>
   );
 }
 
@@ -4146,6 +4391,8 @@ function RecentReviewsPanel({
   logs: ReviewLog[];
   state: MemoraState;
 }) {
+  const hasLogs = logs.length > 0;
+
   return (
     <ShellPanel className="flex flex-col p-4 md:p-5 xl:h-[314px]">
       <div className="flex items-center justify-between">
@@ -4157,7 +4404,9 @@ function RecentReviewsPanel({
 
       <div
         aria-label="Історія останніх повторень"
-        className="scrollbar-soft mt-4 min-h-0 space-y-3 overflow-y-auto pr-1 xl:flex-1"
+        className={`mt-4 min-h-0 space-y-3 ${
+          hasLogs ? "scrollbar-hidden overflow-y-auto pr-1 xl:flex-1" : ""
+        }`}
       >
         {logs.length === 0 ? (
           <div className="rounded-lg border border-[#263140] bg-[#151d28] p-5">
@@ -4209,9 +4458,10 @@ function WeakCardsPanel({
 }) {
   const weakCards = getWeakCards(state);
   const notesById = new Map(state.notes.map((note) => [note.id, note]));
+  const hasWeakCards = weakCards.length > 0;
 
   return (
-    <ShellPanel className="p-4 md:p-5">
+    <ShellPanel className="flex flex-col p-4 md:p-5 xl:h-[314px]">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold">Слабкі картки</h2>
@@ -4221,7 +4471,9 @@ function WeakCardsPanel({
 
       <div
         aria-label="Список слабких карток"
-        className="scrollbar-soft mt-4 max-h-80 space-y-3 overflow-y-auto pr-1"
+        className={`mt-4 min-h-0 space-y-3 ${
+          hasWeakCards ? "scrollbar-hidden overflow-y-auto pr-1 xl:flex-1" : ""
+        }`}
       >
         {weakCards.length === 0 ? (
           <div className="rounded-lg border border-[#263140] bg-[#151d28] p-5">
@@ -4280,7 +4532,6 @@ function WeakCardsPanel({
 function MaterialProgressPanel({ state }: { state: MemoraState }) {
   const activeNotes = state.notes.filter((note) => note.status === "active");
   const suspendedNotes = state.notes.filter((note) => note.status === "suspended");
-  const archivedNotes = state.notes.filter((note) => note.status === "archived");
   const activeCards = state.cards.filter((card) => card.status === "active");
   const englishCards = activeCards.filter((card) => card.module === "english");
   const qaCards = activeCards.filter((card) => card.module === "qa");
@@ -4302,7 +4553,7 @@ function MaterialProgressPanel({ state }: { state: MemoraState }) {
       <div className="mt-4 grid gap-3 sm:grid-cols-3">
         <MiniStat label="В навчанні" value={activeNotes.length.toString()} />
         <MiniStat label="На паузі" value={suspendedNotes.length.toString()} />
-        <MiniStat label="В архіві" value={archivedNotes.length.toString()} />
+        <MiniStat label="Усього" value={state.notes.length.toString()} />
       </div>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -4505,7 +4756,7 @@ function labelStatus(status: ItemStatus) {
   const labels: Record<ItemStatus, string> = {
     active: "в навчанні",
     suspended: "на паузі",
-    archived: "в архіві",
+    archived: "поза навчанням",
   };
 
   return labels[status];
