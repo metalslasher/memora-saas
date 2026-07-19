@@ -3794,9 +3794,8 @@ function AccountWorkspace({
   }
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(480px,0.72fr)]">
-      <div className="flex flex-col gap-5">
-        <ShellPanel className="p-4 md:p-5 xl:min-h-[368px]">
+    <div className="grid gap-5 xl:grid-cols-[minmax(0,1.05fr)_minmax(440px,0.8fr)] xl:items-start">
+      <ShellPanel className="p-4 md:p-5 xl:min-h-[455px]">
           <div className="flex items-start justify-between gap-4">
             <div>
               <h2 className="text-lg font-semibold">Профіль</h2>
@@ -3895,11 +3894,9 @@ function AccountWorkspace({
               Зберегти зміни
             </button>
           </form>
-        </ShellPanel>
-      </div>
+      </ShellPanel>
 
-      <div className="space-y-5">
-        <ShellPanel className="p-4 md:p-5">
+      <ShellPanel className="p-4 md:p-5 xl:min-h-[455px]">
           <div className="flex items-start justify-between gap-4">
             <div>
               <h2 className="text-lg font-semibold">Безпека</h2>
@@ -3976,18 +3973,18 @@ function AccountWorkspace({
               Оновити пароль
             </button>
           </form>
-        </ShellPanel>
+      </ShellPanel>
 
-        <BackupPanel
-          isBusy={isBusy}
-          materialCount={state.notes.length}
-          reviewCount={state.reviewLogs.length}
-          state={state}
-          onClearMaterials={onClearMaterials}
-          onResetLearningStats={onResetLearningStats}
-          onRestoreBackup={onRestoreBackup}
-        />
-      </div>
+      <BackupPanel
+        className="xl:col-span-2"
+        isBusy={isBusy}
+        materialCount={state.notes.length}
+        reviewCount={state.reviewLogs.length}
+        state={state}
+        onClearMaterials={onClearMaterials}
+        onResetLearningStats={onResetLearningStats}
+        onRestoreBackup={onRestoreBackup}
+      />
     </div>
   );
 }
@@ -4044,6 +4041,7 @@ function AnalyticsWorkspace({
 }
 
 function BackupPanel({
+  className = "",
   isBusy,
   materialCount,
   onClearMaterials,
@@ -4052,6 +4050,7 @@ function BackupPanel({
   reviewCount,
   state,
 }: {
+  className?: string;
   isBusy: boolean;
   materialCount: number;
   onClearMaterials: () => Promise<void>;
@@ -4132,7 +4131,7 @@ function BackupPanel({
   }
 
   return (
-    <ShellPanel className="p-4 md:p-5">
+    <ShellPanel className={`p-4 md:p-5 ${className}`}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold">Дані</h2>
@@ -4141,9 +4140,9 @@ function BackupPanel({
           {state.notes.length}
         </span>
       </div>
-      <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(170px,0.9fr)]">
+      <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(280px,360px)]">
         <div className="min-w-0 space-y-3">
-          <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-1 2xl:grid-cols-3">
+          <div className="grid gap-2 sm:grid-cols-3">
             <ExportButton
               label="Повна копія JSON"
               onClick={() =>
@@ -4177,7 +4176,7 @@ function BackupPanel({
           </div>
 
           <div className="rounded-lg border border-[#263140] bg-[#0d131c] p-3">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between lg:flex-col lg:items-stretch 2xl:flex-row 2xl:items-center">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm font-semibold text-[#eef4ff]">
                 Відновлення
               </p>
@@ -4243,7 +4242,7 @@ function BackupPanel({
         </div>
 
         {backupPreview ? (
-          <div className="rounded-lg border border-[#314055] bg-[#0b111a] p-4 lg:col-span-2">
+          <div className="rounded-lg border border-[#314055] bg-[#0b111a] p-4 xl:col-span-2">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <PreviewMetric
                 label="Дата копії"
