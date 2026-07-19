@@ -38,7 +38,7 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=...
 - CSV import for English and QA with preview, row validation, duplicate handling, templates, and persistent import history.
 - JSON backup plus English/QA CSV exports.
 - FSRS scheduling through `ts-fsrs`.
-- Ukrainian-first interface, daily queue, review attempt/reveal/grading loop, quick note creation with generated-card preview and duplicate warnings, content manager views, note/card status controls, settings persistence, in-app help guide, and basic analytics.
+- Ukrainian-first interface, focused practice queue, review attempt/reveal/grading loop, dedicated English/QA content manager views, generated-card preview, duplicate warnings, note/card status controls, settings persistence, in-app help guide, backup/restore, and progress overview.
 
 ## Useful Commands
 

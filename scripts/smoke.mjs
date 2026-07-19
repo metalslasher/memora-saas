@@ -34,7 +34,7 @@ async function main() {
     }
 
     await signIn(page, email, password);
-    await assertTodayView(page);
+    await assertPracticeView(page);
     await assertHelpAndAccount(page);
 
     if (shouldMutate) {
@@ -92,7 +92,7 @@ async function signIn(page, userEmail, userPassword) {
   });
 }
 
-async function assertTodayView(page) {
+async function assertPracticeView(page) {
   await page.getByRole("button", { name: "Практика", exact: true }).click();
   await expect(page.getByRole("button", { name: "Усе", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Додати матеріал", exact: true })).toHaveCount(0);

@@ -1,6 +1,6 @@
 # Current Implementation Notes
 
-Last updated: 2026-07-13
+Last updated: 2026-07-19
 
 ## What Exists Now
 
@@ -12,7 +12,7 @@ Implemented:
 - `ts-fsrs` scheduler adapter with 0.90 desired retention, same-day learning steps, and relearning steps.
 - Supabase browser client using `.env.local` publishable credentials.
 - Supabase Auth sign-in/sign-up gate.
-- Account workspace with profile settings, learning goal, timezone/language preferences, password reset email, and password update flow after Supabase recovery links.
+- Profile workspace with email, English level, learning goal, study settings, password reset email, password update flow after Supabase recovery links, and backup/restore tools.
 - Next.js server actions for authenticated learning mutations.
 - PostgreSQL schema and migrations under `supabase/migrations`.
 - Row level security on all public app tables.
@@ -22,28 +22,28 @@ Implemented:
 - Ukrainian-first card templates for generated English and QA cards.
 - Idempotent starter-content upgrade for existing Supabase seed rows without resetting review schedules.
 - Daily queue sorted as reviews first, then new cards.
-- Today queue now explains the study loop directly in the card surface: remember -> check -> rate, with clearer empty state and queue position.
+- Practice queue is the focused daily learning screen: metrics, mode selector, segmented progress, typed attempt, reveal, answer panel, and self-grade buttons.
 - Review interaction: prompt -> typed attempt -> reveal -> self-grade.
 - Simple review buttons by default: `Again`, `Good`.
 - Optional advanced buttons: `Again`, `Hard`, `Good`, `Easy`.
-- Quick manual note creation for English and QA.
-- Quick capture success feedback after generated cards are created.
-- Quick capture generated-card preview before saving.
-- Quick capture duplicate detection with open-existing and create-anyway paths.
+- Manual note creation for English and QA in their dedicated content-manager sections.
+- New-material success feedback after generated cards are created.
+- Generated-card preview before saving new material.
+- Duplicate detection with open-existing and create-anyway paths.
 - CSV import for English and QA from content manager views, with delimiter detection, row-level validation, duplicate preview, downloadable templates, persistent import history, and server-side duplicate filtering.
-- Backup/export from Analytics: full JSON backup plus English and QA CSV exports.
+- Backup/export from Profile: full JSON backup plus English and QA CSV exports.
 - Restore from JSON backup with file validation, preview counts, explicit confirmation, and Supabase-backed replacement of notes, cards, schedules, and review history.
-- Real sidebar navigation for Today, English, QA Knowledge, Analytics, and Account.
-- In-app Help workspace with Ukrainian onboarding copy, learning-loop visualization, section explanations, review-rating guidance, and content/data workflows.
+- Real sidebar navigation for Practice, English words, QA/testing, Progress, Profile, and Help.
+- In-app Help workspace with Ukrainian guide copy, learning-loop visualization, section explanations, review-rating guidance, content workflows, profile/data explanations, and a table of contents.
 - Ukrainian-first visible product interface.
 - Product UI no longer shows MVP/dev/sync labels in the main sidebar.
-- English and QA content manager views with note search, note details, editable source fields, generated-card inspection, and status controls.
+- English and QA content manager views with note search, note grid, top-level create/import panels, modal note details, editable source fields, generated-card inspection, and status controls.
 - Content manager has empty states for no notes/imports/cards, human-readable statuses, generated-card explanations, and quick field cleanup for note editing.
-- Analytics workspace with learning signal, recent attempts, deck overview, source counts for starter/user/imported notes, and export controls.
+- Progress workspace with learning dynamics, recent attempts, weak-card review, and material overview. Long lists scroll inside their panels instead of stretching the page.
 - Review logs and basic analytics.
 - Card suspension from the study view.
 - Dark-only product theme across the full interface.
-- LocalStorage domain helpers still exist in `src/lib/memora/store.ts`, but the UI now uses `src/lib/memora/remote-store.ts`.
+- Legacy localStorage domain helpers still exist in `src/lib/memora/store.ts` for tests and older local helpers, but the UI uses `src/lib/memora/remote-store.ts`.
 
 ## Important Temporary Choices
 
@@ -103,14 +103,15 @@ Verified locally:
   - dark theme renders without white page or panel backgrounds,
   - Next dev indicator disabled for local UI work.
 - Browser check in the logged-in Chrome session:
-  - Today view renders study flow and quick capture,
+- Practice view renders the focused study flow,
   - English view renders content manager, editable note fields, and generated cards,
   - QA view renders QA note fields and generated cards,
-  - Analytics view renders recent attempts and deck overview,
+  - Progress view renders learning dynamics, recent attempts, weak cards, and materials,
+  - Profile view renders settings, security, export, and restore,
   - no browser console errors.
 - Automated smoke script:
   - `pnpm smoke` verifies the login screen.
-  - with `MEMORA_SMOKE_EMAIL` and `MEMORA_SMOKE_PASSWORD`, it verifies Today, Help, Account, English/QA content views, and add/edit English note flow.
+  - with `MEMORA_SMOKE_EMAIL` and `MEMORA_SMOKE_PASSWORD`, it verifies Practice, Help, Profile, English/QA content views, and add/edit English note flow.
 
 ## Recommended Next Step
 

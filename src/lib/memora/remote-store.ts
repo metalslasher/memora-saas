@@ -131,6 +131,11 @@ const defaultSettings: AppSettings = {
 
 const studyModes: StudyMode[] = ["daily", "english-productive", "qa-interview"];
 
+const deckTitles: Record<ModuleType, string> = {
+  english: "Англійські слова",
+  qa: "QA та тестування",
+};
+
 const profileSelect =
   "id,email,locale,timezone,level,goals,created_at,updated_at";
 
@@ -312,13 +317,13 @@ export async function remoteRestoreBackup(
       {
         user_id: userId,
         module_type: "english",
-        title: "English Vocabulary",
+        title: deckTitles.english,
         settings: backupState.settings,
       },
       {
         user_id: userId,
         module_type: "qa",
-        title: "QA Knowledge",
+        title: deckTitles.qa,
         settings: backupState.settings,
       },
     ])
@@ -815,7 +820,7 @@ async function getOrCreateDeck(
     .insert({
       user_id: userId,
       module_type: moduleType,
-      title: moduleType === "english" ? "English Vocabulary" : "QA Knowledge",
+      title: deckTitles[moduleType],
       settings: defaultSettings,
     })
     .select("id")

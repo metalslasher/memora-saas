@@ -1,6 +1,6 @@
 # Deployment And Smoke Checklist
 
-Last updated: 2026-07-16
+Last updated: 2026-07-19
 
 Use this checklist before and after deploying Memora to Vercel.
 
@@ -79,16 +79,16 @@ Use a clean browser session and the owner account.
 
 1. Open the app locally or on the Vercel preview URL.
 2. Sign in.
-3. Confirm Today shows a due/new queue and the quick capture panel.
+3. Confirm Practice shows metrics, the mode selector, segmented progress, and the current card.
 4. Reveal one card, submit a rating, and confirm the next queue state loads.
-5. Add one English note and confirm generated cards appear.
-6. Add one QA note and confirm generated cards appear.
-7. Open English and QA content manager views, edit a note field, and save.
+5. Add one English note from the English words section and confirm generated cards appear.
+6. Add one QA note from the QA/testing section and confirm generated cards appear.
+7. Open English and QA content manager views, open a note modal, edit a note field, and save.
 8. Import a small CSV preview in English or QA and confirm duplicate preview works.
-9. Export JSON backup from Analytics.
+9. Export JSON backup from Profile.
 10. Select the exported JSON backup, confirm the restore preview, and cancel unless intentionally testing restore.
 11. If intentionally testing restore, first download a fresh JSON backup, then restore and confirm counts match the preview.
-12. Open Account, update profile fields, and confirm the saved state remains after refresh.
+12. Open Profile, update profile/study settings, and confirm the saved state remains after refresh.
 13. Sign out and sign back in.
 
 ## Verified Production Checks

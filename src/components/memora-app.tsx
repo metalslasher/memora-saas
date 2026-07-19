@@ -191,7 +191,6 @@ export function MemoraApp() {
   const [isRevealed, setIsRevealed] = useState(false);
   const [startedAt, setStartedAt] = useState(() => Date.now());
   const [practiceSessionTotal, setPracticeSessionTotal] = useState(0);
-  const [, setIsLoadingData] = useState(false);
   const [isMutating, setIsMutating] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -229,7 +228,6 @@ export function MemoraApp() {
       }
 
       loadingUserIdRef.current = nextUser.id;
-      setIsLoadingData(true);
       setErrorMessage(null);
 
       try {
@@ -249,7 +247,6 @@ export function MemoraApp() {
         if (loadingUserIdRef.current === nextUser.id) {
           loadingUserIdRef.current = null;
         }
-        setIsLoadingData(false);
       }
     },
     [resetPracticeSession],
@@ -297,7 +294,6 @@ export function MemoraApp() {
         setProfile(null);
         setState(null);
         setIsPasswordRecovery(false);
-        setIsLoadingData(false);
         loadingUserIdRef.current = null;
         loadedUserIdRef.current = null;
         resetPracticeSession(null);
@@ -723,12 +719,7 @@ export function MemoraApp() {
   }
 
   if (authStatus === "loading") {
-    return (
-      <CenteredStatus
-        title="Підключаю Memora"
-        description="Перевіряю сесію і готую твій навчальний простір."
-      />
-    );
+    return <LoadingScreen />;
   }
 
   if (authStatus === "signed-out") {
@@ -744,12 +735,7 @@ export function MemoraApp() {
   }
 
   if (!state || !summary) {
-    return (
-      <CenteredStatus
-        title="Завантажую Memora"
-        description="Завантажую матеріали, картки й історію повторень."
-      />
-    );
+    return <LoadingScreen />;
   }
 
   return (
@@ -1133,22 +1119,27 @@ function ShellPanel({
   );
 }
 
-function CenteredStatus({
-  title,
-  description,
-}: {
-  title: string;
-  description: string;
-}) {
+function LoadingScreen() {
   return (
     <main className="grid min-h-screen place-items-center bg-[#070a0f] px-4 text-[#eef4ff]">
-      <ShellPanel className="w-full max-w-md p-6 text-center">
-        <div className="mx-auto grid size-12 place-items-center rounded-lg bg-[#14352f] text-[#52e0c4]">
-          <Loader2 className="size-6 animate-spin" />
+      <div
+        className="relative grid size-24 place-items-center md:size-28"
+        role="status"
+        aria-label="Завантаження Memora"
+      >
+        <div className="absolute inset-0 rounded-full border border-[#2dd4bf]/20" />
+        <div className="absolute inset-0 animate-[spin_1.7s_linear_infinite] rounded-full border-2 border-transparent border-t-[#2dd4bf] border-r-[#2dd4bf]/30" />
+        <div className="absolute inset-3 animate-pulse rounded-full border border-[#52e0c4]/15" />
+        <div className="absolute inset-0 animate-[spin_4.5s_linear_infinite]">
+          <span className="absolute left-1/2 top-0 size-2 -translate-x-1/2 rounded-full bg-[#52e0c4] shadow-[0_0_22px_rgba(45,212,191,0.9)]" />
+          <span className="absolute bottom-2 left-3 size-1.5 rounded-full bg-[#7c6df2] shadow-[0_0_18px_rgba(124,109,242,0.75)]" />
+          <span className="absolute right-2 top-1/2 size-1.5 -translate-y-1/2 rounded-full bg-[#ffb45f] shadow-[0_0_18px_rgba(255,180,95,0.65)]" />
         </div>
-        <h1 className="mt-5 text-2xl font-semibold">{title}</h1>
-        <p className="mt-2 text-sm leading-6 text-[#9aa8ba]">{description}</p>
-      </ShellPanel>
+        <div className="relative grid size-14 place-items-center rounded-lg border border-[#263140] bg-[#101923] text-[#eef4ff] shadow-[0_18px_70px_rgba(45,212,191,0.16)]">
+          <Brain className="size-6" />
+        </div>
+        <span className="sr-only">Завантаження</span>
+      </div>
     </main>
   );
 }
@@ -1215,7 +1206,7 @@ function AuthPanel({
     <main className="min-h-screen bg-[#070a0f] px-4 py-6 text-[#eef4ff]">
       <div className="mx-auto grid min-h-[calc(100vh-3rem)] w-full max-w-5xl place-items-center">
         <ShellPanel className="grid w-full overflow-hidden md:grid-cols-[minmax(0,1fr)_420px]">
-          <div className="flex min-h-[520px] flex-col justify-between border-b border-[#263140] bg-[#0d131c] p-6 md:border-b-0 md:border-r">
+          <div className="flex min-h-[460px] flex-col justify-center border-b border-[#263140] bg-[#0d131c] p-6 md:min-h-[520px] md:border-b-0 md:border-r">
             <div>
               <div className="flex items-center gap-3">
                 <div className="grid size-11 place-items-center rounded-lg bg-[#202938] text-white">
@@ -1223,7 +1214,7 @@ function AuthPanel({
                 </div>
                 <div>
                   <p className="text-xl font-semibold">Memora</p>
-                  <p className="text-sm text-[#9aa8ba]">Особистий простір для навчання</p>
+                  <p className="text-sm text-[#9aa8ba]">Простір для навчання</p>
                 </div>
               </div>
               <h1 className="mt-10 max-w-xl text-3xl font-semibold leading-tight md:text-4xl">
@@ -1233,12 +1224,6 @@ function AuthPanel({
                 Memora підказує, що варто повторити сьогодні, і поступово додає
                 нові слова та QA-терміни без перевантаження.
               </p>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-3">
-              <MiniStat label="Фокус" value="Англ." />
-              <MiniStat label="Фокус" value="Тестування" />
-              <MiniStat label="Ритм" value="Щодня" />
             </div>
           </div>
 
