@@ -677,7 +677,7 @@ function CsvImportPanel({
 
       <div className="mt-3 grid grid-cols-2 gap-2">
         <button
-          className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#263140] px-3 py-2 text-sm font-medium text-[#c7d0dd] transition hover:border-[#2dd4bf] hover:text-[#52e0c4] disabled:cursor-not-allowed disabled:opacity-55"
+          className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[#263140] px-3 py-2 text-sm font-medium text-[#c7d0dd] transition hover:border-[#2dd4bf] hover:text-[#52e0c4] disabled:cursor-not-allowed disabled:opacity-55"
           disabled={isBusy || isImporting}
           onClick={() => fileInputRef.current?.click()}
           type="button"
@@ -686,7 +686,7 @@ function CsvImportPanel({
           Файл
         </button>
         <button
-          className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#263140] px-3 py-2 text-sm font-medium text-[#c7d0dd] transition hover:border-[#2dd4bf] hover:text-[#52e0c4]"
+          className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[#263140] px-3 py-2 text-sm font-medium text-[#c7d0dd] transition hover:border-[#2dd4bf] hover:text-[#52e0c4]"
           onClick={downloadTemplate}
           type="button"
         >
