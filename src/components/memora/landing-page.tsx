@@ -46,7 +46,7 @@ const learningSteps = [
     icon: CalendarClock,
     number: "03",
     title: "Повертаєшся вчасно",
-    text: "Memora планує наступне повторення тоді, коли знання ще можна втримати.",
+    text: "Наступне повторення з’являється тоді, коли знання ще можна втримати.",
   },
 ] as const;
 
@@ -154,7 +154,7 @@ export function LandingPage({
       </header>
 
       <section
-        className="relative isolate min-h-[76svh] overflow-hidden border-b border-[#202938]"
+        className="relative isolate min-h-[76svh] overflow-hidden"
         id="top"
       >
         <Image
@@ -172,17 +172,15 @@ export function LandingPage({
           <div className="landing-reveal max-w-3xl">
             <p className="inline-flex items-center gap-2 text-sm font-semibold text-[#52e0c4]">
               <Sparkles className="size-4" />
-              Англійська й QA в одному навчальному ритмі
+              Англійська й QA у короткій щоденній практиці
             </p>
-            <h1 className="mt-5 text-5xl font-semibold leading-none md:text-7xl">
-              Memora
+            <h1 className="mt-5 max-w-3xl text-4xl font-semibold leading-tight md:text-6xl">
+              Згадуй, перевіряй і запам’ятовуй надовго.
             </h1>
-            <p className="mt-5 max-w-2xl text-2xl font-semibold leading-tight text-[#eef4ff] md:text-5xl">
-              Згадуй, перевіряй, запам’ятовуй надовго.
-            </p>
             <p className="mt-5 max-w-xl text-base leading-7 text-[#c7d0dd]">
-              Memora допомагає вчити англійські слова й QA-терміни через
-              активне пригадування та повторення в правильний момент.
+              Вчи англійські слова й QA-терміни через активне пригадування:
+              спочатку відповідаєш сам, потім перевіряєш себе, а сервіс планує
+              наступний контакт із матеріалом.
             </p>
             <div className="mt-7 grid max-w-lg grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] gap-2 sm:flex sm:max-w-none sm:gap-3">
               <button
@@ -221,19 +219,13 @@ export function LandingPage({
         </div>
       </section>
 
-      <section className="border-y border-[#202938] bg-[#0b1017]" id="directions">
+      <section className="bg-[#0b1017]" id="directions">
         <div className="mx-auto w-full max-w-[1240px] px-4 py-14 md:px-6 md:py-20">
-          <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
-            <SectionHeading
-              eyebrow="Напрями"
-              title="Один простір для мови й професійних знань."
-              description="Можна практикувати все разом або окремо сфокусуватися на словах чи QA-підготовці."
-            />
-            <div className="hidden max-w-xs border-l border-[#263140] pl-5 text-sm leading-6 text-[#9aa8ba] md:block">
-              Український інтерфейс, англійські терміни там, де вони природні,
-              і пояснення без технічного шуму.
-            </div>
-          </div>
+          <SectionHeading
+            eyebrow="Напрями"
+            title="Один простір для мови й професійних знань."
+            description="Працюй зі словами й QA-термінами окремо або змішуй їх в одній практиці."
+          />
 
           <div className="mt-10 grid gap-4 lg:grid-cols-2">
             {directionItems.map((item) => (
@@ -251,7 +243,7 @@ export function LandingPage({
           <SectionHeading
             eyebrow="Можливості"
             title="Повноцінний кабінет, але без перевантаження."
-            description="Всередині є практика, матеріали, прогрес, профіль, імпорт, резервні копії й довідка. На кожному екрані лишається своя задача."
+            description="Практика, матеріали, прогрес, профіль, імпорт, резервні копії й довідка рознесені по своїх місцях."
           />
           <button
             className="mt-7 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#2dd4bf] px-5 py-3 text-sm font-semibold text-[#071018] transition hover:bg-[#5eead4] sm:w-auto"
@@ -263,7 +255,7 @@ export function LandingPage({
           </button>
         </div>
 
-        <div className="divide-y divide-[#263140] border-y border-[#263140]">
+        <div className="divide-y divide-[#263140]">
           {featureItems.map((item) => (
             <FeatureRow key={item.title} {...item} />
           ))}
@@ -287,13 +279,13 @@ export function LandingPage({
       </section>
 
       <section className="mx-auto w-full max-w-[1240px] px-4 py-14 md:px-6 md:py-20">
-        <div className="flex flex-col items-start justify-between gap-7 border-y border-[#263140] py-10 md:flex-row md:items-center">
+        <div className="flex flex-col items-start justify-between gap-7 rounded-xl bg-[#10161f] px-5 py-7 shadow-[0_18px_70px_rgba(0,0,0,0.24)] md:flex-row md:items-center md:px-7">
           <div>
             <p className="text-sm font-semibold text-[#52e0c4]">
               Готовий спробувати
             </p>
             <h2 className="mt-2 max-w-2xl text-3xl font-semibold leading-tight md:text-4xl">
-              Відкрий Memora й пройди першу коротку практику.
+              Відкрий кабінет і пройди першу коротку практику.
             </h2>
           </div>
           <button
@@ -359,7 +351,7 @@ function ProcessStep({
   text,
 }: (typeof learningSteps)[number]) {
   return (
-    <article className="group grid gap-4 border-l border-[#263140] py-3 pl-5 sm:grid-cols-[76px_1fr] sm:items-start sm:border-l-0 sm:border-t sm:pl-0 sm:pt-5">
+    <article className="group grid gap-4 py-3 sm:grid-cols-[76px_1fr] sm:items-start">
       <div className="flex items-center gap-3 sm:block">
         <span className="font-mono text-xs text-[#6f7d90]">{number}</span>
         <span className="grid size-10 place-items-center rounded-lg border border-[#263140] bg-[#10161f] text-[#52e0c4] transition group-hover:border-[#2dd4bf]">
