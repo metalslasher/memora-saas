@@ -1,9 +1,9 @@
 "use client";
 
 import type { FormEvent } from "react";
-import { useState } from "react";
-import { Brain, Loader2 } from "lucide-react";
-import { ShellPanel, StatusBanner, TextInput } from "./shared-ui";
+import { useEffect, useState } from "react";
+import { Brain, Loader2, X } from "lucide-react";
+import { StatusBanner, TextInput } from "./shared-ui";
 import { formatError } from "./utils";
 
 export function LoadingScreen() {
@@ -33,25 +33,49 @@ export function LoadingScreen() {
   );
 }
 
-export function AuthPanel({
+export function AuthModal({
   errorMessage,
+  initialMode,
   statusMessage,
+  onClose,
   onResetPassword,
   onSignIn,
   onSignUp,
 }: {
   errorMessage: string | null;
+  initialMode: "sign-in" | "sign-up";
   statusMessage: string | null;
+  onClose: () => void;
   onResetPassword: (email: string) => Promise<void>;
   onSignIn: (email: string, password: string) => Promise<void>;
   onSignUp: (email: string, password: string) => Promise<void>;
 }) {
-  const [mode, setMode] = useState<"sign-in" | "sign-up">("sign-in");
+  const [mode, setMode] = useState<"sign-in" | "sign-up">(initialMode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const canSubmit = email.trim().length > 3 && password.length >= 6;
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onClose]);
+
+  function changeMode(nextMode: "sign-in" | "sign-up") {
+    setMode(nextMode);
+    setLocalError(null);
+  }
 
   async function submitAuth(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -92,109 +116,125 @@ export function AuthPanel({
   }
 
   return (
-    <main className="min-h-screen bg-[#070a0f] px-4 py-6 text-[#eef4ff]">
-      <div className="mx-auto grid min-h-[calc(100vh-3rem)] w-full max-w-5xl place-items-center">
-        <ShellPanel className="grid w-full overflow-hidden md:grid-cols-[minmax(0,1fr)_420px]">
-          <div className="flex min-h-[360px] flex-col justify-start border-b border-[#263140] bg-[#0d131c] p-6 md:min-h-[420px] md:border-b-0 md:border-r md:p-7">
-            <div>
-              <div className="flex items-center gap-3">
-                <Brain
-                  className="size-8 shrink-0 text-[#eef4ff] drop-shadow-[0_0_14px_rgba(238,244,255,0.28)]"
-                  strokeWidth={1.8}
-                />
-                <div>
-                  <p className="text-xl font-semibold">Memora</p>
-                  <p className="text-sm text-[#9aa8ba]">Простір для навчання</p>
-                </div>
-              </div>
-              <h1 className="mt-9 max-w-xl text-3xl font-semibold leading-tight md:text-4xl">
-                Вчи англійські слова й терміни з тестування через регулярне пригадування.
-              </h1>
-              <p className="mt-4 max-w-lg text-sm leading-6 text-[#9aa8ba]">
-                Memora підказує, що варто повторити сьогодні, і поступово додає
-                нові слова та QA-терміни без перевантаження.
-              </p>
-            </div>
+    <div
+      className="fixed inset-0 z-50 grid place-items-center bg-[#02050a]/72 px-3 py-5 text-[#eef4ff] backdrop-blur-md"
+      role="dialog"
+      aria-modal="true"
+      aria-label={mode === "sign-in" ? "Вхід до Memora" : "Реєстрація в Memora"}
+    >
+      <button
+        className="absolute inset-0 cursor-default"
+        aria-label="Закрити вікно входу поза формою"
+        onClick={onClose}
+        type="button"
+      />
+      <div className="relative max-h-[calc(100svh-2.5rem)] w-full max-w-md overflow-y-auto rounded-lg border border-[#263140] bg-[#10161f] shadow-[0_28px_90px_rgba(0,0,0,0.52)]">
+        <div className="flex items-center justify-between border-b border-[#263140] px-5 py-4">
+          <div className="flex items-center gap-3">
+            <Brain className="size-6 text-[#eef4ff]" strokeWidth={1.8} />
+            <span className="font-semibold">Memora</span>
+          </div>
+          <button
+            className="grid size-10 place-items-center rounded-lg border border-[#263140] text-[#9aa8ba] transition hover:border-[#2dd4bf] hover:text-[#52e0c4]"
+            aria-label="Закрити вікно входу"
+            onClick={onClose}
+            type="button"
+          >
+            <X className="size-5" />
+          </button>
+        </div>
+
+        <form className="p-5 md:p-6" onSubmit={submitAuth}>
+          <h2 className="text-2xl font-semibold">
+            {mode === "sign-in" ? "Увійти" : "Створити акаунт"}
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-[#9aa8ba]">
+            {mode === "sign-in"
+              ? "Продовжуй з того місця, де зупинився."
+              : "Почни з готових карток і додай власні матеріали."}
+          </p>
+
+          <div className="mt-5 grid grid-cols-2 rounded-lg border border-[#263140] bg-[#151d28] p-1">
+            <button
+              type="button"
+              className={`rounded-md px-3 py-2 text-sm font-medium transition ${
+                mode === "sign-in"
+                  ? "bg-[#2dd4bf] text-[#071018]"
+                  : "text-[#9aa8ba] hover:text-[#eef4ff]"
+              }`}
+              onClick={() => changeMode("sign-in")}
+            >
+              Увійти
+            </button>
+            <button
+              type="button"
+              className={`rounded-md px-3 py-2 text-sm font-medium transition ${
+                mode === "sign-up"
+                  ? "bg-[#2dd4bf] text-[#071018]"
+                  : "text-[#9aa8ba] hover:text-[#eef4ff]"
+              }`}
+              onClick={() => changeMode("sign-up")}
+            >
+              Реєстрація
+            </button>
           </div>
 
-          <form className="p-5 md:p-7" onSubmit={submitAuth}>
-            <div className="grid grid-cols-2 rounded-lg border border-[#263140] bg-[#151d28] p-1">
-              <button
-                type="button"
-                className={`rounded-md px-3 py-2 text-sm font-medium ${
-                  mode === "sign-in"
-                    ? "bg-[#2dd4bf] text-[#071018]"
-                    : "text-[#9aa8ba]"
-                }`}
-                onClick={() => setMode("sign-in")}
-              >
-                Увійти
-              </button>
-              <button
-                type="button"
-                className={`rounded-md px-3 py-2 text-sm font-medium ${
-                  mode === "sign-up"
-                    ? "bg-[#2dd4bf] text-[#071018]"
-                    : "text-[#9aa8ba]"
-                }`}
-                onClick={() => setMode("sign-up")}
-              >
-                Реєстрація
-              </button>
-            </div>
-
-            <div className="mt-6 space-y-4">
-              <TextInput
-                label="Email"
-                value={email}
-                onChange={setEmail}
-                placeholder="you@example.com"
-                autoComplete="email"
-                type="email"
+          <div className="mt-5 space-y-4">
+            <TextInput
+              label="Email"
+              value={email}
+              onChange={setEmail}
+              placeholder="you@example.com"
+              autoComplete="email"
+              type="email"
+            />
+            <label className="block">
+              <span className="text-sm font-medium text-[#c7d0dd]">Пароль</span>
+              <input
+                className="mt-1 h-11 w-full rounded-lg border border-[#263140] bg-[#0b111a] px-3 text-sm text-[#eef4ff] outline-none transition placeholder:text-[#6f7d90] focus:border-[#2dd4bf] focus:ring-4 focus:ring-[#2dd4bf]/20"
+                autoComplete={
+                  mode === "sign-in" ? "current-password" : "new-password"
+                }
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder="Мінімум 6 символів"
+                type="password"
               />
-              <label className="block">
-                <span className="text-sm font-medium text-[#c7d0dd]">Пароль</span>
-                <input
-                  className="mt-1 h-11 w-full rounded-lg border border-[#263140] bg-[#0b111a] px-3 text-sm text-[#eef4ff] outline-none transition placeholder:text-[#6f7d90] focus:border-[#2dd4bf] focus:ring-4 focus:ring-[#2dd4bf]/20"
-                  autoComplete={
-                    mode === "sign-in" ? "current-password" : "new-password"
-                  }
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  placeholder="Мінімум 6 символів"
-                  type="password"
-                />
-              </label>
-            </div>
+            </label>
+          </div>
 
+          <div className="mt-4">
             {localError || errorMessage ? (
-              <StatusBanner tone="error" message={localError ?? errorMessage ?? ""} />
+              <StatusBanner
+                tone="error"
+                message={localError ?? errorMessage ?? ""}
+              />
             ) : null}
             {statusMessage ? (
               <StatusBanner tone="success" message={statusMessage} />
             ) : null}
+          </div>
 
+          <button
+            className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-[#2dd4bf] px-4 py-3 text-sm font-semibold text-[#071018] transition hover:bg-[#5eead4] disabled:cursor-not-allowed disabled:bg-[#344052] disabled:text-[#8d9aab]"
+            disabled={!canSubmit || isSubmitting}
+            type="submit"
+          >
+            {isSubmitting ? <Loader2 className="size-4 animate-spin" /> : null}
+            {mode === "sign-in" ? "Увійти" : "Створити акаунт"}
+          </button>
+          {mode === "sign-in" ? (
             <button
-              className="mt-6 flex w-full items-center justify-center gap-2 rounded-lg bg-[#2dd4bf] px-4 py-3 text-sm font-semibold text-[#071018] transition hover:bg-[#5eead4] disabled:cursor-not-allowed disabled:bg-[#344052] disabled:text-[#8d9aab]"
-              disabled={!canSubmit || isSubmitting}
-              type="submit"
+              className="mt-3 w-full rounded-lg border border-[#263140] px-4 py-2.5 text-sm font-medium text-[#c7d0dd] transition hover:border-[#2dd4bf] hover:text-[#52e0c4] disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isSubmitting}
+              onClick={() => void submitPasswordReset()}
+              type="button"
             >
-              {isSubmitting ? <Loader2 className="size-4 animate-spin" /> : null}
-              {mode === "sign-in" ? "Увійти" : "Створити акаунт"}
+              Відновити пароль
             </button>
-            {mode === "sign-in" ? (
-              <button
-                className="mt-3 w-full rounded-lg border border-[#263140] px-4 py-2 text-sm font-medium text-[#c7d0dd] transition hover:border-[#2dd4bf] hover:text-[#52e0c4] disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={isSubmitting}
-                onClick={() => void submitPasswordReset()}
-                type="button"
-              >
-                Відновити пароль
-              </button>
-            ) : null}
-          </form>
-        </ShellPanel>
+          ) : null}
+        </form>
       </div>
-    </main>
+    </div>
   );
 }

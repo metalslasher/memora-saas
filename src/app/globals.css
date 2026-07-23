@@ -20,6 +20,10 @@ body {
     BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 button,
 input,
 textarea {
@@ -60,4 +64,35 @@ textarea {
 
 .scrollbar-soft::-webkit-scrollbar-thumb:hover {
   background: #2dd4bf;
+}
+
+@keyframes landing-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.landing-reveal {
+  animation: landing-reveal 600ms ease-out both;
+}
+
+.landing-reveal-delay {
+  animation-delay: 120ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .landing-reveal,
+  .landing-reveal-delay {
+    animation: none;
+  }
 }

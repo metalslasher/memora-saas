@@ -32,7 +32,7 @@ async function main() {
     await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
 
     await assertNoNextOverlay(page);
-    await assertLoginScreen(page);
+    await assertLandingAndLogin(page);
 
     if (!email || !password) {
       console.log("Smoke OK: login screen. Authenticated checks skipped because MEMORA_SMOKE_EMAIL/PASSWORD are not set.");
@@ -87,8 +87,13 @@ async function assertServerReady() {
   }
 }
 
-async function assertLoginScreen(page) {
-  await expect(page.getByText("Memora").first()).toBeVisible();
+async function assertLandingAndLogin(page) {
+  await expect(page.getByRole("heading", { name: "Memora", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Почати навчання", exact: true })).toBeVisible();
+  await expect(page.getByText("Три кроки замість нескінченного перечитування.")).toBeVisible();
+
+  await page.getByRole("button", { name: "Увійти", exact: true }).first().click();
+  await expect(page.getByRole("dialog", { name: "Вхід до Memora" })).toBeVisible();
   await expect(page.getByLabel("Email")).toBeVisible();
   await expect(page.getByLabel("Пароль")).toBeVisible();
   await expect(page.locator('form button[type="submit"]')).toContainText("Увійти");

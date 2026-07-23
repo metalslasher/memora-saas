@@ -40,9 +40,10 @@ import type {
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { AccountWorkspace } from "./memora/account-workspace";
 import { AnalyticsWorkspace } from "./memora/analytics-workspace";
-import { AuthPanel, LoadingScreen } from "./memora/auth";
+import { LoadingScreen } from "./memora/auth";
 import { ContentManager } from "./memora/content-manager";
 import { HelpWorkspace } from "./memora/help-workspace";
+import { LandingPage } from "./memora/landing-page";
 import {
   BrandLockup,
   CollapsedStreakButton,
@@ -68,12 +69,16 @@ import {
   unwrapProfile,
 } from "./memora/utils";
 
-export function MemoraApp() {
+export function MemoraApp({
+  initialUser = null,
+}: {
+  initialUser?: User | null;
+}) {
   const [supabase] = useState(() => createSupabaseBrowserClient());
   const [authStatus, setAuthStatus] = useState<
     "loading" | "signed-out" | "signed-in"
-  >("loading");
-  const [user, setUser] = useState<User | null>(null);
+  >(initialUser ? "signed-in" : "signed-out");
+  const [user, setUser] = useState<User | null>(initialUser);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [state, setState] = useState<MemoraState | null>(null);
   const [activeView, setActiveView] = useState<AppView>("today");
@@ -713,7 +718,7 @@ export function MemoraApp() {
 
   if (authStatus === "signed-out") {
     return (
-      <AuthPanel
+      <LandingPage
         errorMessage={errorMessage}
         statusMessage={statusMessage}
         onResetPassword={handlePasswordReset}
