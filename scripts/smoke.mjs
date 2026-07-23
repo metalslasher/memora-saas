@@ -89,7 +89,7 @@ async function assertServerReady() {
 
 async function assertLandingAndLogin(page) {
   await expect(page.getByRole("heading", { name: "Memora", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Почати навчання", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Почати навчання", exact: true }).first()).toBeVisible();
   await expect(page.getByText("Три кроки замість нескінченного перечитування.")).toBeVisible();
 
   await page.getByRole("button", { name: "Увійти", exact: true }).first().click();
