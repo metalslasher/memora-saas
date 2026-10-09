@@ -60,11 +60,11 @@ export function validateReviewInput(input: {
   elapsedMs: number;
 }) {
   const cardId = input.cardId.trim();
-  const responseText = input.responseText.trim();
+  // Typing is optional: learners may recall silently and reveal the answer.
+  const responseText = (input.responseText ?? "").trim().slice(0, 2000);
 
   if (!cardId) throw new Error("Картку не знайдено.");
   if (!reviewRatings.includes(input.rating)) throw new Error("Невідома оцінка.");
-  if (!responseText) throw new Error("Спочатку введи відповідь з пам'яті.");
   if (!Number.isFinite(input.elapsedMs) || input.elapsedMs < 0) {
     throw new Error("Некоректний час відповіді.");
   }

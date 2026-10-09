@@ -1,130 +1,124 @@
 # Current Implementation Notes
 
-Last updated: 2026-07-19
+Last updated: 2026-10-09
 
 ## What Exists Now
 
-The repository now has a single-user Next.js product build backed by Supabase Auth and PostgreSQL.
+A single-user Next.js product backed by Supabase Auth and PostgreSQL, with a
+Ukrainian-first, dark-only, mobile-first interface.
 
-Implemented:
+### Public landing (signed-out)
 
-- Next.js App Router + TypeScript + Tailwind CSS.
-- `ts-fsrs` scheduler adapter with 0.90 desired retention, same-day learning steps, and relearning steps.
-- Supabase browser client using `.env.local` publishable credentials.
-- Supabase Auth sign-in/sign-up gate.
-- Profile workspace with email, English level, learning goal, numeric daily-new-card setting, review-button mode selector, password reset email, password update flow after Supabase recovery links, backup/restore tools, and destructive data cleanup actions.
-- Next.js server actions for authenticated learning mutations.
-- PostgreSQL schema and migrations under `supabase/migrations`.
-- Row level security on all public app tables.
-- Remote persistence for profiles, decks, notes, cards, review logs, card/note status changes, note editing, and study settings.
-- Idempotent first-login seed guard plus unique `(user_id, module_type)` deck constraint.
-- Ukrainian-first starter English and QA notes/cards.
-- Ukrainian-first card templates for generated English and QA cards.
-- Idempotent starter-content upgrade for existing Supabase seed rows without resetting review schedules.
-- Daily queue sorted as reviews first, then new cards.
-- Practice queue is the focused daily learning screen: metrics, mode selector, segmented progress, typed attempt, reveal, answer dialog, and self-grade buttons.
-- Review interaction: prompt -> typed attempt -> answer dialog -> self-grade -> next card.
-- Simple review buttons by default: `Знову`, `Добре`.
-- Optional advanced buttons: `Знову`, `Важко`, `Добре`, `Легко`.
-- Manual note creation for English and QA in their dedicated content-manager sections.
-- New-material success feedback after generated cards are created.
-- Generated-card preview before saving new material.
-- Duplicate detection with open-existing, merge/update-existing, and create-anyway paths.
-- CSV import for English and QA from content manager views, with delimiter detection, row-level validation, duplicate preview, downloadable templates, persistent import history, and server-side duplicate filtering.
-- Backup/export from Profile: full JSON backup plus English and QA CSV exports.
-- Restore from JSON backup with file validation, preview counts, cancel/confirm flow, and a Supabase RPC that atomically replaces decks, notes, cards, review history, and CSV import history.
-- Maintenance RPCs for deleting all materials and resetting learning statistics without touching authentication data.
-- Real sidebar navigation for Practice, English words, QA/testing, Progress, Profile, and Help.
-- In-app Help workspace with Ukrainian guide copy, learning-loop visualization, section explanations, review-rating guidance, content workflows, profile/data explanations, and a table of contents.
-- Ukrainian-first visible product interface.
-- Product UI no longer shows MVP/dev/sync labels in the main sidebar.
-- English and QA content manager views with note search, note grid, top-level create/import panels, modal note details, editable source fields, generated-card inspection, pause controls, and full material deletion.
-- Content manager has empty states for no notes/imports/cards, human-readable statuses, generated-card explanations, and quick field cleanup for note editing.
-- Progress workspace with learning dynamics, recent attempts, weak-card review, weak-card-to-note repair flow, and material overview. Long lists scroll inside their panels instead of stretching the page.
-- Review logs and basic analytics.
-- Card suspension from the study view.
-- Dark-only product theme across the full interface.
-- Legacy localStorage domain helpers still exist in `src/lib/memora/store.ts` for tests and older local helpers, but the UI uses `src/lib/memora/remote-store.ts`.
+- Hero with an **interactive demo card** (type → check → grade) that runs the
+  real answer checker, no account needed.
+- Forgetting-curve illustration, how-it-works steps, English/QA directions,
+  feature grid, FAQ, final CTA.
+- Auth as a bottom sheet on phones / dialog on desktop: sign-in, sign-up,
+  password reset ("Забули пароль?"), show/hide password, Supabase errors
+  translated to Ukrainian.
 
-## Important Temporary Choices
+### Learning cabinet (signed-in)
 
-These are intentionally temporary for the current MVP:
+- **Shell**: collapsible desktop sidebar (state remembered in localStorage),
+  mobile top bar with streak chip + help, mobile bottom tab bar
+  (Практика / Слова / QA / Прогрес / Профіль), toast notifications with
+  optional action (e.g. undo pause).
+- **Practice**
+  - Greeting header, due/new counts, ≈ minutes; mode switch (Усе / Англійська / QA)
+    with per-mode counts. The English mode now includes *all* English cards.
+  - Card with module/stage badges, edit and pause shortcuts.
+  - Typing is optional. Typed answers are auto-checked (`answer-check.ts`):
+    case, punctuation, leading articles, comma/slash alternatives and small
+    typos are forgiven; long QA explanations are left for self-judgement.
+  - Inline animated reveal, English pronunciation via Web Speech API.
+  - Grade buttons show the next interval (FSRS preview) and highlight the
+    suggested grade. Simple mode: «Не згадав / Згадав»; advanced adds
+    «Важко / Легко».
+  - Keyboard: Enter / Space reveal, 1–4 grade, Z undo.
+  - **Optimistic grading**: the next card appears instantly; server writes run
+    in an ordered background chain (`gradeCardAction`) that touches only the
+    graded card. Errors resync state and show a toast.
+  - **Undo last grade** (`undoReviewAction`) restores `schedule_before` and
+    deletes the review log.
+  - **Daily new-card limit is enforced** (`dailyNewLimit`, counting cards first
+    reviewed today). After a session the learner can pull "Ще 5 нових".
+  - Session summary (cards, % recalled, time, streak, next due) and
+    "all done" / "first material" empty states.
+  - The due queue is re-evaluated every minute so learning steps reappear.
+- **Words / QA terms**: list-first layout with search and filters
+  (Усі / В навчанні / На паузі / Складні), progress indicator per note.
+  Add, CSV import (drag & drop, template, preview, history) and note details
+  open as dialogs. Adding keeps the dialog open for fast batch entry.
+- **Progress**: KPIs (streak, week reviews, 30-day recall, mature cards),
+  18-week activity heatmap, 7-day review forecast, memory stages
+  (new → learning → young → mature), weak cards with edit shortcut, recent answers.
+- **Profile**: new-cards-per-day stepper with presets, 2/4-button mode,
+  English level, goal; password change; JSON/CSV export, restore with preview
+  and confirmation, danger zone (reset stats / delete all). Sign-out and help
+  are reachable here on phones.
+- **Help**: compact accordion guide incl. ratings table, keyboard shortcuts
+  and "add to home screen" instructions.
+- **PWA basics**: `manifest.webmanifest`, generated `apple-icon`, theme colour,
+  safe-area insets.
 
-- No multi-user product surface yet; Supabase Auth exists, but the app is still designed for one owner account.
-- Browser-side Supabase is still used for Auth; learning mutations now go through server actions and still rely on RLS.
-- CSV import uses synchronous server actions for small personal files; larger imports should move to route handlers or background jobs later.
-- No curated external seed corpus yet; current seed data is a small hand-authored starter set.
-- Supabase migration history in the hosted project has older remote-only timestamps from the initial setup. Avoid a blanket `supabase db push` until migration history is repaired; the atomic restore RPC was applied directly with `supabase db query --linked --file ...`.
+### Backend
+
+- Next.js server actions for all mutations, Supabase RLS on every table.
+- FSRS via `ts-fsrs` (0.90 retention, learning steps 10m/30m, relearning 10m/1d).
+- Starter-content upgrade runs only on the initial state load, not on every
+  mutation.
+- Paused/archived cards store their status in `cards.state`; the mapper now
+  derives the FSRS state from `reps`, so a paused new card returns as *New*
+  instead of a broken *Review* card.
+
+## Design System
+
+Tokens live in `src/app/globals.css` (`--ink`, `--surface-1..4`, `--line`,
+`--text`, `--muted`, `--accent`, `--violet`, `--amber`, `--danger`, …) and are
+exposed to Tailwind as `bg-surface-2`, `text-muted`, `border-line`, etc.
+Shared primitives are in `src/components/memora/shared-ui.tsx`
+(`Button`, `Dialog`, `SegmentedControl`, `Toast`, `PageHeader`, fields).
+Font: Geist + Geist Mono (Latin + Cyrillic) via `next/font`.
+Brand mark: `src/components/memora/brand.tsx` and `src/app/icon.svg`.
 
 ## Files To Know
 
 | File | Purpose |
 | --- | --- |
-| `src/components/memora-app.tsx` | Main client UI and review flow |
-| `src/app/actions.ts` | Server actions for authenticated load and learning mutations |
-| `src/lib/memora/types.ts` | Domain types |
-| `src/lib/memora/action-validation.ts` | Shared validation for server action payloads |
-| `src/lib/memora/scheduler.ts` | `ts-fsrs` adapter |
-| `src/lib/memora/card-generator.ts` | Shared note-to-card generation helpers for English and QA |
-| `src/lib/memora/csv-import.ts` | Shared CSV parsing, header mapping, row validation, duplicate preview, and templates |
-| `src/lib/memora/export.ts` | JSON backup and CSV export helpers |
-| `src/lib/memora/backup.ts` | JSON backup parsing, validation, preview metadata, and restore-safe normalization |
-| `src/lib/memora/language-policy.ts` | Shared Ukrainian-first learning language policy helpers |
-| `src/lib/memora/starter-content.ts` | Shared starter notes/cards used by local and Supabase seed flows |
-| `src/lib/memora/duplicates.ts` | Shared duplicate detection and lookup normalization helpers |
-| `src/lib/memora/seed.ts` | Local starter-state assembly from shared starter content |
-| `src/lib/memora/store.ts` | Queue, summary, analytics helpers plus legacy local persistence helpers |
-| `src/lib/memora/remote-store.ts` | Supabase persistence, profile mapping, data mapping, note/card update operations, and seed-content upgrades |
-| `src/lib/supabase/server.ts` | Supabase server client using Next.js cookies |
-| `src/lib/supabase/browser.ts` | Supabase browser client factory |
-| `supabase/migrations/*.sql` | PostgreSQL schema, RLS policies, indexes, and defaults |
+| `src/components/memora-app.tsx` | Auth/state orchestration, optimistic review + undo, routing between views |
+| `src/components/memora/practice.tsx` | Practice screen, card, grading, session summary |
+| `src/components/memora/layout.tsx` | Sidebar, mobile top bar, bottom tab bar, streak widgets |
+| `src/components/memora/landing-page.tsx` | Public landing with demo card |
+| `src/components/memora/content-manager.tsx` | Words/QA list, add/import/detail dialogs |
+| `src/components/memora/analytics-workspace.tsx` | Progress charts |
+| `src/components/memora/speech.tsx` | Pronunciation (Web Speech API) |
+| `src/app/actions.ts` | Server actions (incl. `gradeCardAction`, `undoReviewAction`, `pauseCardAction`) |
+| `src/lib/memora/store.ts` | Queue (daily new limit, modes), summary, next-due helpers |
+| `src/lib/memora/answer-check.ts` | Typed-answer comparison |
+| `src/lib/memora/scheduler.ts` | `ts-fsrs` adapter + interval preview/formatting |
+| `src/lib/memora/remote-store.ts` | Supabase persistence and mapping |
+
+## Important Temporary Choices
+
+- One owner account; no multi-user product surface yet.
+- Full-state server actions are still used for note/CSV/restore mutations;
+  only grading, undo and pause use the lightweight path.
+- CSV import is synchronous (≤ 200 rows, ≤ 1 MB).
+- Supabase migration history has remote-only timestamps; avoid a blanket
+  `supabase db push` until it is repaired. This release needed **no** migration.
 
 ## Verification
 
-Verified locally:
+- `pnpm lint`, `pnpm typecheck`, `pnpm test` (43 tests), `pnpm build` — pass.
+- `pnpm smoke` (signed-out): landing, demo card, sign-in dialog — pass.
+- Authenticated smoke needs `MEMORA_SMOKE_EMAIL` / `MEMORA_SMOKE_PASSWORD`
+  (selectors updated for the new UI).
+- Visual check at 1024px and 375px of landing, practice, words, note dialog,
+  progress, profile; no horizontal overflow.
 
-- `pnpm typecheck`
-- `pnpm lint`
-- `pnpm test`
-- `pnpm build`
-- Supabase linked DB query:
-  - `restore_memora_backup(backup_state jsonb)` exists in `public`
-  - `authenticated` can execute the restore RPC
-  - `clear_memora_materials()` and `reset_memora_learning_stats()` exist in `public`
-  - `authenticated` can execute both maintenance RPCs
-  - Supabase advisors only report Auth leaked-password protection as disabled
-- Earlier Supabase checks:
-  - migrations applied: `initial_memora_schema`, `fix_memora_advisors`, `add_auth_uid_defaults`
-  - cleanup migration applied: `dedupe_seed_and_unique_decks`
-  - schema/security advisors have no RLS/table issues
-  - Supabase Auth advisor recommends enabling leaked password protection
-  - performance advisors only report expected unused-index info for a new database
-  - current first-user seed state: 2 decks, 6 notes, 8 cards, 0 review logs
-- Browser check at `http://localhost:3000` with system Chrome:
-  - page loads,
-  - no Next.js error overlay,
-  - no console errors,
-  - signed-out auth screen renders,
-  - no false `Auth session missing!` banner,
-  - desktop and mobile layouts render without horizontal overflow,
-  - dark theme renders without white page or panel backgrounds,
-  - Next dev indicator disabled for local UI work.
-- Browser check in the logged-in Chrome session:
-- Practice view renders the focused study flow,
-  - English view renders content manager, editable note fields, and generated cards,
-  - QA view renders QA note fields and generated cards,
-  - Progress view renders learning dynamics, recent attempts, weak cards, and materials,
-  - Profile view renders profile settings, security, export, restore, and data cleanup,
-  - no browser console errors.
-- Automated smoke script:
-  - `pnpm smoke` verifies the login screen.
-  - with `MEMORA_SMOKE_EMAIL` and `MEMORA_SMOKE_PASSWORD`, it verifies Practice including the answer dialog, Help, Profile, English/QA content views, CSV preview, backup export, restore preview/cancel, weak-card repair entry, mobile navigation, and add/edit/merge English note flow.
+## Recommended Next Steps
 
-## Recommended Next Step
-
-Recommended next hardening:
-
-1. Repair/align Supabase migration history so future migrations can be pushed with `supabase db push` safely.
-2. Move larger import/background work to route handlers or jobs when needed.
-3. Add a dedicated restore-commit smoke test against a disposable account or disposable backup.
-4. Add more focused tests around weak-card repair after repeated failed reviews.
+1. Run the authenticated smoke against a test account.
+2. Move note/CSV mutations to lightweight responses like grading.
+3. Daily reminder (web push) once the PWA is installed.
+4. Repair Supabase migration history.

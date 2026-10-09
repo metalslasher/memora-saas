@@ -1,6 +1,6 @@
 # Memora SaaS
 
-Memora is a spaced-recall learning service for English vocabulary and QA knowledge. This repository currently contains a Ukrainian-first, dark-only single-user product build backed by Supabase, plus the product and technical specifications in [`docs`](docs).
+Memora is a spaced-recall learning service for English vocabulary and QA knowledge. This repository contains a Ukrainian-first, dark-only, mobile-first product build backed by Supabase, plus the product and technical specifications in [`docs`](docs).
 
 ## Production
 
@@ -30,15 +30,16 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=...
 
 ## Current Scope
 
-- Next.js + TypeScript App Router scaffold.
-- Supabase Auth + Postgres persistence with RLS.
-- Account/profile settings and Supabase Auth password reset/update flow.
-- Next.js server actions for authenticated learning mutations.
-- Ukrainian-first starter English and QA cards.
-- CSV import for English and QA with preview, row validation, duplicate handling, templates, and persistent import history.
-- JSON backup plus English/QA CSV exports.
-- FSRS scheduling through `ts-fsrs`.
-- Ukrainian-first interface, focused practice queue, review attempt/reveal/grading loop, dedicated English/QA content manager views, generated-card preview, duplicate warnings, note/card status controls, settings persistence, in-app help guide, backup/restore, and progress overview.
+- Next.js App Router + TypeScript + Tailwind CSS v4 design tokens.
+- Supabase Auth + Postgres persistence with RLS; server actions for mutations.
+- Public landing with an interactive demo card.
+- Mobile-first cabinet: practice, English words, QA terms, progress, profile, help.
+- Practice: optional typing with auto-check, FSRS interval preview on grade
+  buttons, keyboard shortcuts, pronunciation, optimistic grading, undo,
+  daily new-card limit, session summary.
+- CSV import/export, JSON backup/restore, PWA manifest.
+
+See [`docs/current-implementation.md`](docs/current-implementation.md) for details.
 
 ## Useful Commands
 

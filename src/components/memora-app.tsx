@@ -1,39 +1,46 @@
 "use client";
 
 import type { User } from "@supabase/supabase-js";
-import { Clock3, Flame, Gauge, ListChecks, LogOut, Plus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   addEnglishNoteAction,
   addQaNoteAction,
   clearMaterialsAction,
   deleteNoteAction,
+  gradeCardAction,
   importEnglishNotesAction,
   importQaNotesAction,
   loadMemoraStateAction,
   loadProfileAction,
+  pauseCardAction,
   resetLearningStatsAction,
-  reviewCardAction,
   restoreBackupAction,
-  suspendCardAction,
+  undoReviewAction,
+  updateCardStatusAction,
   updateNoteContentAction,
   updateNoteStatusAction,
   updateProfileAction,
   updateSettingsAction,
 } from "@/app/actions";
-import type {
-  EnglishDraft,
-  QaDraft,
-} from "@/lib/memora/card-generator";
+import type { EnglishDraft, QaDraft } from "@/lib/memora/card-generator";
 import type { BackupDocument } from "@/lib/memora/backup";
-import { getDueQueue, summarizeState } from "@/lib/memora/store";
+import { scheduleReview } from "@/lib/memora/scheduler";
+import {
+  countHeldBackNew,
+  getDueQueue,
+  nextDueAt,
+  summarizeState,
+} from "@/lib/memora/store";
 import { buildStreakStats } from "@/lib/memora/streak";
 import type { NoteContentDraft } from "@/lib/memora/remote-store";
 import type {
   AppSettings,
   MemoraState,
   ModuleType,
+  ReviewLog,
   ReviewRating,
+  StoredSchedule,
+  StudyMode,
   UserProfile,
   UserProfileDraft,
 } from "@/lib/memora/types";
@@ -44,15 +51,9 @@ import { LoadingScreen } from "./memora/auth";
 import { ContentManager } from "./memora/content-manager";
 import { HelpWorkspace } from "./memora/help-workspace";
 import { LandingPage } from "./memora/landing-page";
-import {
-  BrandLockup,
-  CollapsedStreakButton,
-  MobileTopBar,
-  NavigationList,
-  StudyStreakWidget,
-} from "./memora/layout";
-import { StudyPanel } from "./memora/practice";
-import { Metric, ModeSelector, ShellPanel, StatusBanner } from "./memora/shared-ui";
+import { MobileTabBar, MobileTopBar, Sidebar } from "./memora/layout";
+import { PracticeWorkspace, type PracticeSession } from "./memora/practice";
+import { StatusBanner, Toast, type ToastMessage } from "./memora/shared-ui";
 import type {
   AppView,
   ClientImportCommitRow,
@@ -62,12 +63,34 @@ import type {
 import { navigationItems } from "./memora/types";
 import {
   formatError,
-  formatPercent,
-  getPracticeQueueLength,
   labelStatus,
   unwrapActionState,
   unwrapProfile,
 } from "./memora/utils";
+
+const studyModes: StudyMode[] = ["daily", "english-productive", "qa-interview"];
+const SIDEBAR_KEY = "memora:sidebar-collapsed";
+
+type LastReview = {
+  cardId: string;
+  previousSchedule: StoredSchedule;
+  tempLogId: string;
+  wasCorrect: boolean;
+  serverLogId: Promise<string | null>;
+};
+
+function readSidebarPreference() {
+  try {
+    return typeof window !== "undefined" && window.localStorage.getItem(SIDEBAR_KEY) === "1";
+  } catch {
+    // Storage can be unavailable (private mode); the default is fine.
+    return false;
+  }
+}
+
+function newSession(): PracticeSession {
+  return { reviewed: 0, correct: 0, startedAt: Date.now() };
+}
 
 export function MemoraApp({
   initialUser = null,
@@ -81,26 +104,39 @@ export function MemoraApp({
   const [user, setUser] = useState<User | null>(initialUser);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [state, setState] = useState<MemoraState | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<AppView>("today");
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(readSidebarPreference);
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
   const [responseText, setResponseText] = useState("");
   const [isRevealed, setIsRevealed] = useState(false);
   const [startedAt, setStartedAt] = useState(() => Date.now());
-  const [practiceSessionTotal, setPracticeSessionTotal] = useState(0);
-  const [optimisticCompletedCardIds, setOptimisticCompletedCardIds] = useState(
-    () => new Set<string>(),
-  );
+  const [session, setSession] = useState<PracticeSession>(newSession);
+  const [extraNew, setExtraNew] = useState(0);
+  const [lastReview, setLastReview] = useState<LastReview | null>(null);
+  const [clock, setClock] = useState(() => Date.now());
   const [isMutating, setIsMutating] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [toast, setToast] = useState<ToastMessage | null>(null);
+  const [authMessage, setAuthMessage] = useState<string | null>(null);
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
   const loadingUserIdRef = useRef<string | null>(null);
   const loadedUserIdRef = useRef<string | null>(null);
   const isSavingSettingsRef = useRef(false);
   const pendingSettingsRef = useRef<AppSettings | null>(null);
+  const reviewChainRef = useRef<Promise<unknown>>(Promise.resolve());
+
+  const showToast = useCallback(
+    (tone: ToastMessage["tone"], message: string, action?: Pick<ToastMessage, "actionLabel" | "onAction">) => {
+      setToast({ id: Date.now(), tone, message, ...action });
+    },
+    [],
+  );
+  const dismissToast = useCallback(() => setToast(null), []);
+  const showError = useCallback(
+    (error: unknown) => showToast("error", formatError(error)),
+    [showToast],
+  );
 
   const resetPracticeUi = useCallback(() => {
     setActiveCardId(null);
@@ -109,16 +145,29 @@ export function MemoraApp({
     setStartedAt(Date.now());
   }, []);
 
-  const resetPracticeSession = useCallback(
-    (nextState: MemoraState | null) => {
-      resetPracticeUi();
-      setPracticeSessionTotal(
-        nextState ? getPracticeQueueLength(nextState) : 0,
-      );
-      setOptimisticCompletedCardIds(new Set());
-    },
-    [resetPracticeUi],
-  );
+  const resetPracticeSession = useCallback(() => {
+    resetPracticeUi();
+    setSession(newSession());
+    setExtraNew(0);
+    setLastReview(null);
+  }, [resetPracticeUi]);
+
+  const clearUserState = useCallback(() => {
+    setAuthStatus("signed-out");
+    setUser(null);
+    setProfile(null);
+    setState(null);
+    setIsPasswordRecovery(false);
+    loadingUserIdRef.current = null;
+    loadedUserIdRef.current = null;
+    resetPracticeSession();
+  }, [resetPracticeSession]);
+
+  // Re-evaluate the due queue every minute so learning steps reappear on time.
+  useEffect(() => {
+    const interval = window.setInterval(() => setClock(Date.now()), 60_000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   const loadUserData = useCallback(
     async (nextUser: User, options: { force?: boolean } = {}) => {
@@ -131,21 +180,19 @@ export function MemoraApp({
       }
 
       loadingUserIdRef.current = nextUser.id;
-      setErrorMessage(null);
+      setLoadError(null);
 
       try {
         const [stateResult, profileResult] = await Promise.all([
           loadMemoraStateAction(),
           loadProfileAction(),
         ]);
-        const nextState = unwrapActionState(stateResult);
-        const nextProfile = unwrapProfile(profileResult);
-        setState(nextState);
-        setProfile(nextProfile);
-        resetPracticeSession(nextState);
+        setState(unwrapActionState(stateResult));
+        setProfile(unwrapProfile(profileResult));
+        resetPracticeSession();
         loadedUserIdRef.current = nextUser.id;
       } catch (error) {
-        setErrorMessage(formatError(error));
+        setLoadError(formatError(error));
       } finally {
         if (loadingUserIdRef.current === nextUser.id) {
           loadingUserIdRef.current = null;
@@ -155,6 +202,15 @@ export function MemoraApp({
     [resetPracticeSession],
   );
 
+  /** Silently re-syncs state with the server, keeping the practice session. */
+  const refreshState = useCallback(async () => {
+    try {
+      setState(unwrapActionState(await loadMemoraStateAction()));
+    } catch (error) {
+      showError(error);
+    }
+  }, [showError]);
+
   useEffect(() => {
     let isMounted = true;
 
@@ -163,19 +219,8 @@ export function MemoraApp({
 
       if (!isMounted) return;
 
-      if (error) {
-        setAuthStatus("signed-out");
-        setErrorMessage(formatError(error));
-        return;
-      }
-
-      if (!data.session?.user) {
-        setAuthStatus("signed-out");
-        setUser(null);
-        setProfile(null);
-        setState(null);
-        setIsPasswordRecovery(false);
-        resetPracticeSession(null);
+      if (error || !data.session?.user) {
+        clearUserState();
         return;
       }
 
@@ -192,21 +237,13 @@ export function MemoraApp({
       if (!isMounted) return;
 
       if (!session?.user) {
-        setAuthStatus("signed-out");
-        setUser(null);
-        setProfile(null);
-        setState(null);
-        setIsPasswordRecovery(false);
-        loadingUserIdRef.current = null;
-        loadedUserIdRef.current = null;
-        resetPracticeSession(null);
+        clearUserState();
         return;
       }
 
       if (event === "PASSWORD_RECOVERY") {
         setIsPasswordRecovery(true);
         setActiveView("account");
-        setStatusMessage("Введи новий пароль, щоб завершити відновлення доступу.");
       }
 
       setAuthStatus("signed-in");
@@ -218,21 +255,48 @@ export function MemoraApp({
       isMounted = false;
       subscription.unsubscribe();
     };
-  }, [loadUserData, resetPracticeSession, supabase]);
+  }, [clearUserState, loadUserData, supabase]);
 
-  const queue = useMemo(
+  const queue = useMemo(() => {
+    if (!state) return [];
+    return getDueQueue(state, state.settings.studyMode, new Date(clock), {
+      extraNew,
+    });
+    // `clock` intentionally re-runs this when time passes.
+  }, [clock, extraNew, state]);
+
+  const summary = useMemo(
+    () => (state ? summarizeState(state, new Date(clock), { extraNew }) : null),
+    [clock, extraNew, state],
+  );
+  const modeCounts = useMemo(() => {
+    const counts = { daily: 0, "english-productive": 0, "qa-interview": 0 } as Record<
+      StudyMode,
+      number
+    >;
+    if (!state) return counts;
+    for (const mode of studyModes) {
+      counts[mode] = getDueQueue(state, mode, new Date(clock), { extraNew }).length;
+    }
+    return counts;
+  }, [clock, extraNew, state]);
+  const heldBackNew = useMemo(
     () =>
       state
-        ? getDueQueue(state, state.settings.studyMode).filter(
-            (card) => !optimisticCompletedCardIds.has(card.id),
-          )
-        : [],
-    [optimisticCompletedCardIds, state],
+        ? countHeldBackNew(state, state.settings.studyMode, new Date(clock), { extraNew })
+        : 0,
+    [clock, extraNew, state],
   );
-
-  const summary = useMemo(() => (state ? summarizeState(state) : null), [state]);
+  const nextDue = useMemo(
+    () => (state ? nextDueAt(state, state.settings.studyMode, new Date(clock)) : null),
+    [clock, state],
+  );
   const streakStats = useMemo(
     () => buildStreakStats(state?.reviewLogs ?? []),
+    [state],
+  );
+  const notesById = useMemo(
+    () => new Map((state?.notes ?? []).map((note) => [note.id, note])),
     [state],
   );
 
@@ -252,80 +316,92 @@ export function MemoraApp({
     contentNotes.find((note) => note.id === selectedNoteId) ?? null;
   const currentViewLabel =
     navigationItems.find((item) => item.view === activeView)?.label ?? "Memora";
+  const navBadges: Partial<Record<AppView, number>> = {
+    today: modeCounts[state?.settings.studyMode ?? "daily"] || undefined,
+  };
 
   const navigateToView = useCallback((view: AppView) => {
     setActiveView(view);
-    setIsMobileMenuOpen(false);
+    window.scrollTo({ top: 0 });
   }, []);
 
-  async function handleSignIn(email: string, password: string) {
-    setErrorMessage(null);
-    setStatusMessage(null);
-
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
+  function toggleSidebar() {
+    setIsSidebarCollapsed((value) => {
+      try {
+        window.localStorage.setItem(SIDEBAR_KEY, value ? "0" : "1");
+      } catch {
+        // Ignore storage failures.
+      }
+      return !value;
     });
+  }
 
+  async function handleSignIn(email: string, password: string) {
+    setAuthMessage(null);
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
   }
 
   async function handleSignUp(email: string, password: string) {
-    setErrorMessage(null);
-    setStatusMessage(null);
-
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-    });
-
+    setAuthMessage(null);
+    const { data, error } = await supabase.auth.signUp({ email, password });
     if (error) throw error;
 
     if (!data.session) {
-      setStatusMessage("Обліковий запис створено. Якщо підтвердження увімкнене, перевір пошту і перейди за посиланням.");
-      return;
+      setAuthMessage(
+        "Акаунт створено. Ми надіслали лист для підтвердження — перейди за посиланням, і можна починати.",
+      );
     }
-
-    setStatusMessage("Обліковий запис створено. Готую твою Memora.");
   }
 
   async function handlePasswordReset(email: string) {
     const cleanEmail = email.trim();
-    if (!cleanEmail) throw new Error("Вкажи email, щоб надіслати лист для відновлення.");
+    if (!cleanEmail) throw new Error("Вкажи email, на який надіслати лист.");
 
-    setErrorMessage(null);
-    setStatusMessage(null);
-
+    setAuthMessage(null);
     const redirectTo =
       typeof window === "undefined" ? undefined : window.location.origin;
     const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
       redirectTo,
     });
-
     if (error) throw error;
 
-    setStatusMessage("Лист для відновлення пароля надіслано. Перевір пошту.");
+    const message = "Лист для відновлення пароля надіслано. Перевір пошту.";
+    setAuthMessage(message);
+    if (authStatus === "signed-in") showToast("success", message);
   }
 
   async function handleSignOut() {
     setIsMutating(true);
-    setErrorMessage(null);
-    setStatusMessage(null);
 
     try {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
-
-      setAuthStatus("signed-out");
-      setUser(null);
-      setProfile(null);
-      setState(null);
-      setIsPasswordRecovery(false);
-      loadingUserIdRef.current = null;
-      loadedUserIdRef.current = null;
-      resetPracticeSession(null);
+      clearUserState();
     } catch (error) {
-      setErrorMessage(formatError(error));
+      showError(error);
+    } finally {
+      setIsMutating(false);
+    }
+  }
+
+  /** Runs a full-state mutation with shared busy/error handling. */
+  async function runMutation(
+    action: () => Promise<MemoraState>,
+    options: { success?: string; resetSession?: boolean; rethrow?: boolean } = {},
+  ) {
+    if (isMutating) return;
+
+    setIsMutating(true);
+    try {
+      const nextState = await action();
+      setState(nextState);
+      if (options.resetSession) resetPracticeSession();
+      if (options.success) showToast("success", options.success);
+      return nextState;
+    } catch (error) {
+      showError(error);
+      if (options.rethrow) throw error;
     } finally {
       setIsMutating(false);
     }
@@ -335,15 +411,12 @@ export function MemoraApp({
     if (!state) return;
 
     const previousState = state;
-    const nextState = { ...state, settings };
     const isModeChange = settings.studyMode !== previousState.settings.studyMode;
     pendingSettingsRef.current = settings;
-    setState(nextState);
-    setErrorMessage(null);
-    if (isModeChange) resetPracticeSession(nextState);
+    setState({ ...state, settings });
+    if (isModeChange) resetPracticeSession();
 
     if (isSavingSettingsRef.current) return;
-
     isSavingSettingsRef.current = true;
 
     try {
@@ -353,19 +426,19 @@ export function MemoraApp({
         const updatedState = unwrapActionState(
           await updateSettingsAction(settingsToSave),
         );
-
         if (!pendingSettingsRef.current) {
-          setState(updatedState);
-          if (settingsToSave.studyMode !== previousState.settings.studyMode) {
-            resetPracticeSession(updatedState);
-          }
+          setState((current) =>
+            current ? { ...current, settings: updatedState.settings } : updatedState,
+          );
         }
       }
     } catch (error) {
       pendingSettingsRef.current = null;
-      setState(previousState);
-      if (isModeChange) resetPracticeSession(previousState);
-      setErrorMessage(formatError(error));
+      setState((current) =>
+        current ? { ...current, settings: previousState.settings } : previousState,
+      );
+      showError(error);
+      throw error;
     } finally {
       isSavingSettingsRef.current = false;
     }
@@ -375,15 +448,10 @@ export function MemoraApp({
     if (isMutating) return;
 
     setIsMutating(true);
-    setErrorMessage(null);
-    setStatusMessage(null);
-
     try {
-      const nextProfile = unwrapProfile(await updateProfileAction(draft));
-      setProfile(nextProfile);
-      setStatusMessage("Налаштування акаунта збережено.");
+      setProfile(unwrapProfile(await updateProfileAction(draft)));
     } catch (error) {
-      setErrorMessage(formatError(error));
+      showError(error);
       throw error;
     } finally {
       setIsMutating(false);
@@ -395,202 +463,238 @@ export function MemoraApp({
 
     const nextPassword = password.trim();
     if (nextPassword.length < 8) {
-      throw new Error("Новий пароль має містити мінімум 8 символів.");
+      throw new Error("Пароль має містити щонайменше 8 символів.");
     }
 
     setIsMutating(true);
-    setErrorMessage(null);
-    setStatusMessage(null);
-
     try {
       const { error } = await supabase.auth.updateUser({ password: nextPassword });
       if (error) throw error;
-
       setIsPasswordRecovery(false);
-      setStatusMessage("Пароль оновлено.");
+      showToast("success", "Пароль оновлено.");
     } catch (error) {
-      setErrorMessage(formatError(error));
+      showError(error);
       throw error;
     } finally {
       setIsMutating(false);
     }
   }
 
-  async function submitReview(rating: ReviewRating) {
-    if (!state || !activeCard || responseText.trim().length === 0 || isMutating) {
+  /**
+   * Grades the active card optimistically: the next card appears instantly
+   * and the server write runs in an ordered background chain.
+   */
+  function submitReview(rating: ReviewRating) {
+    if (!state || !activeCard) return;
+
+    const card = activeCard;
+    const reviewedAt = new Date();
+    const elapsedMs = Math.min(reviewedAt.getTime() - startedAt, 30 * 60_000);
+    const response = responseText.trim();
+    const { schedule } = scheduleReview(card.schedule, rating, reviewedAt);
+    const tempLogId = `pending-${reviewedAt.getTime()}-${card.id}`;
+    const wasCorrect = rating !== "again";
+    const optimisticLog: ReviewLog = {
+      id: tempLogId,
+      cardId: card.id,
+      noteId: card.noteId,
+      module: card.module,
+      rating,
+      responseText: response,
+      elapsedMs,
+      reviewedAt: reviewedAt.toISOString(),
+      dueBefore: card.schedule.due,
+      dueAfter: schedule.due,
+      wasCorrect,
+    };
+
+    setState((current) =>
+      current
+        ? {
+            ...current,
+            cards: current.cards.map((item) =>
+              item.id === card.id ? { ...item, schedule } : item,
+            ),
+            reviewLogs: [...current.reviewLogs, optimisticLog],
+          }
+        : current,
+    );
+    setSession((current) => ({
+      ...current,
+      reviewed: current.reviewed + 1,
+      correct: current.correct + (wasCorrect ? 1 : 0),
+    }));
+    resetPracticeUi();
+
+    const serverLogId = reviewChainRef.current
+      .catch(() => undefined)
+      .then(() =>
+        gradeCardAction({
+          cardId: card.id,
+          rating,
+          responseText: response,
+          elapsedMs,
+        }),
+      )
+      .then((result) => {
+        if (!result.ok) throw new Error(result.error);
+        setState((current) =>
+          current
+            ? {
+                ...current,
+                cards: current.cards.map((item) =>
+                  item.id === result.cardId
+                    ? { ...item, schedule: result.schedule }
+                    : item,
+                ),
+                reviewLogs: current.reviewLogs.map((log) =>
+                  log.id === tempLogId ? result.log : log,
+                ),
+              }
+            : current,
+        );
+        return result.log.id;
+      })
+      .catch((error: unknown) => {
+        showToast("error", `Оцінку не збережено: ${formatError(error)}`);
+        void refreshState();
+        return null;
+      });
+
+    reviewChainRef.current = serverLogId;
+    setLastReview({
+      cardId: card.id,
+      previousSchedule: card.schedule,
+      tempLogId,
+      wasCorrect,
+      serverLogId,
+    });
+  }
+
+  async function undoLastReview() {
+    const review = lastReview;
+    if (!review) return;
+
+    setLastReview(null);
+    setState((current) =>
+      current
+        ? {
+            ...current,
+            cards: current.cards.map((item) =>
+              item.id === review.cardId
+                ? { ...item, schedule: review.previousSchedule }
+                : item,
+            ),
+            reviewLogs: current.reviewLogs.filter(
+              (log) => log.id !== review.tempLogId,
+            ),
+          }
+        : current,
+    );
+    setSession((current) => ({
+      ...current,
+      reviewed: Math.max(0, current.reviewed - 1),
+      correct: Math.max(0, current.correct - (review.wasCorrect ? 1 : 0)),
+    }));
+    setActiveCardId(review.cardId);
+    setResponseText("");
+    setIsRevealed(false);
+    setStartedAt(Date.now());
+
+    const logId = await review.serverLogId;
+    if (!logId) return;
+
+    setState((current) =>
+      current
+        ? {
+            ...current,
+            reviewLogs: current.reviewLogs.filter((log) => log.id !== logId),
+          }
+        : current,
+    );
+
+    const result = await undoReviewAction(logId);
+    if (!result.ok) {
+      showToast("error", `Не вдалося скасувати: ${result.error}`);
+      void refreshState();
+    }
+  }
+
+  async function pauseCard(cardId: string) {
+    setState((current) =>
+      current
+        ? {
+            ...current,
+            cards: current.cards.map((item) =>
+              item.id === cardId ? { ...item, status: "suspended" } : item,
+            ),
+          }
+        : current,
+    );
+    resetPracticeUi();
+
+    const result = await pauseCardAction(cardId);
+    if (!result.ok) {
+      showToast("error", result.error);
+      void refreshState();
       return;
     }
 
-    const elapsedMs = Date.now() - startedAt;
-    const reviewedCardId = activeCard.id;
-    const reviewedResponse = responseText.trim();
-    setIsMutating(true);
-    setErrorMessage(null);
-    setStatusMessage(null);
-    setOptimisticCompletedCardIds((current) => {
-      const next = new Set(current);
-      next.add(reviewedCardId);
-      return next;
+    showToast("info", "Картку поставлено на паузу.", {
+      actionLabel: "Повернути",
+      onAction: () => {
+        void updateCardStatusAction(cardId, "active").then((restore) => {
+          if (restore.ok) setState(restore.state);
+          else showToast("error", restore.error);
+        });
+      },
     });
-    setActiveCardId(null);
-    setIsRevealed(false);
-    setResponseText("");
-    setStartedAt(Date.now());
-
-    try {
-      const nextState = unwrapActionState(
-        await reviewCardAction({
-          cardId: reviewedCardId,
-          rating,
-          responseText: reviewedResponse,
-          elapsedMs,
-        }),
-      );
-      setState(nextState);
-      resetPracticeUi();
-      setOptimisticCompletedCardIds((current) => {
-        const next = new Set(current);
-        next.delete(reviewedCardId);
-        return next;
-      });
-    } catch (error) {
-      setOptimisticCompletedCardIds((current) => {
-        const next = new Set(current);
-        next.delete(reviewedCardId);
-        return next;
-      });
-      setActiveCardId(reviewedCardId);
-      setResponseText(reviewedResponse);
-      setIsRevealed(true);
-      setErrorMessage(formatError(error));
-    } finally {
-      setIsMutating(false);
-    }
   }
 
-  async function handleSuspend(cardId: string) {
-    if (!state || isMutating) return;
-
-    setIsMutating(true);
-    setErrorMessage(null);
-
-    try {
-      const nextState = unwrapActionState(await suspendCardAction(cardId));
-      setState(nextState);
-      resetPracticeUi();
-    } catch (error) {
-      setErrorMessage(formatError(error));
-    } finally {
-      setIsMutating(false);
-    }
+  function openNote(noteId: string) {
+    const note = state?.notes.find((item) => item.id === noteId);
+    if (!note) return;
+    setSelectedNoteId(noteId);
+    navigateToView(note.module);
   }
 
-  async function handleNoteStatusChange(
-    noteId: string,
-    status: ItemStatus,
-  ) {
-    if (!state || isMutating) return;
-
-    setIsMutating(true);
-    setErrorMessage(null);
-    setStatusMessage(null);
-
-    try {
-      const nextState = unwrapActionState(
-        await updateNoteStatusAction(noteId, status),
-      );
-      setState(nextState);
-      setStatusMessage(`Матеріал оновлено: ${labelStatus(status)}.`);
-    } catch (error) {
-      setErrorMessage(formatError(error));
-    } finally {
-      setIsMutating(false);
-    }
+  async function handleNoteStatusChange(noteId: string, status: ItemStatus) {
+    await runMutation(
+      async () => unwrapActionState(await updateNoteStatusAction(noteId, status)),
+      { success: `Матеріал ${labelStatus(status)}.` },
+    );
   }
 
   async function handleNoteDelete(noteId: string) {
-    if (!state || isMutating) return;
-
-    setIsMutating(true);
-    setErrorMessage(null);
-    setStatusMessage(null);
-
-    try {
-      const nextState = unwrapActionState(await deleteNoteAction(noteId));
-      setState(nextState);
-      setSelectedNoteId(null);
-      resetPracticeSession(nextState);
-      setStatusMessage("Матеріал видалено.");
-    } catch (error) {
-      setErrorMessage(formatError(error));
-      throw error;
-    } finally {
-      setIsMutating(false);
-    }
+    await runMutation(
+      async () => {
+        const nextState = unwrapActionState(await deleteNoteAction(noteId));
+        setSelectedNoteId(null);
+        return nextState;
+      },
+      { success: "Матеріал видалено.", resetSession: true, rethrow: true },
+    );
   }
 
-  async function handleNoteContentChange(
-    noteId: string,
-    content: NoteContentDraft,
-  ) {
-    if (!state || isMutating) return;
-
-    setIsMutating(true);
-    setErrorMessage(null);
-    setStatusMessage(null);
-
-    try {
-      const nextState = unwrapActionState(
-        await updateNoteContentAction(noteId, content),
-      );
-      setState(nextState);
-      setStatusMessage("Матеріал збережено.");
-    } catch (error) {
-      setErrorMessage(formatError(error));
-      throw error;
-    } finally {
-      setIsMutating(false);
-    }
+  async function handleNoteContentChange(noteId: string, content: NoteContentDraft) {
+    await runMutation(
+      async () => unwrapActionState(await updateNoteContentAction(noteId, content)),
+      { success: "Зміни збережено.", rethrow: true },
+    );
   }
 
   async function handleAddEnglish(draft: EnglishDraft) {
-    if (isMutating) return;
-
-    setIsMutating(true);
-    setErrorMessage(null);
-    setStatusMessage(null);
-
-    try {
-      const nextState = unwrapActionState(await addEnglishNoteAction(draft));
-      setState(nextState);
-      setStatusMessage("Додано англійський матеріал та 2 картки.");
-      resetPracticeSession(nextState);
-    } catch (error) {
-      setErrorMessage(formatError(error));
-      throw error;
-    } finally {
-      setIsMutating(false);
-    }
+    await runMutation(
+      async () => unwrapActionState(await addEnglishNoteAction(draft)),
+      { success: `«${draft.lemma}» додано — 2 нові картки в черзі.`, rethrow: true },
+    );
   }
 
   async function handleAddQa(draft: QaDraft) {
-    if (isMutating) return;
-
-    setIsMutating(true);
-    setErrorMessage(null);
-    setStatusMessage(null);
-
-    try {
-      const nextState = unwrapActionState(await addQaNoteAction(draft));
-      setState(nextState);
-      setStatusMessage("Додано матеріал з тестування та 2 картки.");
-      resetPracticeSession(nextState);
-    } catch (error) {
-      setErrorMessage(formatError(error));
-      throw error;
-    } finally {
-      setIsMutating(false);
-    }
+    await runMutation(
+      async () => unwrapActionState(await addQaNoteAction(draft)),
+      { success: `«${draft.term}» додано — 2 нові картки в черзі.`, rethrow: true },
+    );
   }
 
   async function handleImportNotes(
@@ -599,41 +703,27 @@ export function MemoraApp({
     skipDuplicates: boolean,
     fileName: string | null,
   ): Promise<ImportResultSummary> {
-    if (isMutating) {
-      return { importedCount: 0, skippedDuplicates: 0, invalidRows: 0 };
-    }
+    const empty = { importedCount: 0, skippedDuplicates: 0, invalidRows: 0 };
+    if (isMutating) return empty;
 
     setIsMutating(true);
-    setErrorMessage(null);
-    setStatusMessage(null);
-
     try {
+      const options = { fileName: fileName ?? undefined, skipDuplicates };
       const result =
         moduleType === "english"
           ? await importEnglishNotesAction(
               rows as Array<ClientImportCommitRow & { draft?: EnglishDraft }>,
-              {
-                fileName: fileName ?? undefined,
-                skipDuplicates,
-              },
+              options,
             )
           : await importQaNotesAction(
               rows as Array<ClientImportCommitRow & { draft?: QaDraft }>,
-              {
-                fileName: fileName ?? undefined,
-                skipDuplicates,
-              },
+              options,
             );
 
       if (!result.ok) throw new Error(result.error);
 
       setState(result.state);
-      resetPracticeSession(result.state);
-      setStatusMessage(
-        result.skippedDuplicates > 0
-          ? `Додано з CSV: ${result.importedCount}; пропущено схожих записів: ${result.skippedDuplicates}; помилок: ${result.invalidRows}.`
-          : `Додано з CSV: ${result.importedCount}; помилок: ${result.invalidRows}.`,
-      );
+      showToast("success", `Імпортовано: ${result.importedCount}.`);
 
       return {
         importedCount: result.importedCount,
@@ -641,7 +731,7 @@ export function MemoraApp({
         invalidRows: result.invalidRows,
       };
     } catch (error) {
-      setErrorMessage(formatError(error));
+      showError(error);
       throw error;
     } finally {
       setIsMutating(false);
@@ -649,67 +739,32 @@ export function MemoraApp({
   }
 
   async function handleRestoreBackup(backup: BackupDocument) {
-    if (!state || isMutating) return;
-
-    setIsMutating(true);
-    setErrorMessage(null);
-    setStatusMessage(null);
-
-    try {
-      const nextState = unwrapActionState(await restoreBackupAction(backup));
-      setState(nextState);
-      setSelectedNoteId(null);
-      resetPracticeSession(nextState);
-      setStatusMessage(
-        `Резервну копію відновлено: ${nextState.notes.length} матеріалів, ${nextState.cards.length} карток, ${nextState.reviewLogs.length} повторень.`,
-      );
-    } catch (error) {
-      setErrorMessage(formatError(error));
-      throw error;
-    } finally {
-      setIsMutating(false);
-    }
+    await runMutation(
+      async () => {
+        const nextState = unwrapActionState(await restoreBackupAction(backup));
+        setSelectedNoteId(null);
+        return nextState;
+      },
+      { success: "Резервну копію відновлено.", resetSession: true, rethrow: true },
+    );
   }
 
   async function handleClearMaterials() {
-    if (!state || isMutating) return;
-
-    setIsMutating(true);
-    setErrorMessage(null);
-    setStatusMessage(null);
-
-    try {
-      const nextState = unwrapActionState(await clearMaterialsAction());
-      setState(nextState);
-      setSelectedNoteId(null);
-      resetPracticeSession(nextState);
-      setStatusMessage("Усі матеріали видалено.");
-    } catch (error) {
-      setErrorMessage(formatError(error));
-      throw error;
-    } finally {
-      setIsMutating(false);
-    }
+    await runMutation(
+      async () => {
+        const nextState = unwrapActionState(await clearMaterialsAction());
+        setSelectedNoteId(null);
+        return nextState;
+      },
+      { success: "Усі матеріали видалено.", resetSession: true, rethrow: true },
+    );
   }
 
   async function handleResetLearningStats() {
-    if (!state || isMutating) return;
-
-    setIsMutating(true);
-    setErrorMessage(null);
-    setStatusMessage(null);
-
-    try {
-      const nextState = unwrapActionState(await resetLearningStatsAction());
-      setState(nextState);
-      resetPracticeSession(nextState);
-      setStatusMessage("Статистику навчання обнулено.");
-    } catch (error) {
-      setErrorMessage(formatError(error));
-      throw error;
-    } finally {
-      setIsMutating(false);
-    }
+    await runMutation(
+      async () => unwrapActionState(await resetLearningStatsAction()),
+      { success: "Статистику обнулено.", resetSession: true, rethrow: true },
+    );
   }
 
   if (authStatus === "loading") {
@@ -719,8 +774,7 @@ export function MemoraApp({
   if (authStatus === "signed-out") {
     return (
       <LandingPage
-        errorMessage={errorMessage}
-        statusMessage={statusMessage}
+        statusMessage={authMessage}
         onResetPassword={handlePasswordReset}
         onSignIn={handleSignIn}
         onSignUp={handleSignUp}
@@ -729,154 +783,75 @@ export function MemoraApp({
   }
 
   if (!state || !summary) {
-    return <LoadingScreen />;
+    return (
+      <LoadingScreen
+        error={loadError}
+        onRetry={user ? () => void loadUserData(user, { force: true }) : undefined}
+      />
+    );
   }
 
   return (
-    <main className="min-h-screen bg-[#070a0f] text-[#eef4ff]">
-      <MobileTopBar
+    <div className="flex min-h-svh bg-ink text-text">
+      <Sidebar
         activeView={activeView}
-        currentViewLabel={currentViewLabel}
+        badges={navBadges}
         isBusy={isMutating}
-        isOpen={isMobileMenuOpen}
+        isCollapsed={isSidebarCollapsed}
         streakStats={streakStats}
         userEmail={user?.email}
         onNavigate={navigateToView}
-        onSignOut={() => {
-          setIsMobileMenuOpen(false);
-          void handleSignOut();
-        }}
-        onToggle={() => setIsMobileMenuOpen((value) => !value)}
+        onSignOut={() => void handleSignOut()}
+        onToggleCollapsed={toggleSidebar}
       />
 
-      <div className="mx-auto flex w-full max-w-[1440px] gap-4 px-3 pb-4 pt-3 md:px-5 lg:gap-5 lg:px-6 lg:py-4">
-        <aside
-          className={`hidden shrink-0 transition-[width] duration-300 lg:sticky lg:top-4 lg:block lg:h-[calc(100vh-2rem)] ${
-            isSidebarCollapsed ? "lg:w-20" : "lg:w-72"
-          }`}
-        >
-          <ShellPanel
-            className={`flex h-full flex-col justify-between ${
-              isSidebarCollapsed ? "p-3" : "p-4"
-            }`}
-          >
-            <div>
-              <div
-                className={`flex items-center ${
-                  isSidebarCollapsed ? "justify-center" : "justify-start"
-                }`}
-              >
-                <BrandLockup
-                  isCollapsed={isSidebarCollapsed}
-                  onToggleSidebar={() =>
-                    setIsSidebarCollapsed((value) => !value)
-                  }
-                />
-              </div>
-              <NavigationList
-                activeView={activeView}
-                className={isSidebarCollapsed ? "mt-6" : "mt-7"}
-                isCollapsed={isSidebarCollapsed}
-                onNavigate={navigateToView}
-              />
-            </div>
+      <div className="min-w-0 flex-1">
+        <MobileTopBar
+          streakStats={streakStats}
+          title={activeView === "today" ? "Memora" : currentViewLabel}
+          onOpenHelp={() => navigateToView("help")}
+        />
 
-            <div className="mt-6 space-y-3">
-              {isSidebarCollapsed ? (
-                <CollapsedStreakButton stats={streakStats} />
-              ) : (
-                <StudyStreakWidget stats={streakStats} />
-              )}
-              <button
-                className={`flex w-full items-center justify-center gap-2 rounded-lg border border-[#263140] text-sm font-medium text-[#c7d0dd] transition hover:border-[#2dd4bf] hover:text-[#52e0c4] ${
-                  isSidebarCollapsed ? "h-11 px-0" : "px-3 py-2"
-                }`}
-                title={user?.email ?? "Вийти"}
-                disabled={isMutating}
-                onClick={() => void handleSignOut()}
-              >
-                <LogOut className="size-4" />
-                <span className={isSidebarCollapsed ? "sr-only" : ""}>
-                  Вийти
-                </span>
-              </button>
-            </div>
-          </ShellPanel>
-        </aside>
-
-        <section className="min-w-0 flex-1 space-y-4 md:space-y-5">
-          {errorMessage || statusMessage ? (
-            <div className="space-y-3">
-              {errorMessage ? (
-                <StatusBanner tone="error" message={errorMessage} />
-              ) : null}
-              {statusMessage ? (
-                <StatusBanner tone="success" message={statusMessage} />
-              ) : null}
-            </div>
+        <main className="pb-safe-nav mx-auto w-full max-w-[1200px] px-4 pt-5 md:px-6 md:pt-8 lg:px-10 lg:pb-12">
+          {isPasswordRecovery && activeView !== "account" ? (
+            <StatusBanner
+              className="mb-5"
+              tone="success"
+              message="Задай новий пароль у профілі, щоб завершити відновлення доступу."
+            />
           ) : null}
 
           {activeView === "today" ? (
-            <div className="space-y-4 md:space-y-5">
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-                <Metric
-                  icon={ListChecks}
-                  label="Повторити"
-                  value={summary.dueReviews.toString()}
-                  accent="bg-[#2dd4bf]"
-                />
-                <Metric
-                  icon={Plus}
-                  label="Нові"
-                  value={summary.newAvailable.toString()}
-                  accent="bg-[#8b7cf6]"
-                />
-                <Metric
-                  icon={Clock3}
-                  label="Час"
-                  value={`${summary.estimatedMinutes} хв`}
-                  accent="bg-[#f2a84a]"
-                />
-                <Metric
-                  icon={Gauge}
-                  label="Якість"
-                  value={formatPercent(summary.retention)}
-                  accent="bg-[#ef6351]"
-                />
-                <Metric
-                  icon={Flame}
-                  label="Закріплені"
-                  value={summary.matureCards.toString()}
-                  accent="bg-[#202938]"
-                  className="col-span-2 md:col-span-1"
-                />
-              </div>
-
-              <ModeSelector
-                value={state.settings.studyMode}
-                onChange={(studyMode) => {
-                  void handleSettingsChange({
-                    ...state.settings,
-                    studyMode,
-                  });
-                }}
-              />
-
-              <StudyPanel
-                card={activeCard}
-                queueLength={queue.length}
-                sessionTotal={practiceSessionTotal}
-                responseText={responseText}
-                isRevealed={isRevealed}
-                isBusy={isMutating}
-                reviewButtons={state.settings.reviewButtons}
-                onResponseChange={setResponseText}
-                onReveal={() => setIsRevealed(true)}
-                onHideAnswer={() => setIsRevealed(false)}
-                onReview={(rating) => void submitReview(rating)}
-                onSuspend={(cardId) => void handleSuspend(cardId)}
-              />
-            </div>
+            <PracticeWorkspace
+              canUndo={lastReview !== null}
+              card={activeCard}
+              hasMaterials={state.cards.some((card) => card.status === "active")}
+              heldBackNew={heldBackNew}
+              isRevealed={isRevealed}
+              modeCounts={modeCounts}
+              nextDue={nextDue}
+              note={activeCard ? (notesById.get(activeCard.noteId) ?? null) : null}
+              queueLength={queue.length}
+              responseText={responseText}
+              reviewButtons={state.settings.reviewButtons}
+              session={session}
+              streakStats={streakStats}
+              studyMode={state.settings.studyMode}
+              summary={summary}
+              onEditNote={openNote}
+              onLearnMore={(count) => setExtraNew((value) => value + count)}
+              onModeChange={(studyMode) => {
+                void handleSettingsChange({ ...state.settings, studyMode }).catch(
+                  () => undefined,
+                );
+              }}
+              onNavigate={navigateToView}
+              onPause={(cardId) => void pauseCard(cardId)}
+              onResponseChange={setResponseText}
+              onReveal={() => setIsRevealed(true)}
+              onReview={submitReview}
+              onUndo={() => void undoLastReview()}
+            />
           ) : activeView === "account" ? (
             <AccountWorkspace
               key={`${profile?.updatedAt ?? user?.id ?? "account"}:${state.settings.dailyNewLimit}:${state.settings.reviewButtons}`}
@@ -885,52 +860,57 @@ export function MemoraApp({
               profile={profile}
               state={state}
               user={user}
+              onClearMaterials={handleClearMaterials}
+              onNavigate={navigateToView}
               onPasswordReset={handlePasswordReset}
               onPasswordUpdate={handlePasswordUpdate}
               onProfileSave={handleProfileSave}
-              onRestoreBackup={handleRestoreBackup}
-              onSettingsChange={handleSettingsChange}
-              onClearMaterials={handleClearMaterials}
               onResetLearningStats={handleResetLearningStats}
+              onRestoreBackup={handleRestoreBackup}
+              onSaved={() => showToast("success", "Налаштування збережено.")}
+              onSettingsChange={handleSettingsChange}
+              onSignOut={() => void handleSignOut()}
             />
           ) : activeView === "help" ? (
             <HelpWorkspace />
           ) : activeView === "analytics" ? (
             <AnalyticsWorkspace
-              onOpenNote={(noteId) => {
-                const note = state.notes.find((item) => item.id === noteId);
-                if (!note) return;
-
-                setSelectedNoteId(noteId);
-                setActiveView(note.module);
-                setIsMobileMenuOpen(false);
-              }}
               state={state}
               summary={summary}
+              onOpenNote={openNote}
             />
           ) : contentModule ? (
             <ContentManager
+              key={contentModule}
               cards={state.cards}
               imports={state.imports}
               isBusy={isMutating}
               moduleType={contentModule}
               notes={contentNotes}
+              reviewLogs={state.reviewLogs}
               selectedNote={selectedNote}
               onAddEnglish={handleAddEnglish}
               onAddQa={handleAddQa}
+              onImport={(rows, skipDuplicates, fileName) =>
+                handleImportNotes(contentModule, rows, skipDuplicates, fileName)
+              }
               onNoteContentChange={handleNoteContentChange}
               onNoteDelete={handleNoteDelete}
               onNoteSelect={setSelectedNoteId}
               onNoteStatusChange={(noteId, status) =>
                 void handleNoteStatusChange(noteId, status)
               }
-              onImport={(rows, skipDuplicates, fileName) =>
-                handleImportNotes(contentModule, rows, skipDuplicates, fileName)
-              }
             />
           ) : null}
-        </section>
+        </main>
       </div>
-    </main>
+
+      <MobileTabBar
+        activeView={activeView}
+        badges={navBadges}
+        onNavigate={navigateToView}
+      />
+      <Toast toast={toast} onDismiss={dismissToast} />
+    </div>
   );
 }

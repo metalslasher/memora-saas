@@ -29,7 +29,7 @@ export type ClientImportCommitRow = {
 };
 
 export const levelOptions = [
-  { value: "", label: "Не вказувати" },
+  { value: "", label: "Не обрано" },
   { value: "beginner", label: "Початковий" },
   { value: "intermediate", label: "Середній" },
   { value: "advanced", label: "Впевнений" },
@@ -41,11 +41,16 @@ export const modeLabels: Record<StudyMode, string> = {
   "qa-interview": "QA",
 };
 
-export const navigationItems: Array<{ view: AppView; label: string; icon: IconType }> = [
-  { view: "today", label: "Практика", icon: Target },
-  { view: "english", label: "Англійські слова", icon: Languages },
-  { view: "qa", label: "QA та тестування", icon: Code2 },
-  { view: "analytics", label: "Прогрес", icon: BarChart3 },
-  { view: "account", label: "Профіль", icon: UserCircle },
-  { view: "help", label: "Як користуватись", icon: FileText },
+export const navigationItems: Array<{
+  view: AppView;
+  label: string;
+  shortLabel: string;
+  icon: IconType;
+}> = [
+  { view: "today", label: "Практика", shortLabel: "Практика", icon: Target },
+  { view: "english", label: "Англійські слова", shortLabel: "Слова", icon: Languages },
+  { view: "qa", label: "QA-терміни", shortLabel: "QA", icon: Code2 },
+  { view: "analytics", label: "Прогрес", shortLabel: "Прогрес", icon: BarChart3 },
+  { view: "account", label: "Профіль", shortLabel: "Профіль", icon: UserCircle },
+  { view: "help", label: "Довідка", shortLabel: "Довідка", icon: FileText },
 ];

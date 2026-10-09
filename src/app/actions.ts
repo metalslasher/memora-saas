@@ -23,22 +23,27 @@ import {
   remoteDeleteNote,
   remoteImportEnglishNotes,
   remoteImportQaNotes,
+  remotePauseCard,
   remoteResetLearningStats,
   remoteReviewCard,
+  remoteReviewSingleCard,
   remoteRestoreBackup,
   remoteSuspendCard,
   remoteUpdateCardStatus,
   remoteUpdateNoteContent,
   remoteUpdateNoteStatus,
   remoteUpdateProfile,
+  remoteUndoReview,
   remoteUpdateSettings,
   type ImportCommitRow,
   type NoteContentDraft,
+  type ReviewOutcome,
 } from "@/lib/memora/remote-store";
 import type {
   AppSettings,
   MemoraState,
   ReviewRating,
+  StoredSchedule,
   UserProfile,
   UserProfileDraft,
 } from "@/lib/memora/types";
@@ -88,7 +93,11 @@ export async function loadMemoraStateAction(): Promise<ActionResult> {
     const { supabase, user } = await getAuthenticatedContext();
     await ensureRemoteProfile(supabase, user.id, user.email ?? null);
 
-    return ok(await loadRemoteMemoraState(supabase, user.id));
+    return ok(
+      await loadRemoteMemoraState(supabase, user.id, {
+        upgradeStarterContent: true,
+      }),
+    );
   } catch (error) {
     return fail(error);
   }
@@ -204,6 +213,63 @@ export async function reviewCardAction(input: {
     return ok(nextState);
   } catch (error) {
     return fail(error);
+  }
+}
+
+type ReviewActionResult =
+  | ({ ok: true } & ReviewOutcome)
+  | { ok: false; error: string };
+
+/** Fast path used by practice: grades one card without reloading all data. */
+export async function gradeCardAction(input: {
+  cardId: string;
+  rating: ReviewRating;
+  responseText: string;
+  elapsedMs: number;
+}): Promise<ReviewActionResult> {
+  try {
+    const reviewInput = validateReviewInput(input);
+    const { supabase } = await getAuthenticatedContext();
+    const outcome = await remoteReviewSingleCard(
+      supabase,
+      reviewInput.cardId,
+      reviewInput.rating,
+      reviewInput.responseText,
+      reviewInput.elapsedMs,
+    );
+
+    return { ok: true, ...outcome };
+  } catch (error) {
+    return { ok: false, error: formatActionError(error) };
+  }
+}
+
+export async function undoReviewAction(logId: string): Promise<
+  | { ok: true; cardId: string; schedule: StoredSchedule }
+  | { ok: false; error: string }
+> {
+  try {
+    const cleanLogId = validateId(logId, "Оцінку");
+    const { supabase } = await getAuthenticatedContext();
+    const result = await remoteUndoReview(supabase, cleanLogId);
+
+    return { ok: true, ...result };
+  } catch (error) {
+    return { ok: false, error: formatActionError(error) };
+  }
+}
+
+export async function pauseCardAction(
+  cardId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const cleanCardId = validateId(cardId, "Картку");
+    const { supabase } = await getAuthenticatedContext();
+    await remotePauseCard(supabase, cleanCardId);
+
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: formatActionError(error) };
   }
 }
 
@@ -431,6 +497,11 @@ function fail(error: unknown): ActionResult {
   }
 
   return { ok: false, error: "Невідома помилка." };
+}
+
+function formatActionError(error: unknown) {
+  const result = fail(error);
+  return result.ok ? "Невідома помилка." : result.error;
 }
 
 function importFail(error: unknown): ImportActionResult {

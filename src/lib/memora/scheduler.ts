@@ -70,6 +70,39 @@ export function scheduleReview(
   };
 }
 
+/** Next due date for every possible rating, used to label grade buttons. */
+export function previewNextDue(
+  schedule: StoredSchedule,
+  now = new Date(),
+): Record<ReviewRating, Date> {
+  const preview = scheduler.repeat(toCardInput(schedule), now);
+
+  return {
+    again: preview[Rating.Again].card.due,
+    hard: preview[Rating.Hard].card.due,
+    good: preview[Rating.Good].card.due,
+    easy: preview[Rating.Easy].card.due,
+  };
+}
+
+/** Compact Ukrainian interval label: "10 хв", "5 год", "3 дн", "2 міс", "1,5 р". */
+export function formatInterval(from: Date, to: Date) {
+  const minutes = Math.max(1, Math.round((to.getTime() - from.getTime()) / 60000));
+  if (minutes < 60) return `${minutes} хв`;
+
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} год`;
+
+  const days = Math.round(hours / 24);
+  if (days < 31) return `${days} дн`;
+
+  const months = days / 30.4;
+  if (months < 12) return `${Math.round(months)} міс`;
+
+  const years = Math.round((days / 365) * 10) / 10;
+  return `${years.toString().replace(".", ",")} р`;
+}
+
 export function getRetrievability(schedule: StoredSchedule, now = new Date()) {
   if (schedule.state === "New") {
     return 1;

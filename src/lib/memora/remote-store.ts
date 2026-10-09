@@ -206,6 +206,7 @@ export async function remoteUpdateProfile(
 export async function loadRemoteMemoraState(
   supabase: SupabaseClient,
   userId: string,
+  options: { upgradeStarterContent?: boolean } = {},
 ): Promise<MemoraState> {
   const { data: decks, error: decksError } = await supabase
     .from("decks")
@@ -228,7 +229,10 @@ export async function loadRemoteMemoraState(
     loadedDecks = (seededDecks ?? []) as DbDeck[];
   }
 
-  await upgradeRemoteStarterContent(supabase);
+  // Starter copy upgrades only need to run once per app load, not per mutation.
+  if (options.upgradeStarterContent) {
+    await upgradeRemoteStarterContent(supabase);
+  }
 
   const [notesResult, cardsResult, logsResult, importsResult] = await Promise.all([
     supabase
@@ -442,6 +446,146 @@ export async function remoteImportQaNotes(
   );
 
   return loadRemoteMemoraState(supabase, await getAuthenticatedUserId(supabase));
+}
+
+const cardSelect =
+  "id,note_id,card_type,state,due_at,stability,difficulty,retrievability,elapsed_days,scheduled_days,learning_steps,reps,lapses,last_reviewed_at,prompt_json,answer_json,status,created_at";
+
+const reviewLogSelect =
+  "id,card_id,note_id,module_type,reviewed_at,rating,elapsed_ms,response_text,was_correct,due_before,due_after";
+
+export type ReviewOutcome = {
+  cardId: string;
+  schedule: StoredSchedule;
+  log: ReviewLog;
+};
+
+/**
+ * Grades one card while touching only that card's rows, so a review does not
+ * reload the whole learning state.
+ */
+export async function remoteReviewSingleCard(
+  supabase: SupabaseClient,
+  cardId: string,
+  rating: ReviewRating,
+  responseText: string,
+  elapsedMs: number,
+): Promise<ReviewOutcome> {
+  const { data, error } = await supabase
+    .from("cards")
+    .select(`${cardSelect},notes(decks(module_type))`)
+    .eq("id", cardId)
+    .single();
+
+  if (error) throw error;
+
+  const card = data as DbCard & {
+    notes?: { decks?: { module_type?: ModuleType } | null } | null;
+  };
+  const moduleType: ModuleType =
+    card.notes?.decks?.module_type ??
+    ((card.prompt_json.module as ModuleType | undefined) ?? "english");
+  const scheduleBefore = cardToSchedule(card);
+  const reviewedAt = new Date();
+  const outcome = scheduleReview(scheduleBefore, rating, reviewedAt);
+
+  const { error: cardError } = await supabase
+    .from("cards")
+    .update(scheduleToCardPatch(outcome.schedule, reviewedAt))
+    .eq("id", cardId);
+
+  if (cardError) throw cardError;
+
+  const { data: insertedLog, error: logError } = await supabase
+    .from("review_logs")
+    .insert({
+      card_id: card.id,
+      note_id: card.note_id,
+      module_type: moduleType,
+      rating,
+      elapsed_ms: elapsedMs,
+      response_text: responseText,
+      was_correct: rating !== "again",
+      due_before: scheduleBefore.due,
+      due_after: outcome.schedule.due,
+      schedule_before: scheduleBefore,
+      schedule_after: outcome.schedule,
+      reviewed_at: reviewedAt.toISOString(),
+    })
+    .select(reviewLogSelect)
+    .single();
+
+  if (logError) throw logError;
+
+  return {
+    cardId,
+    schedule: outcome.schedule,
+    log: mapReviewLog(insertedLog as DbReviewLog),
+  };
+}
+
+/** Restores the card schedule saved before a review and removes that review. */
+export async function remoteUndoReview(
+  supabase: SupabaseClient,
+  logId: string,
+): Promise<{ cardId: string; schedule: StoredSchedule }> {
+  const { data, error } = await supabase
+    .from("review_logs")
+    .select("id,card_id,schedule_before")
+    .eq("id", logId)
+    .single();
+
+  if (error) throw error;
+
+  const log = data as {
+    id: string;
+    card_id: string;
+    schedule_before: Partial<StoredSchedule> | null;
+  };
+  const before = log.schedule_before;
+
+  if (!before || typeof before.due !== "string" || !before.state) {
+    throw new Error("Цю оцінку вже не можна скасувати.");
+  }
+
+  const schedule: StoredSchedule = {
+    due: before.due,
+    stability: Number(before.stability ?? 0),
+    difficulty: Number(before.difficulty ?? 0),
+    elapsed_days: Number(before.elapsed_days ?? 0),
+    scheduled_days: Number(before.scheduled_days ?? 0),
+    learning_steps: Number(before.learning_steps ?? 0),
+    reps: Number(before.reps ?? 0),
+    lapses: Number(before.lapses ?? 0),
+    state: before.state,
+    last_review: before.last_review ?? null,
+  };
+
+  const { error: cardError } = await supabase
+    .from("cards")
+    .update(scheduleToCardPatch(schedule))
+    .eq("id", log.card_id);
+
+  if (cardError) throw cardError;
+
+  const { error: deleteError } = await supabase
+    .from("review_logs")
+    .delete()
+    .eq("id", logId);
+
+  if (deleteError) throw deleteError;
+
+  return { cardId: log.card_id, schedule };
+}
+
+/** Pauses a single card without reloading the whole state. */
+export async function remotePauseCard(supabase: SupabaseClient, cardId: string) {
+  const { error } = await supabase
+    .from("cards")
+    .update({ status: "suspended", state: "suspended" })
+    .eq("id", cardId);
+
+  if (error) throw error;
 }
 
 export async function remoteSuspendCard(
@@ -1303,7 +1447,7 @@ function cardToSchedule(card: DbCard): StoredSchedule {
     learning_steps: card.learning_steps,
     reps: card.reps,
     lapses: card.lapses,
-    state: toFsrsState(card.state),
+    state: toFsrsState(card.state, card.reps),
     last_review: card.last_reviewed_at,
   };
 }
@@ -1323,18 +1467,17 @@ function scheduleToCardPatch(schedule: StoredSchedule, reviewedAt?: Date) {
   };
 }
 
-function toFsrsState(state: string): FsrsState {
+function toFsrsState(state: string, reps: number): FsrsState {
   const map: Record<string, FsrsState> = {
     new: "New",
     learning: "Learning",
     review: "Review",
     relearning: "Relearning",
-    suspended: "Review",
-    leech: "Review",
-    archived: "Review",
   };
 
-  return map[state] ?? "New";
+  // Paused/archived cards store their status in `state`; a card that was
+  // never reviewed must come back as New, not as an empty Review card.
+  return map[state] ?? (reps > 0 ? "Review" : "New");
 }
 
 function isUniqueViolation(error: unknown) {

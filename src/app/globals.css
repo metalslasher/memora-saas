@@ -1,38 +1,120 @@
 @import "tailwindcss";
 
+/*
+ * Memora design tokens. The product is dark-only; every surface, line and
+ * text colour comes from here so components stay consistent.
+ */
 :root {
   color-scheme: dark;
-  --background: #070a0f;
-  --foreground: #eef4ff;
+
+  --ink: #06080c;
+  --surface-1: #0b0f15;
+  --surface-2: #10151d;
+  --surface-3: #161d27;
+  --surface-4: #1d2633;
+  --line: #1f2834;
+  --line-strong: #2c3747;
+
+  --text: #edf2f9;
+  --text-2: #b9c4d2;
+  --muted: #7d8a9c;
+  --faint: #546173;
+
+  --accent: #3ee0bf;
+  --accent-strong: #6cf0d6;
+  --accent-ink: #03120f;
+  --accent-soft: rgba(62, 224, 191, 0.12);
+
+  --violet: #9b8cff;
+  --violet-soft: rgba(155, 140, 255, 0.14);
+  --amber: #f6b54f;
+  --amber-soft: rgba(246, 181, 79, 0.14);
+  --danger: #f2705f;
+  --danger-soft: rgba(242, 112, 95, 0.13);
+
+  --background: var(--ink);
+  --foreground: var(--text);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "Geist Mono", "Geist Mono Fallback", ui-monospace, monospace;
+  --color-ink: var(--ink);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-surface-4: var(--surface-4);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-text: var(--text);
+  --color-text-2: var(--text-2);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-violet: var(--violet);
+  --color-violet-soft: var(--violet-soft);
+  --color-amber: var(--amber);
+  --color-amber-soft: var(--amber-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SFMono-Regular", monospace;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: "Geist", "Inter", ui-sans-serif, system-ui, -apple-system,
-    BlinkMacSystemFont, "Segoe UI", sans-serif;
-}
-
-html {
-  scroll-behavior: smooth;
+  font-family: var(--font-sans);
+  font-feature-settings: "ss01", "cv11";
 }
 
 button,
 input,
-textarea {
+textarea,
+select {
   font: inherit;
 }
 
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]) {
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Text fields draw their own focus ring. */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: none;
+}
+
 ::selection {
-  background: #2dd4bf;
-  color: #071018;
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
 }
 
 .scrollbar-hidden {
@@ -45,7 +127,7 @@ textarea {
 }
 
 .scrollbar-soft {
-  scrollbar-color: #314055 transparent;
+  scrollbar-color: var(--line-strong) transparent;
   scrollbar-width: thin;
 }
 
@@ -58,18 +140,51 @@ textarea {
 }
 
 .scrollbar-soft::-webkit-scrollbar-thumb {
-  background: #314055;
+  background: var(--line-strong);
   border-radius: 999px;
 }
 
 .scrollbar-soft::-webkit-scrollbar-thumb:hover {
-  background: #2dd4bf;
+  background: var(--accent);
 }
 
-@keyframes landing-reveal {
+/* Bottom padding that clears the mobile tab bar and the iOS home indicator. */
+.pb-safe-nav {
+  padding-bottom: calc(5.5rem + env(safe-area-inset-bottom));
+}
+
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.text-balance {
+  text-wrap: balance;
+}
+
+.bg-grid {
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 56px 56px;
+}
+
+.glow-accent {
+  background:
+    radial-gradient(60% 60% at 50% 0%, rgba(62, 224, 191, 0.16), transparent 70%),
+    radial-gradient(40% 50% at 85% 20%, rgba(155, 140, 255, 0.12), transparent 70%);
+}
+
+.text-gradient {
+  background: linear-gradient(100deg, var(--accent-strong) 0%, var(--violet) 90%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@keyframes rise-in {
   from {
     opacity: 0;
-    transform: translateY(16px);
+    transform: translateY(14px);
   }
 
   to {
@@ -78,12 +193,116 @@ textarea {
   }
 }
 
-.landing-reveal {
-  animation: landing-reveal 600ms ease-out both;
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
-.landing-reveal-delay {
-  animation-delay: 120ms;
+@keyframes card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes answer-reveal {
+  from {
+    opacity: 0;
+    transform: rotateX(-12deg) translateY(-6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: rotateX(0) translateY(0);
+  }
+}
+
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes pop {
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+
+  60% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+.animate-rise {
+  animation: rise-in 520ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.animate-fade {
+  animation: fade-in 220ms ease-out both;
+}
+
+.animate-card {
+  animation: card-enter 380ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.animate-reveal {
+  animation: answer-reveal 360ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  transform-origin: top center;
+}
+
+.animate-sheet {
+  animation: sheet-up 280ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.animate-pop {
+  animation: pop 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+.delay-1 {
+  animation-delay: 90ms;
+}
+
+.delay-2 {
+  animation-delay: 180ms;
+}
+
+.delay-3 {
+  animation-delay: 270ms;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -91,8 +310,11 @@ textarea {
     scroll-behavior: auto;
   }
 
-  .landing-reveal,
-  .landing-reveal-delay {
-    animation: none;
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
   }
 }

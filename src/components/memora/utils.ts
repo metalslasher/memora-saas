@@ -1,4 +1,3 @@
-import { getDueQueue } from "@/lib/memora/store";
 import type {
   ImportRun,
   MemoraState,
@@ -43,10 +42,6 @@ export function unwrapProfile(result: {
   return result.profile;
 }
 
-export function getPracticeQueueLength(state: MemoraState) {
-  return getDueQueue(state, state.settings.studyMode).length;
-}
-
 export function reviewsInLastDays(logs: ReviewLog[], days: number) {
   const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
   return logs.filter((log) => new Date(log.reviewedAt).getTime() >= cutoff);
@@ -81,9 +76,9 @@ export function getWeakCards(state: MemoraState) {
 
 export function labelReviewRating(rating: ReviewRating) {
   const labels: Record<ReviewRating, string> = {
-    again: "Знову",
+    again: "Не згадав",
     hard: "Важко",
-    good: "Добре",
+    good: "Згадав",
     easy: "Легко",
   };
 
@@ -110,7 +105,7 @@ export function labelStatus(status: ItemStatus) {
   const labels: Record<ItemStatus, string> = {
     active: "в навчанні",
     suspended: "на паузі",
-    archived: "поза навчанням",
+    archived: "в архіві",
   };
 
   return labels[status];
@@ -221,4 +216,20 @@ export function normalizeSentence(value: string) {
   if (!clean) return "";
 
   return /[.!?]$/.test(clean) ? clean : `${clean}.`;
+}
+
+/** Ukrainian plural: plural(3, ["слово", "слова", "слів"]) → "3 слова". */
+export function plural(count: number, forms: [string, string, string]) {
+  const abs = Math.abs(count);
+  const lastTwo = abs % 100;
+  const last = abs % 10;
+  const form =
+    lastTwo >= 11 && lastTwo <= 14
+      ? forms[2]
+      : last === 1
+        ? forms[0]
+        : last >= 2 && last <= 4
+          ? forms[1]
+          : forms[2];
+  return `${count} ${form}`;
 }

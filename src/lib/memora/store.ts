@@ -63,14 +63,20 @@ export function resetMemoraState() {
   return initialState;
 }
 
+export type QueueOptions = {
+  /** Extra new cards the learner explicitly asked for on top of the daily limit. */
+  extraNew?: number;
+};
+
 export function getDueQueue(
   state: MemoraState,
   mode: StudyMode,
   now = new Date(),
+  options: QueueOptions = {},
 ) {
   const nowMs = now.getTime();
 
-  return state.cards
+  const due = state.cards
     .filter((card) => card.status === "active")
     .filter((card) => new Date(card.schedule.due).getTime() <= nowMs)
     .filter((card) => matchesMode(card, mode))
@@ -87,10 +93,92 @@ export function getDueQueue(
 
       return b.priority - a.priority;
     });
+
+  const newAllowance = remainingNewToday(state, now) + (options.extraNew ?? 0);
+  let newTaken = 0;
+
+  return due.filter((card) => {
+    if (card.schedule.reps > 0) return true;
+    if (newTaken >= newAllowance) return false;
+    newTaken += 1;
+    return true;
+  });
 }
 
-export function summarizeState(state: MemoraState, now = new Date()): QueueSummary {
-  const dueCards = getDueQueue(state, state.settings.studyMode, now);
+/** Cards whose first ever review happened on the learner's current local day. */
+export function countNewIntroducedToday(state: MemoraState, now = new Date()) {
+  const dayStart = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+  ).getTime();
+  const firstReviewByCard = new Map<string, number>();
+
+  for (const log of state.reviewLogs) {
+    const time = Date.parse(log.reviewedAt);
+    if (!Number.isFinite(time)) continue;
+    const current = firstReviewByCard.get(log.cardId);
+    if (current === undefined || time < current) {
+      firstReviewByCard.set(log.cardId, time);
+    }
+  }
+
+  let count = 0;
+  for (const time of firstReviewByCard.values()) {
+    if (time >= dayStart && time <= now.getTime()) count += 1;
+  }
+
+  return count;
+}
+
+export function remainingNewToday(state: MemoraState, now = new Date()) {
+  return Math.max(
+    0,
+    state.settings.dailyNewLimit - countNewIntroducedToday(state, now),
+  );
+}
+
+/** New cards that are ready but held back by today's limit. */
+export function countHeldBackNew(
+  state: MemoraState,
+  mode: StudyMode,
+  now = new Date(),
+  options: QueueOptions = {},
+) {
+  const nowMs = now.getTime();
+  const readyNew = state.cards.filter(
+    (card) =>
+      card.status === "active" &&
+      card.schedule.reps === 0 &&
+      new Date(card.schedule.due).getTime() <= nowMs &&
+      matchesMode(card, mode),
+  ).length;
+  const allowed = remainingNewToday(state, now) + (options.extraNew ?? 0);
+
+  return Math.max(0, readyNew - allowed);
+}
+
+/** Earliest moment an already-studied active card in this mode becomes due. */
+export function nextDueAt(state: MemoraState, mode: StudyMode, now = new Date()) {
+  const nowMs = now.getTime();
+  let next: number | null = null;
+
+  for (const card of state.cards) {
+    if (card.status !== "active" || card.schedule.reps === 0) continue;
+    if (!matchesMode(card, mode)) continue;
+    const due = Date.parse(card.schedule.due);
+    if (due > nowMs && (next === null || due < next)) next = due;
+  }
+
+  return next === null ? null : new Date(next);
+}
+
+export function summarizeState(
+  state: MemoraState,
+  now = new Date(),
+  options: QueueOptions = {},
+): QueueSummary {
+  const dueCards = getDueQueue(state, state.settings.studyMode, now, options);
   const dueReviews = dueCards.filter((card) => card.schedule.reps > 0).length;
   const newAvailable = dueCards.filter((card) => card.schedule.reps === 0).length;
   const retention = calculateRetention(state.reviewLogs);
@@ -264,16 +352,10 @@ function calculateRetention(logs: ReviewLog[]) {
   return correct / logs.length;
 }
 
-function matchesMode(card: StudyCard, mode: StudyMode) {
+export function matchesMode(card: StudyCard, mode: StudyMode) {
   if (mode === "daily") return true;
-  if (mode === "english-productive") {
-    return (
-      card.module === "english" &&
-      ["productive_translation", "cloze_context", "collocation_recall"].includes(
-        card.type,
-      )
-    );
-  }
+  // "english-productive" is the stored id of the English-only mode.
+  if (mode === "english-productive") return card.module === "english";
   return card.module === "qa";
 }
 

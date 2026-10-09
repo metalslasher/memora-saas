@@ -3,24 +3,50 @@
 import type { ChangeEvent, FormEvent } from "react";
 import { useRef, useState } from "react";
 import {
-  AlertCircle,
+  CircleHelp,
+  Download,
+  GraduationCap,
   KeyRound,
-  Loader2,
-  Mail,
+  LogOut,
+  Minus,
+  Plus,
   Save,
   ShieldCheck,
   Trash2,
   Upload,
-  UserCircle,
 } from "lucide-react";
-import { parseBackupJson, previewBackup, type BackupDocument, type BackupPreview } from "@/lib/memora/backup";
+import {
+  parseBackupJson,
+  previewBackup,
+  type BackupDocument,
+  type BackupPreview,
+} from "@/lib/memora/backup";
 import { createBackupJson, notesToCsv } from "@/lib/memora/export";
-import type { AppSettings, MemoraState, UserProfile, UserProfileDraft } from "@/lib/memora/types";
+import type {
+  AppSettings,
+  MemoraState,
+  UserProfile,
+  UserProfileDraft,
+} from "@/lib/memora/types";
 import type { User } from "@supabase/supabase-js";
+import type { AppView } from "./types";
 import { levelOptions } from "./types";
-import { ExportButton, PreviewMetric } from "./account-widgets";
-import { ReadOnlyField, ShellPanel, StatusBanner, TextArea } from "./shared-ui";
+import { PreviewMetric } from "./account-widgets";
+import {
+  Button,
+  fieldClass,
+  FieldLabel,
+  PageHeader,
+  PasswordInput,
+  SectionHeader,
+  SegmentedControl,
+  ShellPanel,
+  StatusBanner,
+  TextArea,
+} from "./shared-ui";
 import { dateStamp, downloadTextFile, formatDate, formatError } from "./utils";
+
+const MAX_DAILY_NEW = 50;
 
 export function AccountWorkspace({
   isBusy,
@@ -29,12 +55,14 @@ export function AccountWorkspace({
   state,
   user,
   onClearMaterials,
-  onPasswordReset,
+  onNavigate,
   onPasswordUpdate,
   onProfileSave,
   onRestoreBackup,
   onResetLearningStats,
+  onSaved,
   onSettingsChange,
+  onSignOut,
 }: {
   isBusy: boolean;
   isPasswordRecovery: boolean;
@@ -42,113 +70,163 @@ export function AccountWorkspace({
   state: MemoraState;
   user: User | null;
   onClearMaterials: () => Promise<void>;
+  onNavigate: (view: AppView) => void;
   onPasswordReset: (email: string) => Promise<void>;
   onPasswordUpdate: (password: string) => Promise<void>;
   onProfileSave: (draft: UserProfileDraft) => Promise<void>;
   onRestoreBackup: (backup: BackupDocument) => Promise<void>;
   onResetLearningStats: () => Promise<void>;
+  onSaved: () => void;
   onSettingsChange: (settings: AppSettings) => Promise<void>;
+  onSignOut: () => void;
 }) {
-  const [draft, setDraft] = useState<UserProfileDraft>(() =>
-    profileToDraft(profile),
-  );
-  const [settingsDraft, setSettingsDraft] = useState<AppSettings>(
-    () => state.settings,
-  );
-  const [dailyNewLimitInput, setDailyNewLimitInput] = useState(
-    () => state.settings.dailyNewLimit.toString(),
-  );
-  const [resetEmail, setResetEmail] = useState(user?.email ?? profile?.email ?? "");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  const [draft, setDraft] = useState<UserProfileDraft>(() => profileToDraft(profile));
+  const [settingsDraft, setSettingsDraft] = useState<AppSettings>(() => state.settings);
   const [profileError, setProfileError] = useState<string | null>(null);
-  const [securityError, setSecurityError] = useState<string | null>(null);
+  const initialDraft = profileToDraft(profile);
+  const hasChanges =
+    settingsDraft.dailyNewLimit !== state.settings.dailyNewLimit ||
+    settingsDraft.reviewButtons !== state.settings.reviewButtons ||
+    draft.level !== initialDraft.level ||
+    draft.primaryGoal !== initialDraft.primaryGoal;
 
   async function saveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setProfileError(null);
 
-    const dailyNewLimit = Number.parseInt(dailyNewLimitInput, 10);
-    if (
-      !Number.isInteger(dailyNewLimit) ||
-      dailyNewLimit < 0 ||
-      dailyNewLimit > 50
-    ) {
-      setProfileError("Кількість нових карток має бути числом від 0 до 50.");
-      return;
-    }
-
     try {
       await onProfileSave(draft);
-      await onSettingsChange({
-        ...settingsDraft,
-        dailyNewLimit,
-      });
+      await onSettingsChange({ ...state.settings, ...pickLearningSettings(settingsDraft) });
+      onSaved();
     } catch (error) {
       setProfileError(formatError(error));
     }
   }
 
-  async function sendPasswordReset() {
-    setSecurityError(null);
-
-    try {
-      await onPasswordReset(resetEmail);
-    } catch (error) {
-      setSecurityError(formatError(error));
-    }
-  }
-
-  async function updatePassword(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setSecurityError(null);
-
-    if (newPassword !== confirmPassword) {
-      setSecurityError("Паролі не збігаються.");
-      return;
-    }
-
-    try {
-      await onPasswordUpdate(newPassword);
-      setNewPassword("");
-      setConfirmPassword("");
-    } catch (error) {
-      setSecurityError(formatError(error));
-    }
+  function setDailyNew(value: number) {
+    setSettingsDraft((current) => ({
+      ...current,
+      dailyNewLimit: Math.max(0, Math.min(MAX_DAILY_NEW, Math.round(value))),
+    }));
   }
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[minmax(0,1.05fr)_minmax(440px,0.8fr)] xl:items-start">
-      <ShellPanel className="p-4 md:p-5 xl:min-h-[455px]">
-          <div className="flex items-start justify-between gap-4">
+    <div className="space-y-6">
+      <PageHeader
+        title="Профіль"
+        description={user?.email ?? profile?.email ?? undefined}
+        action={
+          <>
+            <Button className="lg:hidden" icon={CircleHelp} size="sm" onClick={() => onNavigate("help")}>
+              Довідка
+            </Button>
+            <Button className="lg:hidden" icon={LogOut} size="sm" onClick={onSignOut}>
+              Вийти
+            </Button>
+          </>
+        }
+      />
+
+      {isPasswordRecovery ? (
+        <StatusBanner
+          tone="success"
+          message="Ти перейшов за посиланням для відновлення. Задай новий пароль нижче."
+        />
+      ) : null}
+
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] xl:items-start">
+        <ShellPanel className="p-5 md:p-6">
+          <SectionHeader
+            icon={GraduationCap}
+            title="Навчання"
+            description="Скільки нового брати щодня і як оцінювати відповіді."
+          />
+
+          <form className="mt-6 space-y-6" onSubmit={saveProfile}>
             <div>
-              <h2 className="text-lg font-semibold">Профіль</h2>
+              <FieldLabel hint="рекомендуємо 5–15">Нових карток на день</FieldLabel>
+              <div className="mt-2 flex flex-wrap items-center gap-3">
+                <div className="flex items-center rounded-xl border border-line-strong bg-surface-1">
+                  <button
+                    aria-label="Менше"
+                    className="grid size-11 place-items-center text-muted transition hover:text-text disabled:opacity-40"
+                    disabled={settingsDraft.dailyNewLimit <= 0}
+                    onClick={() => setDailyNew(settingsDraft.dailyNewLimit - 1)}
+                    type="button"
+                  >
+                    <Minus className="size-4" />
+                  </button>
+                  <input
+                    aria-label="Нових карток на день"
+                    className="h-11 w-14 bg-transparent text-center font-mono text-base font-semibold text-text outline-none"
+                    inputMode="numeric"
+                    max={MAX_DAILY_NEW}
+                    min={0}
+                    type="number"
+                    value={settingsDraft.dailyNewLimit}
+                    onChange={(event) => setDailyNew(Number(event.target.value) || 0)}
+                  />
+                  <button
+                    aria-label="Більше"
+                    className="grid size-11 place-items-center text-muted transition hover:text-text disabled:opacity-40"
+                    disabled={settingsDraft.dailyNewLimit >= MAX_DAILY_NEW}
+                    onClick={() => setDailyNew(settingsDraft.dailyNewLimit + 1)}
+                    type="button"
+                  >
+                    <Plus className="size-4" />
+                  </button>
+                </div>
+                <div className="flex gap-1.5">
+                  {[5, 10, 20].map((preset) => (
+                    <button
+                      key={preset}
+                      className={`h-9 rounded-lg border px-3 text-sm font-medium transition ${
+                        settingsDraft.dailyNewLimit === preset
+                          ? "border-accent/50 bg-accent-soft text-accent"
+                          : "border-line text-muted hover:text-text"
+                      }`}
+                      onClick={() => setDailyNew(preset)}
+                      type="button"
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <p className="mt-2 text-xs leading-5 text-faint">
+                Повторення не обмежуються — ліміт стосується лише нових карток.
+              </p>
             </div>
-            <UserCircle className="size-5 text-[#2dd4bf]" />
-          </div>
 
-          {profileError ? <StatusBanner tone="error" message={profileError} /> : null}
-
-          <form className="mt-4 space-y-4" onSubmit={saveProfile}>
-            <div className="grid gap-4 md:grid-cols-2">
-              <ReadOnlyField
-                icon={Mail}
-                label="Email"
-                value={user?.email ?? profile?.email ?? "Не вказано"}
+            <div>
+              <FieldLabel>Кнопки оцінювання</FieldLabel>
+              <SegmentedControl
+                ariaLabel="Кнопки оцінювання"
+                className="mt-2 w-full sm:w-72"
+                options={[
+                  { value: "simple", label: "2 кнопки" },
+                  { value: "advanced", label: "4 кнопки" },
+                ]}
+                value={settingsDraft.reviewButtons}
+                onChange={(reviewButtons) =>
+                  setSettingsDraft((current) => ({ ...current, reviewButtons }))
+                }
               />
+              <p className="mt-2 text-xs leading-5 text-faint">
+                {settingsDraft.reviewButtons === "simple"
+                  ? "«Не згадав» і «Згадав». Ідеально для старту."
+                  : "Додаються «Важко» та «Легко» — розклад підлаштовується тонше."}
+              </p>
+            </div>
 
-              <label className="block">
-                <span className="text-sm font-medium text-[#c7d0dd]">
-                  Рівень англійської
-                </span>
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="block md:col-span-1">
+                <FieldLabel>Рівень англійської</FieldLabel>
                 <select
-                  className="mt-1 h-11 w-full rounded-lg border border-[#263140] bg-[#0b111a] px-3 text-sm text-[#eef4ff] outline-none transition focus:border-[#2dd4bf] focus:ring-4 focus:ring-[#2dd4bf]/20"
+                  className={`mt-1.5 h-11 ${fieldClass}`}
                   value={draft.level}
                   onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      level: event.target.value,
-                    }))
+                    setDraft((current) => ({ ...current, level: event.target.value }))
                   }
                 >
                   {levelOptions.map((option) => (
@@ -161,149 +239,33 @@ export function AccountWorkspace({
             </div>
 
             <TextArea
-              label="Основна ціль"
-              placeholder="Наприклад: впевненіше проходити QA співбесіди англійською."
+              label="Навіщо вчу"
+              placeholder="Наприклад: впевнено пройти QA-співбесіду англійською"
+              rows={2}
               value={draft.primaryGoal}
-              onChange={(primaryGoal) =>
-                setDraft((current) => ({ ...current, primaryGoal }))
-              }
+              onChange={(primaryGoal) => setDraft((current) => ({ ...current, primaryGoal }))}
             />
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <label className="block">
-                <span className="text-sm font-medium text-[#c7d0dd]">
-                  Нових карток на день
-                </span>
-                <input
-                  className="mt-1 h-11 w-full rounded-lg border border-[#263140] bg-[#0b111a] px-3 text-sm text-[#eef4ff] outline-none transition placeholder:text-[#6f7d90] focus:border-[#2dd4bf] focus:ring-4 focus:ring-[#2dd4bf]/20"
-                  inputMode="numeric"
-                  max={50}
-                  min={0}
-                  type="number"
-                  value={dailyNewLimitInput}
-                  onChange={(event) => setDailyNewLimitInput(event.target.value)}
-                />
-              </label>
+            {profileError ? <StatusBanner tone="error" message={profileError} /> : null}
 
-              <label className="block">
-                <span className="text-sm font-medium text-[#c7d0dd]">
-                  Оцінювання
-                </span>
-                <select
-                  className="mt-1 h-11 w-full rounded-lg border border-[#263140] bg-[#0b111a] px-3 text-sm text-[#eef4ff] outline-none transition focus:border-[#2dd4bf] focus:ring-4 focus:ring-[#2dd4bf]/20"
-                  value={settingsDraft.reviewButtons}
-                  onChange={(event) =>
-                    setSettingsDraft((current) => ({
-                      ...current,
-                      reviewButtons: event.target.value as AppSettings["reviewButtons"],
-                    }))
-                  }
-                >
-                  <option value="simple">2 кнопки</option>
-                  <option value="advanced">4 кнопки</option>
-                </select>
-              </label>
-            </div>
-
-            <button
-              className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#2dd4bf] px-4 py-3 text-sm font-semibold text-[#071018] transition hover:bg-[#5eead4] disabled:cursor-not-allowed disabled:bg-[#344052] disabled:text-[#8d9aab] sm:w-auto"
-              disabled={isBusy}
+            <Button
+              className="w-full sm:w-auto"
+              disabled={isBusy || !hasChanges}
+              icon={Save}
+              isLoading={isBusy}
               type="submit"
+              variant="primary"
             >
-              {isBusy ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <Save className="size-4" />
-              )}
-              Зберегти зміни
-            </button>
+              Зберегти
+            </Button>
           </form>
-      </ShellPanel>
+        </ShellPanel>
 
-      <ShellPanel className="p-4 md:p-5 xl:min-h-[455px]">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h2 className="text-lg font-semibold">Безпека</h2>
-            </div>
-            <ShieldCheck className="size-5 text-[#2dd4bf]" />
-          </div>
+        <SecurityPanel isBusy={isBusy} onPasswordUpdate={onPasswordUpdate} />
+      </div>
 
-          {isPasswordRecovery ? (
-            <div className="mt-4 rounded-lg border border-[#256b60] bg-[#102b27] p-3 text-sm leading-6 text-[#8df3dd]">
-              Режим відновлення активний. Введи новий пароль нижче.
-            </div>
-          ) : null}
-          {securityError ? (
-            <StatusBanner tone="error" message={securityError} />
-          ) : null}
-
-          <div className="mt-4 rounded-lg border border-[#263140] bg-[#0d131c] p-4">
-            <p className="text-sm font-semibold">Відновлення пароля</p>
-            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-              <input
-                className="h-11 min-w-0 flex-1 rounded-lg border border-[#263140] bg-[#0b111a] px-3 text-sm text-[#eef4ff] outline-none transition placeholder:text-[#6f7d90] focus:border-[#2dd4bf] focus:ring-4 focus:ring-[#2dd4bf]/20"
-                type="email"
-                value={resetEmail}
-                onChange={(event) => setResetEmail(event.target.value)}
-                placeholder="you@example.com"
-              />
-              <button
-                className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[#263140] px-4 py-2 text-sm font-medium text-[#c7d0dd] transition hover:border-[#2dd4bf] hover:text-[#52e0c4] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
-                disabled={isBusy}
-                onClick={() => void sendPasswordReset()}
-                type="button"
-              >
-                <Mail className="size-4" />
-                Надіслати
-              </button>
-            </div>
-          </div>
-
-          <form className="mt-4 space-y-4" onSubmit={updatePassword}>
-            <label className="block">
-              <span className="text-sm font-medium text-[#c7d0dd]">
-                Новий пароль
-              </span>
-              <input
-                className="mt-1 h-11 w-full rounded-lg border border-[#263140] bg-[#0b111a] px-3 text-sm text-[#eef4ff] outline-none transition placeholder:text-[#6f7d90] focus:border-[#2dd4bf] focus:ring-4 focus:ring-[#2dd4bf]/20"
-                autoComplete="new-password"
-                minLength={8}
-                type="password"
-                value={newPassword}
-                onChange={(event) => setNewPassword(event.target.value)}
-                placeholder="Мінімум 8 символів"
-              />
-            </label>
-            <label className="block">
-              <span className="text-sm font-medium text-[#c7d0dd]">
-                Повтори пароль
-              </span>
-              <input
-                className="mt-1 h-11 w-full rounded-lg border border-[#263140] bg-[#0b111a] px-3 text-sm text-[#eef4ff] outline-none transition placeholder:text-[#6f7d90] focus:border-[#2dd4bf] focus:ring-4 focus:ring-[#2dd4bf]/20"
-                autoComplete="new-password"
-                minLength={8}
-                type="password"
-                value={confirmPassword}
-                onChange={(event) => setConfirmPassword(event.target.value)}
-                placeholder="Ще раз новий пароль"
-              />
-            </label>
-            <button
-              className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#2dd4bf] px-4 py-3 text-sm font-semibold text-[#071018] transition hover:bg-[#5eead4] disabled:cursor-not-allowed disabled:bg-[#344052] disabled:text-[#8d9aab]"
-              disabled={isBusy || newPassword.length < 8 || confirmPassword.length < 8}
-              type="submit"
-            >
-              <KeyRound className="size-4" />
-              Оновити пароль
-            </button>
-          </form>
-      </ShellPanel>
-
-      <BackupPanel
-        className="xl:col-span-2"
+      <DataPanel
         isBusy={isBusy}
-        materialCount={state.notes.length}
-        reviewCount={state.reviewLogs.length}
         state={state}
         onClearMaterials={onClearMaterials}
         onResetLearningStats={onResetLearningStats}
@@ -311,6 +273,13 @@ export function AccountWorkspace({
       />
     </div>
   );
+}
+
+function pickLearningSettings(settings: AppSettings) {
+  return {
+    dailyNewLimit: settings.dailyNewLimit,
+    reviewButtons: settings.reviewButtons,
+  };
 }
 
 function profileToDraft(profile: UserProfile | null): UserProfileDraft {
@@ -323,23 +292,80 @@ function profileToDraft(profile: UserProfile | null): UserProfileDraft {
   };
 }
 
-function BackupPanel({
-  className = "",
+function SecurityPanel({
   isBusy,
-  materialCount,
+  onPasswordUpdate,
+}: {
+  isBusy: boolean;
+  onPasswordUpdate: (password: string) => Promise<void>;
+}) {
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  async function updatePassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+
+    if (newPassword.length < 8) {
+      setError("Пароль має містити щонайменше 8 символів.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError("Паролі не збігаються.");
+      return;
+    }
+
+    try {
+      await onPasswordUpdate(newPassword);
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (updateError) {
+      setError(formatError(updateError));
+    }
+  }
+
+  return (
+    <ShellPanel className="p-5 md:p-6">
+      <SectionHeader icon={ShieldCheck} title="Пароль" description="Зміни пароль для входу." />
+      <form className="mt-6 space-y-4" onSubmit={updatePassword}>
+        <PasswordInput
+          autoComplete="new-password"
+          label="Новий пароль"
+          value={newPassword}
+          onChange={setNewPassword}
+        />
+        <PasswordInput
+          autoComplete="new-password"
+          label="Ще раз"
+          value={confirmPassword}
+          onChange={setConfirmPassword}
+        />
+        {error ? <StatusBanner tone="error" message={error} /> : null}
+        <Button
+          className="w-full sm:w-auto"
+          disabled={isBusy || !newPassword || !confirmPassword}
+          icon={KeyRound}
+          type="submit"
+        >
+          Оновити пароль
+        </Button>
+      </form>
+    </ShellPanel>
+  );
+}
+
+function DataPanel({
+  isBusy,
   onClearMaterials,
   onResetLearningStats,
   onRestoreBackup,
-  reviewCount,
   state,
 }: {
-  className?: string;
   isBusy: boolean;
-  materialCount: number;
   onClearMaterials: () => Promise<void>;
   onResetLearningStats: () => Promise<void>;
   onRestoreBackup: (backup: BackupDocument) => Promise<void>;
-  reviewCount: number;
   state: MemoraState;
 }) {
   const [backupDocument, setBackupDocument] = useState<BackupDocument | null>(null);
@@ -347,6 +373,8 @@ function BackupPanel({
   const [restoreError, setRestoreError] = useState<string | null>(null);
   const [isRestoreConfirmed, setIsRestoreConfirmed] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const materialCount = state.notes.length;
+  const reviewCount = state.reviewLogs.length;
 
   async function handleBackupFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -359,7 +387,7 @@ function BackupPanel({
     if (!file) return;
 
     if (file.size > 10 * 1024 * 1024) {
-      setRestoreError("Файл резервної копії завеликий. Максимальний розмір: 10 MB.");
+      setRestoreError("Файл завеликий — максимум 10 МБ.");
       return;
     }
 
@@ -374,7 +402,6 @@ function BackupPanel({
 
   async function handleRestoreClick() {
     if (!backupDocument || !isRestoreConfirmed || isBusy) return;
-
     setRestoreError(null);
 
     try {
@@ -392,198 +419,172 @@ function BackupPanel({
     setBackupPreview(null);
     setRestoreError(null);
     setIsRestoreConfirmed(false);
-    if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
   function confirmClearMaterials() {
     const confirmed = window.confirm(
-      `Видалити всі матеріали (${materialCount}) разом з картками? Цю дію не можна скасувати.`,
+      `Видалити всі матеріали (${materialCount}) разом із картками та історією? Скасувати це не можна.`,
     );
-    if (!confirmed) return;
-
-    void onClearMaterials().catch(() => undefined);
+    if (confirmed) void onClearMaterials().catch(() => undefined);
   }
 
   function confirmResetStats() {
     const confirmed = window.confirm(
-      `Обнулити статистику та історію повторень (${reviewCount})? Матеріали залишаться, але картки почнуть навчання заново.`,
+      `Обнулити історію повторень (${reviewCount})? Матеріали залишаться, але всі картки почнуть навчання з нуля.`,
     );
-    if (!confirmed) return;
-
-    void onResetLearningStats().catch(() => undefined);
+    if (confirmed) void onResetLearningStats().catch(() => undefined);
   }
 
+  const exports = [
+    {
+      label: "Повна копія",
+      hint: "JSON — для відновлення",
+      onClick: () =>
+        downloadTextFile(
+          `memora-backup-${dateStamp()}.json`,
+          createBackupJson(state),
+          "application/json;charset=utf-8",
+        ),
+    },
+    {
+      label: "Слова",
+      hint: "CSV-таблиця",
+      onClick: () =>
+        downloadTextFile(
+          `memora-english-${dateStamp()}.csv`,
+          notesToCsv(state.notes, "english"),
+          "text/csv;charset=utf-8",
+        ),
+    },
+    {
+      label: "QA-терміни",
+      hint: "CSV-таблиця",
+      onClick: () =>
+        downloadTextFile(
+          `memora-qa-${dateStamp()}.csv`,
+          notesToCsv(state.notes, "qa"),
+          "text/csv;charset=utf-8",
+        ),
+    },
+  ];
+
   return (
-    <ShellPanel className={`p-4 md:p-5 ${className}`}>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <ShellPanel className="p-5 md:p-6">
+      <SectionHeader
+        icon={Download}
+        title="Дані"
+        description="Збережи копію своїх матеріалів або віднови їх з файлу."
+      />
+
+      <div className="mt-6 grid gap-3 sm:grid-cols-3">
+        {exports.map((item) => (
+          <button
+            key={item.label}
+            className="group flex items-center justify-between gap-3 rounded-2xl border border-line bg-surface-1 p-4 text-left transition hover:border-accent/50"
+            onClick={item.onClick}
+            type="button"
+          >
+            <span>
+              <span className="block text-sm font-semibold">{item.label}</span>
+              <span className="mt-0.5 block text-xs text-muted">{item.hint}</span>
+            </span>
+            <Download className="size-4 text-muted transition group-hover:text-accent" />
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-3 flex flex-col gap-3 rounded-2xl border border-line bg-surface-1 p-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-lg font-semibold">Дані</h2>
+          <p className="text-sm font-semibold">Відновити з копії</p>
+          <p className="mt-0.5 text-xs text-muted">
+            Поточні матеріали й історію буде замінено даними з файлу.
+          </p>
         </div>
-        <span className="font-mono text-sm text-[#9aa8ba]">
-          {state.notes.length}
-        </span>
+        <input
+          ref={fileInputRef}
+          accept="application/json,.json"
+          className="hidden"
+          onChange={(event) => void handleBackupFileChange(event)}
+          type="file"
+        />
+        <Button
+          disabled={isBusy}
+          icon={Upload}
+          size="sm"
+          onClick={() => fileInputRef.current?.click()}
+        >
+          Обрати файл
+        </Button>
       </div>
-      <div className="mt-4 grid items-stretch gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(280px,360px)]">
-        <div className="grid min-w-0 grid-rows-[auto_1fr] gap-3">
-          <div className="grid gap-2 sm:grid-cols-3">
-            <ExportButton
-              label="Повна копія JSON"
-              onClick={() =>
-                downloadTextFile(
-                  `memora-backup-${dateStamp()}.json`,
-                  createBackupJson(state),
-                  "application/json;charset=utf-8",
-                )
-              }
+
+      {restoreError ? <StatusBanner className="mt-3" tone="error" message={restoreError} /> : null}
+
+      {backupPreview ? (
+        <div className="animate-rise mt-3 rounded-2xl border border-line-strong bg-surface-1 p-4">
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <PreviewMetric label="Дата копії" value={formatDate(backupPreview.exportedAt)} />
+            <PreviewMetric
+              label="Матеріали"
+              value={`${backupPreview.notes} (${backupPreview.englishNotes} слів / ${backupPreview.qaNotes} QA)`}
             />
-            <ExportButton
-              label="CSV зі словами"
-              onClick={() =>
-                downloadTextFile(
-                  `memora-english-${dateStamp()}.csv`,
-                  notesToCsv(state.notes, "english"),
-                  "text/csv;charset=utf-8",
-                )
-              }
-            />
-            <ExportButton
-              label="CSV з QA"
-              onClick={() =>
-                downloadTextFile(
-                  `memora-qa-${dateStamp()}.csv`,
-                  notesToCsv(state.notes, "qa"),
-                  "text/csv;charset=utf-8",
-                )
-              }
-            />
+            <PreviewMetric label="Картки" value={backupPreview.cards} />
+            <PreviewMetric label="Повторення" value={backupPreview.reviewLogs} />
           </div>
-
-          <div className="flex min-h-20 rounded-lg border border-[#263140] bg-[#0d131c] p-3">
-            <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm font-semibold text-[#eef4ff]">
-                Відновлення
-              </p>
-              <input
-                ref={fileInputRef}
-                accept="application/json,.json"
-                className="hidden"
-                onChange={(event) => void handleBackupFileChange(event)}
-                type="file"
-              />
-              <button
-                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-[#314055] px-4 text-sm font-semibold text-[#dce7f5] transition hover:border-[#2dd4bf] hover:bg-[#101a25] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
-                disabled={isBusy}
-                onClick={() => fileInputRef.current?.click()}
-                type="button"
-              >
-                <Upload className="size-4" />
-                Обрати JSON-файл
-              </button>
-            </div>
-
-            {restoreError ? (
-              <div className="mt-3 flex items-start gap-2 rounded-lg border border-[#ef4444]/30 bg-[#2b1216] p-3 text-sm leading-6 text-[#fecaca]">
-                <AlertCircle className="mt-0.5 size-4 shrink-0" />
-                <span>{restoreError}</span>
-              </div>
-            ) : null}
+          <label className="mt-4 flex items-start gap-3 text-sm leading-6 text-text-2">
+            <input
+              checked={isRestoreConfirmed}
+              className="mt-1 size-4 accent-[var(--accent)]"
+              onChange={(event) => setIsRestoreConfirmed(event.target.checked)}
+              type="checkbox"
+            />
+            Розумію, що поточні матеріали, картки й історію буде замінено.
+          </label>
+          <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button disabled={isBusy} size="sm" onClick={clearRestorePreview}>
+              Скасувати
+            </Button>
+            <Button
+              disabled={!isRestoreConfirmed || isBusy}
+              icon={Upload}
+              isLoading={isBusy}
+              size="sm"
+              variant="primary"
+              onClick={() => void handleRestoreClick()}
+            >
+              Відновити
+            </Button>
           </div>
         </div>
+      ) : null}
 
-        <div className="h-full rounded-lg border border-[#4a2428] bg-[#171014] p-3">
-          <div className="flex items-center justify-between gap-3">
-            <h3 className="text-sm font-semibold text-[#eef4ff]">
-              Очищення даних
-            </h3>
-            <Trash2 className="size-4 text-[#ff8d7f]" />
-          </div>
-
-          <div className="mt-3 grid gap-2">
-            <button
-              className="flex min-h-11 w-full items-center justify-between gap-3 rounded-lg border border-[#4a2428] bg-[#1e1115] px-3 py-2 text-left text-sm font-semibold text-[#ffb1a7] transition hover:border-[#ef6351] hover:bg-[#251519] disabled:cursor-not-allowed disabled:opacity-55"
-              disabled={isBusy || materialCount === 0}
-              onClick={confirmClearMaterials}
-              type="button"
-            >
-              <span>Видалити всі матеріали</span>
-              <span className="font-mono text-xs text-[#ff8d7f]">
-                {materialCount}
-              </span>
-            </button>
-            <button
-              className="flex min-h-11 w-full items-center justify-between gap-3 rounded-lg border border-[#4a2428] bg-[#1e1115] px-3 py-2 text-left text-sm font-semibold text-[#ffb1a7] transition hover:border-[#ef6351] hover:bg-[#251519] disabled:cursor-not-allowed disabled:opacity-55"
-              disabled={isBusy || reviewCount === 0}
-              onClick={confirmResetStats}
-              type="button"
-            >
-              <span>Обнулити статистику</span>
-              <span className="font-mono text-xs text-[#ff8d7f]">
-                {reviewCount}
-              </span>
-            </button>
-          </div>
+      <details className="group mt-6 rounded-2xl border border-danger/20 bg-danger-soft/40">
+        <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm font-semibold text-[#ffb4aa] [&::-webkit-details-marker]:hidden">
+          <Trash2 className="size-4" />
+          Небезпечна зона
+        </summary>
+        <div className="grid gap-2 px-4 pb-4 sm:grid-cols-2">
+          <Button
+            className="justify-between"
+            disabled={isBusy || reviewCount === 0}
+            size="sm"
+            variant="danger"
+            onClick={confirmResetStats}
+          >
+            Обнулити статистику
+            <span className="font-mono text-xs opacity-80">{reviewCount}</span>
+          </Button>
+          <Button
+            className="justify-between"
+            disabled={isBusy || materialCount === 0}
+            size="sm"
+            variant="danger"
+            onClick={confirmClearMaterials}
+          >
+            Видалити всі матеріали
+            <span className="font-mono text-xs opacity-80">{materialCount}</span>
+          </Button>
         </div>
-
-        {backupPreview ? (
-          <div className="rounded-lg border border-[#314055] bg-[#0b111a] p-4 xl:col-span-2">
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <PreviewMetric
-                label="Дата копії"
-                value={formatDate(backupPreview.exportedAt)}
-              />
-              <PreviewMetric
-                label="Матеріали"
-                value={`${backupPreview.notes} (${backupPreview.englishNotes} англ. / ${backupPreview.qaNotes} QA)`}
-              />
-              <PreviewMetric label="Картки" value={backupPreview.cards} />
-              <PreviewMetric
-                label="Повторення"
-                value={backupPreview.reviewLogs}
-              />
-            </div>
-            <label className="mt-4 flex items-start gap-3 rounded-lg border border-[#263140] bg-[#101923] p-3 text-sm leading-6 text-[#c7d0dd]">
-              <input
-                checked={isRestoreConfirmed}
-                className="mt-1 size-4 accent-[#2dd4bf]"
-                onChange={(event) => setIsRestoreConfirmed(event.target.checked)}
-                type="checkbox"
-              />
-              <span>
-                Розумію, що поточні матеріали, картки й історія повторень будуть
-                замінені даними з цієї резервної копії.
-              </span>
-            </label>
-            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-xs leading-5 text-[#9aa8ba]">
-                Поточні дані буде замінено.
-              </p>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <button
-                  className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-[#314055] px-4 text-sm font-semibold text-[#dce7f5] transition hover:border-[#2dd4bf] hover:bg-[#101a25] disabled:cursor-not-allowed disabled:opacity-60"
-                  disabled={isBusy}
-                  onClick={clearRestorePreview}
-                  type="button"
-                >
-                  Скасувати
-                </button>
-                <button
-                  className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#2dd4bf] px-4 text-sm font-semibold text-[#03110f] transition hover:bg-[#67e8d7] disabled:cursor-not-allowed disabled:bg-[#3a4b60] disabled:text-[#91a0b3]"
-                  disabled={!isRestoreConfirmed || isBusy}
-                  onClick={() => void handleRestoreClick()}
-                  type="button"
-                >
-                  {isBusy ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <Upload className="size-4" />
-                  )}
-                  Відновити копію
-                </button>
-              </div>
-            </div>
-          </div>
-        ) : null}
-      </div>
+      </details>
     </ShellPanel>
   );
 }

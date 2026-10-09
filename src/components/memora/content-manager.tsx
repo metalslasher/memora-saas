@@ -5,10 +5,10 @@ import {
   AlertCircle,
   BookOpenCheck,
   Check,
-  Code2,
+  ChevronDown,
+  Download,
   FileText,
-  Languages,
-  Loader2,
+  FileUp,
   PauseCircle,
   PlayCircle,
   Plus,
@@ -29,26 +29,69 @@ import {
   type EnglishDraft,
   type QaDraft,
 } from "@/lib/memora/card-generator";
-import { csvTemplate, parseCsvImport, type CsvImportPreview } from "@/lib/memora/csv-import";
+import {
+  csvTemplate,
+  parseCsvImport,
+  type CsvImportPreview,
+} from "@/lib/memora/csv-import";
 import { findDuplicateNotes } from "@/lib/memora/duplicates";
 import type { NoteContentDraft } from "@/lib/memora/remote-store";
-import type { ImportRun, ModuleType, Note, StudyCard } from "@/lib/memora/types";
-import { BrandLockup } from "./layout";
-import { Badge, EmptyState, MiniStat, ShellPanel, TextArea, TextInput } from "./shared-ui";
+import type {
+  ImportRun,
+  ModuleType,
+  Note,
+  ReviewLog,
+  StudyCard,
+} from "@/lib/memora/types";
+import {
+  Badge,
+  Button,
+  Dialog,
+  DialogHeader,
+  EmptyState,
+  MiniStat,
+  PageHeader,
+  StatusBanner,
+  TextArea,
+  TextInput,
+} from "./shared-ui";
+import { SpeakButton } from "./speech";
 import type { ClientImportCommitRow, ImportResultSummary, ItemStatus } from "./types";
 import {
+  downloadTextFile,
   formatDate,
   importRunStats,
   labelCardType,
   labelImportRowStatus,
   labelImportStatus,
   labelSource,
-  labelStatus,
-  normalizeSentence,
   noteMatchesQuery,
+  plural,
   statusRank,
   textValue,
 } from "./utils";
+
+type Filter = "all" | "active" | "suspended" | "weak";
+
+const moduleCopy: Record<
+  ModuleType,
+  { title: string; noun: [string, string, string]; addLabel: string; emptyTitle: string; emptyText: string }
+> = {
+  english: {
+    title: "Англійські слова",
+    noun: ["слово", "слова", "слів"],
+    addLabel: "Додати слово",
+    emptyTitle: "Словник поки порожній",
+    emptyText: "Додай перше слово чи фразу — Memora зробить дві картки: з англійської й на англійську.",
+  },
+  qa: {
+    title: "QA-терміни",
+    noun: ["термін", "терміни", "термінів"],
+    addLabel: "Додати термін",
+    emptyTitle: "Термінів поки немає",
+    emptyText: "Додай перший QA-термін — Memora зробить картки «пояснити термін» і «згадати термін».",
+  },
+};
 
 export function ContentManager({
   cards,
@@ -56,6 +99,7 @@ export function ContentManager({
   isBusy,
   moduleType,
   notes,
+  reviewLogs,
   selectedNote,
   onAddEnglish,
   onAddQa,
@@ -70,6 +114,7 @@ export function ContentManager({
   isBusy: boolean;
   moduleType: ModuleType;
   notes: Note[];
+  reviewLogs: ReviewLog[];
   selectedNote: Note | null;
   onAddEnglish: (draft: EnglishDraft) => Promise<void>;
   onAddQa: (draft: QaDraft) => Promise<void>;
@@ -78,292 +123,365 @@ export function ContentManager({
     skipDuplicates: boolean,
     fileName: string | null,
   ) => Promise<ImportResultSummary>;
-  onNoteContentChange: (
-    noteId: string,
-    content: NoteContentDraft,
-  ) => Promise<void>;
+  onNoteContentChange: (noteId: string, content: NoteContentDraft) => Promise<void>;
   onNoteDelete: (noteId: string) => Promise<void>;
   onNoteSelect: (noteId: string | null) => void;
   onNoteStatusChange: (noteId: string, status: ItemStatus) => void;
 }) {
   const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<Filter>("all");
+  const [panel, setPanel] = useState<"add" | "import" | null>(null);
+  const copy = moduleCopy[moduleType];
+
+  const cardsByNote = useMemo(() => {
+    const map = new Map<string, StudyCard[]>();
+    for (const card of cards) {
+      const list = map.get(card.noteId) ?? [];
+      list.push(card);
+      map.set(card.noteId, list);
+    }
+    return map;
+  }, [cards]);
+
   const normalizedQuery = query.trim().toLowerCase();
-  const filteredNotes = normalizedQuery
-    ? notes.filter((note) => noteMatchesQuery(note, normalizedQuery))
-    : notes;
-  const selectedCards = selectedNote
-    ? cards
-        .filter((card) => card.noteId === selectedNote.id)
-        .sort((a, b) => statusRank(a.status) - statusRank(b.status))
-    : [];
-  const activeCards = cards.filter(
+  const sortedNotes = useMemo(
+    () =>
+      [...notes].sort(
+        (a, b) =>
+          statusRank(a.status) - statusRank(b.status) ||
+          b.createdAt.localeCompare(a.createdAt),
+      ),
+    [notes],
+  );
+  const visibleNotes = sortedNotes.filter((note) => {
+    if (normalizedQuery && !noteMatchesQuery(note, normalizedQuery)) return false;
+    if (filter === "active") return note.status === "active";
+    if (filter === "suspended") return note.status !== "active";
+    if (filter === "weak") {
+      return (cardsByNote.get(note.id) ?? []).some((card) => card.schedule.lapses >= 2);
+    }
+    return true;
+  });
+  const activeCardCount = cards.filter(
     (card) => card.module === moduleType && card.status === "active",
-  );
-  const suspendedCards = cards.filter(
-    (card) => card.module === moduleType && card.status === "suspended",
-  );
+  ).length;
+  const counts: Record<Filter, number> = {
+    all: notes.length,
+    active: notes.filter((note) => note.status === "active").length,
+    suspended: notes.filter((note) => note.status !== "active").length,
+    weak: notes.filter((note) =>
+      (cardsByNote.get(note.id) ?? []).some((card) => card.schedule.lapses >= 2),
+    ).length,
+  };
 
   return (
-    <div className="space-y-4 md:space-y-5">
-      <div className="grid gap-4 xl:grid-cols-[minmax(340px,0.95fr)_minmax(360px,1.05fr)]">
-        <NewMaterialPanel
-          isBusy={isBusy}
-          moduleType={moduleType}
-          notes={notes}
-          onAddEnglish={onAddEnglish}
-          onAddQa={onAddQa}
-          onMergeDuplicate={onNoteContentChange}
-          onNoteSelect={onNoteSelect}
-        />
+    <div className="space-y-5">
+      <PageHeader
+        title={copy.title}
+        description={`${plural(notes.length, copy.noun)} · ${plural(activeCardCount, ["картка", "картки", "карток"])} у навчанні`}
+        action={
+          <>
+            <Button icon={Upload} onClick={() => setPanel("import")}>
+              <span className="hidden sm:inline">Імпорт</span>
+              <span className="sr-only sm:hidden">Імпорт CSV</span>
+            </Button>
+            <Button icon={Plus} variant="primary" onClick={() => setPanel("add")}>
+              {copy.addLabel}
+            </Button>
+          </>
+        }
+      />
 
-        <CsvImportPanel
-          isBusy={isBusy}
-          importRuns={imports}
-          moduleType={moduleType}
-          notes={notes}
-          onImport={onImport}
-        />
-      </div>
+      {notes.length > 0 ? (
+        <div className="flex flex-col gap-3 md:flex-row md:items-center">
+          <label className="flex h-11 min-w-0 shrink-0 items-center gap-2.5 md:flex-1 rounded-xl border border-line-strong bg-surface-1 px-3.5 text-sm transition focus-within:border-accent focus-within:ring-4 focus-within:ring-accent/15">
+            <Search className="size-4 shrink-0 text-faint" />
+            <input
+              aria-label="Пошук"
+              className="min-w-0 flex-1 bg-transparent text-[15px] text-text outline-none placeholder:text-faint md:text-sm"
+              placeholder={moduleType === "english" ? "Знайти слово чи переклад" : "Знайти термін"}
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+            {query ? (
+              <button
+                aria-label="Очистити пошук"
+                className="text-faint hover:text-text"
+                onClick={() => setQuery("")}
+                type="button"
+              >
+                <X className="size-4" />
+              </button>
+            ) : null}
+          </label>
+          <div className="scrollbar-hidden -mx-4 flex gap-1.5 overflow-x-auto px-4 md:mx-0 md:px-0">
+            {(
+              [
+                ["all", "Усі"],
+                ["active", "В навчанні"],
+                ["suspended", "На паузі"],
+                ["weak", "Складні"],
+              ] as Array<[Filter, string]>
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                className={`flex h-9 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition ${
+                  filter === value
+                    ? "border-accent/40 bg-accent-soft text-accent"
+                    : "border-line text-muted hover:text-text"
+                }`}
+                onClick={() => setFilter(value)}
+                type="button"
+              >
+                {label}
+                <span className="font-mono text-[11px] opacity-70">{counts[value]}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
-      <div className="grid gap-3 lg:grid-cols-[minmax(280px,1fr)_120px_120px_120px]">
-        <label className="flex min-h-18 items-center gap-2 rounded-lg border border-[#263140] bg-[#10161f] px-4 text-sm text-[#c7d0dd]">
-          <Search className="size-4 text-[#6f7d90]" />
-          <input
-            className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-[#6f7d90]"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Пошук"
-          />
-        </label>
-        <MiniStat label="Активні" value={activeCards.length.toString()} />
-        <MiniStat label="Пауза" value={suspendedCards.length.toString()} />
-        <MiniStat label="Усього" value={notes.length.toString()} />
-      </div>
-
-      {filteredNotes.length === 0 ? (
-        <ShellPanel className="p-6">
+      {notes.length === 0 ? (
+        <div className="rounded-3xl border border-dashed border-line-strong px-6 py-14">
           <EmptyState
             icon={FileText}
-            title={notes.length === 0 ? "Матеріалів ще немає" : "Нічого не знайдено"}
-            description={
-              notes.length === 0
-                ? "Додай перший матеріал вручну або через CSV."
-                : "Зміни пошук або очисти поле."
+            title={copy.emptyTitle}
+            description={copy.emptyText}
+            action={
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button icon={Plus} variant="primary" onClick={() => setPanel("add")}>
+                  {copy.addLabel}
+                </Button>
+                <Button icon={Upload} onClick={() => setPanel("import")}>
+                  Імпорт з CSV
+                </Button>
+              </div>
             }
           />
-        </ShellPanel>
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
-          {filteredNotes.map((note) => {
-            const noteCards = cards.filter((card) => card.noteId === note.id);
-            const activeNoteCards = noteCards.filter(
-              (card) => card.status === "active",
-            );
-
-            return (
-              <NoteTile
-                key={note.id}
-                activeCardCount={activeNoteCards.length}
-                cardCount={noteCards.length}
-                isSelected={note.id === selectedNote?.id}
-                note={note}
-                onClick={() => onNoteSelect(note.id)}
-              />
-            );
-          })}
         </div>
+      ) : visibleNotes.length === 0 ? (
+        <div className="rounded-3xl border border-line px-6 py-12">
+          <EmptyState
+            icon={Search}
+            title="Нічого не знайдено"
+            description="Спробуй інший запит або зміни фільтр."
+          />
+        </div>
+      ) : (
+        <ul className="overflow-hidden rounded-2xl border border-line bg-surface-2/50">
+          {visibleNotes.map((note, index) => (
+            <NoteRow
+              key={note.id}
+              cards={cardsByNote.get(note.id) ?? []}
+              isFirst={index === 0}
+              note={note}
+              onClick={() => onNoteSelect(note.id)}
+            />
+          ))}
+        </ul>
       )}
 
+      {panel === "add" ? (
+        <Dialog label={copy.addLabel} size="lg" onClose={() => setPanel(null)}>
+          <DialogHeader
+            title={copy.addLabel}
+            subtitle="Картки створяться автоматично й одразу потраплять у практику."
+            onClose={() => setPanel(null)}
+          />
+          <div className="overflow-y-auto">
+            <NewMaterialForm
+              isBusy={isBusy}
+              moduleType={moduleType}
+              notes={notes}
+              onAddEnglish={onAddEnglish}
+              onAddQa={onAddQa}
+              onMergeDuplicate={onNoteContentChange}
+              onOpenNote={(noteId) => {
+                setPanel(null);
+                onNoteSelect(noteId);
+              }}
+            />
+          </div>
+        </Dialog>
+      ) : null}
+
+      {panel === "import" ? (
+        <Dialog label="Імпорт з CSV" size="lg" onClose={() => setPanel(null)}>
+          <DialogHeader
+            title="Імпорт з CSV"
+            subtitle="Додай цілий список за раз — з Google Таблиць чи Excel."
+            onClose={() => setPanel(null)}
+          />
+          <div className="overflow-y-auto">
+            <CsvImportPanel
+              importRuns={imports}
+              isBusy={isBusy}
+              moduleType={moduleType}
+              notes={notes}
+              onImport={onImport}
+            />
+          </div>
+        </Dialog>
+      ) : null}
+
       {selectedNote ? (
-        <NoteDetailModal onClose={() => onNoteSelect(null)}>
-          <NoteDetailPanel
-            cards={selectedCards}
+        <Dialog label="Матеріал" size="xl" onClose={() => onNoteSelect(null)}>
+          <NoteDetail
+            cards={[...(cardsByNote.get(selectedNote.id) ?? [])].sort(
+              (a, b) => statusRank(a.status) - statusRank(b.status),
+            )}
             isBusy={isBusy}
-            moduleType={moduleType}
             note={selectedNote}
+            reviewLogs={reviewLogs}
+            onClose={() => onNoteSelect(null)}
             onNoteContentChange={onNoteContentChange}
             onNoteDelete={onNoteDelete}
-            onClose={() => onNoteSelect(null)}
             onNoteStatusChange={onNoteStatusChange}
           />
-        </NoteDetailModal>
+        </Dialog>
       ) : null}
     </div>
   );
 }
 
-function NoteTile({
-  activeCardCount,
-  cardCount,
-  isSelected,
+function noteSubtitle(note: Note) {
+  return note.module === "english"
+    ? textValue(note.content.translation_uk)
+    : textValue(note.content.short_definition);
+}
+
+function noteProgress(cards: StudyCard[]) {
+  const active = cards.filter((card) => card.status === "active");
+  if (active.length === 0) return { label: "—", level: 0 };
+  if (active.every((card) => card.schedule.reps === 0)) return { label: "нове", level: 0 };
+  const minDays = Math.min(...active.map((card) => card.schedule.scheduled_days));
+  if (minDays >= 21) return { label: "закріплено", level: 3 };
+  if (minDays >= 3) return { label: "вчиться", level: 2 };
+  return { label: "початок", level: 1 };
+}
+
+function NoteRow({
+  cards,
+  isFirst,
   note,
   onClick,
 }: {
-  activeCardCount: number;
-  cardCount: number;
-  isSelected: boolean;
+  cards: StudyCard[];
+  isFirst: boolean;
   note: Note;
   onClick: () => void;
 }) {
+  const progress = noteProgress(cards);
+  const isPaused = note.status !== "active";
+  const lapses = Math.max(0, ...cards.map((card) => card.schedule.lapses));
+
   return (
-    <button
-      className={`rounded-lg border p-4 text-left transition ${
-        isSelected
-          ? "border-[#2dd4bf] bg-[#14352f]"
-          : "border-[#263140] bg-[#10161f] hover:border-[#344052] hover:bg-[#151d28]"
-      }`}
-      onClick={onClick}
-      type="button"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="truncate text-base font-semibold text-[#eef4ff]">
+    <li className={isFirst ? "" : "border-t border-line"}>
+      <button
+        className="flex w-full items-center gap-4 px-4 py-3.5 text-left transition hover:bg-surface-3/50 md:px-5"
+        onClick={onClick}
+        type="button"
+      >
+        <div className="min-w-0 flex-1">
+          <p
+            className={`truncate text-[15px] font-semibold ${isPaused ? "text-muted" : "text-text"}`}
+          >
             {note.title}
           </p>
-          <p className="mt-1 text-xs text-[#9aa8ba]">
-            {labelSource(note.source)}
-          </p>
+          <p className="mt-0.5 truncate text-sm text-muted">{noteSubtitle(note) || "—"}</p>
         </div>
-        <span className="font-mono text-sm text-[#c7d0dd]">{cardCount}</span>
-      </div>
-      <div className="mt-4 flex flex-wrap items-center gap-2">
-        <Badge tone={note.status === "active" ? "green" : "neutral"}>
-          {labelStatus(note.status)}
-        </Badge>
-        <Badge tone="neutral">активних карток: {activeCardCount}</Badge>
-      </div>
-    </button>
-  );
-}
-
-function NoteDetailModal({
-  children,
-  onClose,
-}: {
-  children: React.ReactNode;
-  onClose: () => void;
-}) {
-  return (
-    <div
-      aria-modal="true"
-      aria-label="Деталі матеріалу"
-      className="fixed inset-0 z-50 flex items-stretch justify-center bg-[#02050a]/78 p-0 backdrop-blur-md sm:p-4 lg:p-6"
-      role="dialog"
-    >
-      <button
-        aria-label="Закрити"
-        className="absolute inset-0 cursor-default"
-        onClick={onClose}
-        type="button"
-      />
-      <div className="relative flex w-full max-w-6xl flex-col overflow-hidden bg-[#10161f] sm:rounded-lg sm:border sm:border-[#263140] sm:shadow-[0_28px_90px_rgba(0,0,0,0.48)]">
-        <div className="flex shrink-0 items-center justify-between border-b border-[#263140] bg-[#10161f] px-3 py-3 sm:px-4">
-          <BrandLockup />
-          <button
-            aria-label="Закрити"
-            className="grid size-10 place-items-center rounded-lg border border-[#263140] text-[#c7d0dd] transition hover:border-[#2dd4bf] hover:text-[#52e0c4]"
-            onClick={onClose}
-            type="button"
+        <div className="flex shrink-0 items-center gap-3">
+          {isPaused ? <Badge tone="neutral">пауза</Badge> : null}
+          {lapses >= 2 && !isPaused ? <Badge tone="red">складне</Badge> : null}
+          <span
+            className="hidden w-24 items-center justify-end gap-2 text-xs text-faint sm:flex"
+            title={`Прогрес: ${progress.label}`}
           >
-            <X className="size-5" />
-          </button>
+            {progress.label}
+            <span className="flex gap-0.5">
+              {[1, 2, 3].map((step) => (
+                <span
+                  key={step}
+                  className={`h-3 w-1 rounded-full ${
+                    progress.level >= step ? "bg-accent" : "bg-surface-4"
+                  }`}
+                />
+              ))}
+            </span>
+          </span>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-4">
-          {children}
-        </div>
-      </div>
-    </div>
+      </button>
+    </li>
   );
 }
 
-function NewMaterialPanel({
+function NewMaterialForm({
   isBusy,
   moduleType,
   notes,
   onAddEnglish,
   onAddQa,
   onMergeDuplicate,
-  onNoteSelect,
+  onOpenNote,
 }: {
   isBusy: boolean;
   moduleType: ModuleType;
   notes: Note[];
   onAddEnglish: (draft: EnglishDraft) => Promise<void>;
   onAddQa: (draft: QaDraft) => Promise<void>;
-  onMergeDuplicate: (
-    noteId: string,
-    content: NoteContentDraft,
-  ) => Promise<void>;
-  onNoteSelect: (noteId: string | null) => void;
+  onMergeDuplicate: (noteId: string, content: NoteContentDraft) => Promise<void>;
+  onOpenNote: (noteId: string) => void;
 }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [allowDuplicate, setAllowDuplicate] = useState(false);
-  const [localMessage, setLocalMessage] = useState<string | null>(null);
-  const [english, setEnglish] = useState<EnglishDraft>({
-    lemma: "",
-    translation: "",
-    example: "",
-  });
-  const [qa, setQa] = useState<QaDraft>({
-    term: "",
-    definition: "",
-    example: "",
-  });
-  const normalizedEnglish = useMemo(
-    () => normalizeEnglishDraft(english),
-    [english],
-  );
+  const [added, setAdded] = useState<string[]>([]);
+  const [formKey, setFormKey] = useState(0);
+  const [english, setEnglish] = useState<EnglishDraft>({ lemma: "", translation: "", example: "" });
+  const [qa, setQa] = useState<QaDraft>({ term: "", definition: "", example: "" });
+  const normalizedEnglish = useMemo(() => normalizeEnglishDraft(english), [english]);
   const normalizedQa = useMemo(() => normalizeQaDraft(qa), [qa]);
   const isEnglish = moduleType === "english";
   const canSubmit = isEnglish
     ? Boolean(normalizedEnglish.lemma && normalizedEnglish.translation)
     : Boolean(normalizedQa.term && normalizedQa.definition);
   const previewCards = useMemo(
-    () =>
-      isEnglish
-        ? generateEnglishCards(normalizedEnglish)
-        : generateQaCards(normalizedQa),
+    () => (isEnglish ? generateEnglishCards(normalizedEnglish) : generateQaCards(normalizedQa)),
     [isEnglish, normalizedEnglish, normalizedQa],
   );
   const duplicateMatches = useMemo(
     () =>
       isEnglish
-        ? findDuplicateNotes(notes, {
-            module: "english",
-            lemma: normalizedEnglish.lemma,
-          })
-        : findDuplicateNotes(notes, {
-            module: "qa",
-            term: normalizedQa.term,
-          }),
+        ? findDuplicateNotes(notes, { module: "english", lemma: normalizedEnglish.lemma })
+        : findDuplicateNotes(notes, { module: "qa", term: normalizedQa.term }),
     [isEnglish, normalizedEnglish.lemma, normalizedQa.term, notes],
   );
   const blockingDuplicate = duplicateMatches.length > 0 && !allowDuplicate;
   const submitDisabled = !canSubmit || blockingDuplicate || isBusy || isSubmitting;
   const primaryDuplicate = duplicateMatches.at(0)?.note ?? null;
 
-  function resetLocalState() {
+  function resetForm(title: string) {
+    setEnglish({ lemma: "", translation: "", example: "" });
+    setQa({ term: "", definition: "", example: "" });
     setAllowDuplicate(false);
-    setLocalMessage(null);
+    setAdded((current) => [title, ...current].slice(0, 6));
+    setFormKey((value) => value + 1);
   }
 
   async function submit() {
     if (submitDisabled) return;
-
     setIsSubmitting(true);
-    setLocalMessage(null);
 
     try {
       if (isEnglish) {
         await onAddEnglish(normalizedEnglish);
-        setEnglish({ lemma: "", translation: "", example: "" });
-        setLocalMessage("Матеріал додано.");
+        resetForm(normalizedEnglish.lemma);
       } else {
         await onAddQa(normalizedQa);
-        setQa({ term: "", definition: "", example: "" });
-        setLocalMessage("Матеріал додано.");
+        resetForm(normalizedQa.term);
       }
-      setAllowDuplicate(false);
+    } catch {
+      // The app shows the error toast.
     } finally {
       setIsSubmitting(false);
     }
@@ -371,185 +489,170 @@ function NewMaterialPanel({
 
   async function mergeDuplicate() {
     if (!primaryDuplicate || !canSubmit || isBusy || isSubmitting) return;
-
     setIsSubmitting(true);
-    setLocalMessage(null);
 
     try {
       await onMergeDuplicate(
         primaryDuplicate.id,
-        isEnglish
-          ? englishContentFromDraft(normalizedEnglish)
-          : qaContentFromDraft(normalizedQa),
+        isEnglish ? englishContentFromDraft(normalizedEnglish) : qaContentFromDraft(normalizedQa),
       );
-      onNoteSelect(primaryDuplicate.id);
-      if (isEnglish) {
-        setEnglish({ lemma: "", translation: "", example: "" });
-      } else {
-        setQa({ term: "", definition: "", example: "" });
-      }
-      setAllowDuplicate(false);
-      setLocalMessage("Існуючий матеріал оновлено.");
+      onOpenNote(primaryDuplicate.id);
+    } catch {
+      // The app shows the error toast.
     } finally {
       setIsSubmitting(false);
     }
   }
 
   return (
-    <section
-      aria-label="Новий матеріал"
-      className="rounded-lg border border-[#263140] bg-[#0d131c] p-4"
+    <form
+      className="space-y-4 p-5"
+      onSubmit={(event) => {
+        event.preventDefault();
+        void submit();
+      }}
     >
-      <div className="flex items-center justify-between gap-3">
-        <h3 className="text-sm font-semibold text-[#eef4ff]">Новий матеріал</h3>
-        {isEnglish ? (
-          <Languages className="size-4 text-[#52e0c4]" />
-        ) : (
-          <Code2 className="size-4 text-[#52e0c4]" />
-        )}
-      </div>
-
-      <div className="mt-3 space-y-3">
+      <div key={formKey} className="space-y-4">
         {isEnglish ? (
           <>
             <TextInput
-              label="Слово або фраза"
+              autoComplete="off"
+              autoFocus
+              label="Англійською"
+              placeholder="flaky test"
               value={english.lemma}
               onChange={(lemma) => {
                 setEnglish((current) => ({ ...current, lemma }));
-                resetLocalState();
+                setAllowDuplicate(false);
               }}
-              placeholder="flaky test"
             />
             <TextInput
-              label="Значення"
-              value={english.translation}
-              onChange={(translation) =>
-                setEnglish((current) => ({ ...current, translation }))
-              }
+              autoComplete="off"
+              hint="кілька варіантів — через кому"
+              label="Переклад"
               placeholder="нестабільний тест"
+              value={english.translation}
+              onChange={(translation) => setEnglish((current) => ({ ...current, translation }))}
             />
             <TextInput
-              label="Приклад"
-              value={english.example}
-              onChange={(example) =>
-                setEnglish((current) => ({ ...current, example }))
-              }
+              autoComplete="off"
+              hint="необов’язково"
+              label="Приклад речення"
               placeholder="This flaky test fails only in CI."
+              value={english.example}
+              onChange={(example) => setEnglish((current) => ({ ...current, example }))}
             />
           </>
         ) : (
           <>
             <TextInput
+              autoComplete="off"
+              autoFocus
               label="Термін"
+              placeholder="Smoke testing"
               value={qa.term}
               onChange={(term) => {
                 setQa((current) => ({ ...current, term }));
-                resetLocalState();
+                setAllowDuplicate(false);
               }}
-              placeholder="Smoke testing"
             />
-            <TextInput
-              label="Пояснення"
+            <TextArea
+              label="Пояснення своїми словами"
+              placeholder="Швидка перевірка, що ключові функції працюють після збірки."
+              rows={2}
               value={qa.definition}
-              onChange={(definition) =>
-                setQa((current) => ({ ...current, definition }))
-              }
-              placeholder="Швидка перевірка критичних функцій."
+              onChange={(definition) => setQa((current) => ({ ...current, definition }))}
             />
             <TextInput
+              autoComplete="off"
+              hint="необов’язково"
               label="Приклад"
+              placeholder="Після деплою запускаємо smoke-перевірки."
               value={qa.example}
               onChange={(example) => setQa((current) => ({ ...current, example }))}
-              placeholder="Після деплою запусти smoke-перевірки."
             />
           </>
         )}
       </div>
 
-      {duplicateMatches.length > 0 ? (
-        <div className="mt-3 rounded-lg border border-[#8a6a2d] bg-[#231b0d] p-3 text-sm text-[#f7d58b]">
-          <div className="flex items-center gap-2 font-semibold text-[#ffd98a]">
+      {duplicateMatches.length > 0 && !allowDuplicate ? (
+        <div className="rounded-2xl border border-amber/30 bg-amber-soft p-4 text-sm">
+          <p className="flex items-center gap-2 font-semibold text-amber">
             <AlertCircle className="size-4" />
-            Схожий запис уже є
-          </div>
-          <p className="mt-1 text-xs leading-5">
-            {duplicateMatches.map((match) => match.note.title).join(", ")}
+            Схоже, це вже є: {duplicateMatches.map((match) => match.note.title).join(", ")}
           </p>
-          <div className="mt-3 grid gap-2 sm:grid-cols-3">
-            <button
-              className="rounded-lg border border-[#8a6a2d] px-3 py-2 text-xs font-medium text-[#fff0c2] transition hover:bg-[#3a2e18]"
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button
+              size="sm"
               disabled={!primaryDuplicate}
-              onClick={() => {
-                if (primaryDuplicate) onNoteSelect(primaryDuplicate.id);
-              }}
-              type="button"
+              onClick={() => primaryDuplicate && onOpenNote(primaryDuplicate.id)}
             >
               Відкрити
-            </button>
-            <button
-              className="rounded-lg border border-[#2dd4bf] bg-[#123129] px-3 py-2 text-xs font-semibold text-[#8df3dd] transition hover:bg-[#163b33] disabled:cursor-not-allowed disabled:opacity-55"
+            </Button>
+            <Button
+              size="sm"
+              variant="soft"
               disabled={!primaryDuplicate || !canSubmit || isBusy || isSubmitting}
               onClick={() => void mergeDuplicate()}
-              type="button"
             >
-              Оновити існуючий
-            </button>
-            <button
-              className="rounded-lg bg-[#f2a84a] px-3 py-2 text-xs font-semibold text-[#071018] transition hover:bg-[#ffc063]"
-              onClick={() => setAllowDuplicate(true)}
-              type="button"
-            >
+              Оновити наявний
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setAllowDuplicate(true)}>
               Додати все одно
-            </button>
+            </Button>
           </div>
         </div>
       ) : null}
 
       {previewCards.length > 0 ? (
-        <details className="mt-3 rounded-lg border border-[#263140] bg-[#0b111a] p-3">
-          <summary className="flex cursor-pointer items-center gap-2 text-sm font-semibold text-[#c7d0dd]">
-            <Sparkles className="size-4 text-[#52e0c4]" />
-            Картки: {previewCards.length}
+        <details className="group rounded-2xl border border-line bg-surface-1">
+          <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm font-medium text-text-2 [&::-webkit-details-marker]:hidden">
+            <Sparkles className="size-4 text-accent" />
+            Буде створено {previewCards.length} картки
+            <ChevronDown className="ml-auto size-4 text-faint transition group-open:rotate-180" />
           </summary>
-          <div className="mt-3 space-y-2">
+          <div className="space-y-2 px-4 pb-4">
             {previewCards.map((card) => (
-              <div
-                key={card.type}
-                className="rounded-md border border-[#202938] bg-[#101822] p-2"
-              >
-                <p className="text-xs uppercase tracking-[0.12em] text-[#6f7d90]">
+              <div key={card.type} className="rounded-xl border border-line bg-surface-2 p-3">
+                <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-faint">
                   {labelCardType(card.type)}
                 </p>
-                <p className="mt-1 text-sm font-medium text-[#eef4ff]">
-                  {card.prompt}
-                </p>
+                <p className="mt-1 text-sm text-text">{card.prompt}</p>
+                <p className="mt-1 text-sm text-accent">{card.answer}</p>
               </div>
             ))}
           </div>
         </details>
       ) : null}
 
-      <button
-        className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-[#2dd4bf] px-4 py-3 text-sm font-semibold text-[#071018] transition hover:bg-[#5eead4] disabled:cursor-not-allowed disabled:bg-[#344052] disabled:text-[#8d9aab]"
+      <Button
+        className="w-full"
         disabled={submitDisabled}
-        onClick={() => void submit()}
-        type="button"
+        icon={Plus}
+        isLoading={isSubmitting}
+        size="lg"
+        type="submit"
+        variant="primary"
       >
-        {isSubmitting ? (
-          <Loader2 className="size-4 animate-spin" />
-        ) : (
-          <Plus className="size-4" />
-        )}
-        {blockingDuplicate ? "Схожий запис" : "Додати"}
-      </button>
+        Додати
+      </Button>
 
-      {localMessage ? (
-        <p className="mt-3 rounded-lg border border-[#256b60] bg-[#102b27] px-3 py-2 text-sm text-[#8df3dd]">
-          {localMessage}
-        </p>
+      {added.length > 0 ? (
+        <div className="animate-rise rounded-2xl border border-accent/20 bg-accent-soft/60 p-3">
+          <p className="flex items-center gap-2 text-sm font-medium text-accent">
+            <Check className="size-4" />
+            Додано. Можна вводити наступне.
+          </p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {added.map((title, index) => (
+              <span key={`${title}-${index}`} className="rounded-md bg-surface-2 px-2 py-0.5 text-xs text-text-2">
+                {title}
+              </span>
+            ))}
+          </div>
+        </div>
       ) : null}
-    </section>
+    </form>
   );
 }
 
@@ -575,60 +678,35 @@ function CsvImportPanel({
   const [preview, setPreview] = useState<CsvImportPreview | null>(null);
   const [allowDuplicates, setAllowDuplicates] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
-  const [localMessage, setLocalMessage] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [message, setMessage] = useState<{ tone: "error" | "success"; text: string } | null>(null);
 
   const importableRows = preview
     ? preview.rows.filter(
         (row) =>
-          row.draft &&
-          (row.status === "ready" || (allowDuplicates && row.status === "duplicate")),
+          row.draft && (row.status === "ready" || (allowDuplicates && row.status === "duplicate")),
       )
     : [];
-  const skippedByPreview =
-    preview?.rows.filter((row) => row.status === "duplicate" && !allowDuplicates)
-      .length ?? 0;
-  const visibleIssues =
-    preview?.rows
-      .filter((row) => row.status !== "ready")
-      .slice(0, 4) ?? [];
-  const importTitle =
-    moduleType === "english" ? "Імпорт слів" : "Імпорт QA-термінів";
+  const issues = preview?.rows.filter((row) => row.status !== "ready").slice(0, 5) ?? [];
 
   async function readFile(file: File) {
-    setLocalMessage(null);
+    setMessage(null);
     setAllowDuplicates(false);
+    setFileName(file.name);
 
     if (file.size > 1024 * 1024) {
       setPreview(null);
-      setFileName(file.name);
-      setLocalMessage("Файл завеликий. Краще імпортувати до 1 MB за раз.");
+      setMessage({ tone: "error", text: "Файл завеликий — до 1 МБ за раз." });
       return;
     }
 
-    const text = await file.text();
-    setFileName(file.name);
-    setPreview(parseCsvImport(text, moduleType, notes));
-  }
-
-  function downloadTemplate() {
-    const blob = new Blob([csvTemplate(moduleType)], {
-      type: "text/csv;charset=utf-8",
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = moduleType === "english"
-      ? "memora-english-template.csv"
-      : "memora-qa-template.csv";
-    link.click();
-    URL.revokeObjectURL(url);
+    setPreview(parseCsvImport(await file.text(), moduleType, notes));
   }
 
   async function submitImport() {
     if (!preview || importableRows.length === 0 || isBusy || isImporting) return;
-
     setIsImporting(true);
-    setLocalMessage(null);
+    setMessage(null);
 
     try {
       const result = await onImport(
@@ -643,317 +721,262 @@ function CsvImportPanel({
       );
       setPreview(null);
       setFileName(null);
-      setAllowDuplicates(false);
-      setLocalMessage(
-        result.skippedDuplicates > 0
-          ? `Готово: додано ${result.importedCount}, пропущено схожих записів ${result.skippedDuplicates}, помилок ${result.invalidRows}.`
-          : `Готово: додано ${result.importedCount}, помилок ${result.invalidRows}.`,
-      );
-      if (fileInputRef.current) fileInputRef.current.value = "";
+      setMessage({
+        tone: "success",
+        text: `Додано ${result.importedCount}${
+          result.skippedDuplicates ? `, пропущено схожих ${result.skippedDuplicates}` : ""
+        }${result.invalidRows ? `, з помилками ${result.invalidRows}` : ""}.`,
+      });
     } catch {
-      // Parent surfaces the server action error.
+      // The app shows the error toast.
     } finally {
       setIsImporting(false);
     }
   }
 
-  return (
-    <div className="rounded-lg border border-[#263140] bg-[#0d131c] p-4">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-sm font-semibold text-[#eef4ff]">{importTitle}</p>
-        <Upload className="size-4 text-[#52e0c4]" />
-      </div>
+  const visibleRuns = importRuns.filter((run) =>
+    run.rows.length === 0 ? true : run.rows.some((row) => !row.module || row.module === moduleType),
+  );
 
+  return (
+    <div className="space-y-4 p-5">
       <input
         ref={fileInputRef}
+        accept=".csv,text/csv,text/plain"
         className="hidden"
         type="file"
-        accept=".csv,text/csv,text/plain"
         onChange={(event) => {
           const file = event.target.files?.[0];
+          event.target.value = "";
           if (file) void readFile(file);
         }}
       />
 
-      <div className="mt-3 grid grid-cols-2 gap-2">
-        <button
-          className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[#263140] px-3 py-2 text-sm font-medium text-[#c7d0dd] transition hover:border-[#2dd4bf] hover:text-[#52e0c4] disabled:cursor-not-allowed disabled:opacity-55"
-          disabled={isBusy || isImporting}
-          onClick={() => fileInputRef.current?.click()}
-          type="button"
-        >
-          <FileText className="size-4" />
-          Файл
-        </button>
-        <button
-          className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[#263140] px-3 py-2 text-sm font-medium text-[#c7d0dd] transition hover:border-[#2dd4bf] hover:text-[#52e0c4]"
-          onClick={downloadTemplate}
-          type="button"
-        >
-          <Sparkles className="size-4" />
-          Шаблон
-        </button>
-      </div>
+      <button
+        className={`flex w-full flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed px-4 py-8 text-center transition ${
+          isDragging ? "border-accent bg-accent-soft" : "border-line-strong hover:border-accent/50"
+        }`}
+        disabled={isBusy || isImporting}
+        onClick={() => fileInputRef.current?.click()}
+        onDragLeave={() => setIsDragging(false)}
+        onDragOver={(event) => {
+          event.preventDefault();
+          setIsDragging(true);
+        }}
+        onDrop={(event) => {
+          event.preventDefault();
+          setIsDragging(false);
+          const file = event.dataTransfer.files?.[0];
+          if (file) void readFile(file);
+        }}
+        type="button"
+      >
+        <FileUp className="size-6 text-accent" />
+        <span className="text-sm font-semibold">
+          {fileName ?? "Обери CSV-файл або перетягни сюди"}
+        </span>
+        <span className="text-xs text-muted">
+          {moduleType === "english"
+            ? "Колонки: слово, переклад, приклад"
+            : "Колонки: термін, пояснення, приклад"}
+        </span>
+      </button>
 
-      {fileName ? (
-        <p className="mt-2 truncate text-xs text-[#9aa8ba]">{fileName}</p>
-      ) : null}
+      <button
+        className="inline-flex items-center gap-2 text-sm font-medium text-accent hover:text-accent-strong"
+        onClick={() =>
+          downloadTextFile(
+            moduleType === "english" ? "memora-english-template.csv" : "memora-qa-template.csv",
+            csvTemplate(moduleType),
+            "text/csv;charset=utf-8",
+          )
+        }
+        type="button"
+      >
+        <Download className="size-4" />
+        Завантажити шаблон
+      </button>
 
       {preview ? (
-        <div className="mt-3 space-y-3">
+        <div className="animate-rise space-y-3">
           <div className="grid grid-cols-3 gap-2">
-            <MiniStat label="Готові" value={preview.summary.ready.toString()} />
-            <MiniStat label="Схожі" value={preview.summary.duplicates.toString()} />
-            <MiniStat label="Помилки" value={preview.summary.invalid.toString()} />
+            <MiniStat label="готові" value={preview.summary.ready.toString()} />
+            <MiniStat label="схожі на наявні" value={preview.summary.duplicates.toString()} />
+            <MiniStat label="з помилками" value={preview.summary.invalid.toString()} />
           </div>
 
           {preview.summary.duplicates > 0 ? (
-            <label className="flex items-center gap-2 rounded-lg border border-[#3a2e18] bg-[#15110a] px-3 py-2 text-sm text-[#f7d58b]">
+            <label className="flex items-center gap-2.5 rounded-xl border border-line bg-surface-1 px-3 py-2.5 text-sm text-text-2">
               <input
-                className="accent-[#f2a84a]"
-                type="checkbox"
                 checked={allowDuplicates}
+                className="size-4 accent-[var(--accent)]"
+                type="checkbox"
                 onChange={(event) => setAllowDuplicates(event.target.checked)}
               />
-              Додати навіть схожі записи
+              Додати й схожі записи
             </label>
           ) : null}
 
-          {visibleIssues.length > 0 ? (
-            <div className="space-y-2">
-              {visibleIssues.map((row) => (
-                <div
-                  key={row.rowNumber}
-                  className="rounded-lg border border-[#263140] bg-[#0b111a] p-2 text-xs leading-5 text-[#9aa8ba]"
-                >
-                  <p className="font-medium text-[#c7d0dd]">Рядок {row.rowNumber}</p>
-                  {row.errors.length > 0 ? (
-                    <p>{row.errors.join(" ")}</p>
-                  ) : (
-                    <p>
-                      Схожий запис:{" "}
-                      {row.duplicateMatches
-                        .map((match) => match.note.title)
-                        .join(", ")}
-                    </p>
-                  )}
-                </div>
+          {issues.length > 0 ? (
+            <ul className="space-y-1.5 text-xs leading-5 text-muted">
+              {issues.map((row) => (
+                <li key={row.rowNumber} className="rounded-lg bg-surface-1 px-3 py-2">
+                  <span className="font-medium text-text-2">Рядок {row.rowNumber}: </span>
+                  {row.errors.length > 0
+                    ? row.errors.join(" ")
+                    : `схоже на «${row.duplicateMatches.map((match) => match.note.title).join(", ")}»`}
+                </li>
               ))}
-            </div>
+            </ul>
           ) : null}
 
-          <button
-            className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#2dd4bf] px-4 py-3 text-sm font-semibold text-[#071018] transition hover:bg-[#5eead4] disabled:cursor-not-allowed disabled:bg-[#344052] disabled:text-[#8d9aab]"
+          <Button
+            className="w-full"
             disabled={importableRows.length === 0 || isBusy || isImporting}
+            icon={Check}
+            isLoading={isImporting}
+            size="lg"
+            variant="primary"
             onClick={() => void submitImport()}
-            type="button"
           >
-            {isImporting ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <Check className="size-4" />
-            )}
-            Додати {importableRows.length} з CSV
-          </button>
-
-          {skippedByPreview > 0 ? (
-            <p className="text-xs leading-5 text-[#9aa8ba]">
-              Схожі записи буде пропущено: {skippedByPreview}.
-            </p>
-          ) : null}
+            Додати {importableRows.length}
+          </Button>
         </div>
       ) : null}
 
-      {localMessage ? (
-        <p className="mt-3 rounded-lg border border-[#263140] bg-[#151d28] px-3 py-2 text-sm leading-6 text-[#c7d0dd]">
-          {localMessage}
-        </p>
-      ) : null}
+      {message ? <StatusBanner tone={message.tone} message={message.text} /> : null}
 
-      <ImportHistoryPanel importRuns={importRuns} moduleType={moduleType} />
+      {visibleRuns.length > 0 ? (
+        <details className="group rounded-2xl border border-line">
+          <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm font-medium text-text-2 [&::-webkit-details-marker]:hidden">
+            Історія імпорту
+            <span className="font-mono text-xs text-faint">{visibleRuns.length}</span>
+            <ChevronDown className="ml-auto size-4 text-faint transition group-open:rotate-180" />
+          </summary>
+          <ul className="scrollbar-soft max-h-64 divide-y divide-line overflow-y-auto border-t border-line">
+            {visibleRuns.map((run) => {
+              const stats = importRunStats(run, moduleType);
+              const problem = run.rows.find(
+                (row) => (!row.module || row.module === moduleType) && row.status !== "imported",
+              );
+              return (
+                <li key={run.id} className="px-4 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="truncate text-sm font-medium">{run.fileName}</p>
+                    <span className="shrink-0 text-xs text-faint">{formatDate(run.createdAt)}</span>
+                  </div>
+                  <p className="mt-1 text-xs text-muted">
+                    {labelImportStatus(run.status)} · додано {stats.imported} · пропущено{" "}
+                    {stats.skipped} · помилок {stats.invalid}
+                  </p>
+                  {problem ? (
+                    <p className="mt-1 text-xs text-faint">
+                      Рядок {problem.rowNumber}:{" "}
+                      {problem.errors.length > 0
+                        ? problem.errors.join(" ")
+                        : labelImportRowStatus(problem.status)}
+                    </p>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        </details>
+      ) : null}
     </div>
   );
 }
 
-function ImportHistoryPanel({
-  importRuns,
-  moduleType,
-}: {
-  importRuns: ImportRun[];
-  moduleType: ModuleType;
-}) {
-  const visibleRuns = importRuns
-    .filter((run) =>
-      run.rows.length === 0
-        ? true
-        : run.rows.some((row) => !row.module || row.module === moduleType),
-    );
-
-  return (
-    <div className="mt-4 border-t border-[#263140] pt-3">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-sm font-medium text-[#c7d0dd]">Історія</p>
-        <span className="font-mono text-sm text-[#9aa8ba]">{visibleRuns.length}</span>
-      </div>
-
-      {visibleRuns.length === 0 ? (
-        <div className="mt-3">
-          <div className="rounded-lg border border-[#263140] bg-[#0b111a] p-5">
-            <EmptyState
-              icon={FileText}
-              title="CSV ще не завантажували"
-              description="Імпорти з'являться тут."
-            />
-          </div>
-        </div>
-      ) : (
-        <div className="scrollbar-hidden mt-3 max-h-44 space-y-2 overflow-y-auto">
-          {visibleRuns.map((run) => {
-            const stats = importRunStats(run, moduleType);
-            const issueRows = run.rows
-              .filter(
-                (row) =>
-                  (!row.module || row.module === moduleType) &&
-                  row.status !== "imported",
-              )
-              .slice(0, 2);
-
-            return (
-              <div
-                key={run.id}
-                className="rounded-lg border border-[#263140] bg-[#0b111a] p-3"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-[#eef4ff]">
-                      {run.fileName}
-                    </p>
-                    <p className="mt-1 text-xs text-[#9aa8ba]">
-                      {formatDate(run.createdAt)} / {labelImportStatus(run.status)}
-                    </p>
-                  </div>
-                  <span className="font-mono text-xs text-[#9aa8ba]">
-                    {run.rowCount}
-                  </span>
-                </div>
-                <div className="mt-3 grid grid-cols-3 gap-2">
-                  <MiniStat label="Додано" value={stats.imported.toString()} />
-                  <MiniStat label="Пропущено" value={stats.skipped.toString()} />
-                  <MiniStat label="Помилки" value={stats.invalid.toString()} />
-                </div>
-                {issueRows.length > 0 ? (
-                  <div className="mt-3 space-y-1 text-xs leading-5 text-[#9aa8ba]">
-                    {issueRows.map((row) => (
-                      <p key={row.id}>
-                        Рядок {row.rowNumber}:{" "}
-                        {row.errors.length > 0
-                          ? row.errors.join(" ")
-                          : labelImportRowStatus(row.status)}
-                      </p>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function NoteDetailPanel({
+function NoteDetail({
   cards,
   isBusy,
-  moduleType,
   note,
+  reviewLogs,
+  onClose,
   onNoteContentChange,
   onNoteDelete,
-  onClose,
   onNoteStatusChange,
 }: {
   cards: StudyCard[];
   isBusy: boolean;
-  moduleType: ModuleType;
-  note: Note | null;
+  note: Note;
+  reviewLogs: ReviewLog[];
   onClose: () => void;
-  onNoteContentChange: (
-    noteId: string,
-    content: NoteContentDraft,
-  ) => Promise<void>;
+  onNoteContentChange: (noteId: string, content: NoteContentDraft) => Promise<void>;
   onNoteDelete: (noteId: string) => Promise<void>;
   onNoteStatusChange: (noteId: string, status: ItemStatus) => void;
 }) {
-  if (!note) {
-    return (
-      <ShellPanel className="grid min-h-[520px] place-items-center p-6">
-        <EmptyState
-          icon={FileText}
-          title="Матеріал не вибрано"
-          description="Вибери матеріал зі списку."
-        />
-      </ShellPanel>
-    );
-  }
+  const logs = reviewLogs.filter((log) => log.noteId === note.id);
+  const correct = logs.filter((log) => log.wasCorrect).length;
+  const isActive = note.status === "active";
 
   return (
-    <div className="p-1 sm:p-2">
-      <div className="flex flex-col gap-4 border-b border-[#263140] pb-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="min-w-0">
-          <h2 className="truncate text-2xl font-semibold">{note.title}</h2>
-          <p className="mt-1 text-sm text-[#9aa8ba]">
-            {moduleType === "english" ? "Англійська" : "QA"} / {formatDate(note.createdAt)}
-          </p>
-        </div>
-        <StatusControls
-          disabled={isBusy}
-          status={note.status}
-          onChange={(status) => onNoteStatusChange(note.id, status)}
-          onDelete={() => {
-            const shouldDelete = window.confirm(
-              "Видалити цей матеріал разом з усіма його картками й історією повторень?",
-            );
-            if (!shouldDelete) return;
-
-            void onNoteDelete(note.id).then(onClose).catch(() => undefined);
-          }}
-        />
-      </div>
-
-      <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-        <NoteEditForm
-          key={note.id}
-          isBusy={isBusy}
-          note={note}
-          onSave={(content) => onNoteContentChange(note.id, content)}
-        />
-
-        <div>
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h3 className="text-lg font-semibold">Картки</h3>
-              <p className="mt-1 text-sm text-[#9aa8ba]">{cards.length}</p>
+    <>
+      <DialogHeader
+        title={
+          <span className="flex items-center gap-2">
+            {note.title}
+            {note.module === "english" ? <SpeakButton className="-my-2" text={note.title} /> : null}
+          </span>
+        }
+        subtitle={`${labelSource(note.source)} · ${formatDate(note.createdAt)}${
+          logs.length ? ` · ${logs.length} відповідей, згадано ${Math.round((correct / logs.length) * 100)}%` : ""
+        }`}
+        onClose={onClose}
+      />
+      <div className="overflow-y-auto">
+        <div className="grid gap-6 p-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+          <div>
+            <NoteEditForm
+              key={`${note.id}:${JSON.stringify(note.content)}`}
+              isBusy={isBusy}
+              note={note}
+              onSave={(content) => onNoteContentChange(note.id, content)}
+            />
+            <div className="mt-6 flex flex-wrap gap-2 border-t border-line pt-5">
+              <Button
+                disabled={isBusy}
+                icon={isActive ? PauseCircle : PlayCircle}
+                size="sm"
+                onClick={() => onNoteStatusChange(note.id, isActive ? "suspended" : "active")}
+              >
+                {isActive ? "Поставити на паузу" : "Повернути в навчання"}
+              </Button>
+              <Button
+                disabled={isBusy}
+                icon={Trash2}
+                size="sm"
+                variant="danger"
+                onClick={() => {
+                  const confirmed = window.confirm(
+                    `Видалити «${note.title}» разом з картками й історією повторень?`,
+                  );
+                  if (confirmed) void onNoteDelete(note.id).then(onClose).catch(() => undefined);
+                }}
+              >
+                Видалити
+              </Button>
             </div>
-            <BookOpenCheck className="size-5 text-[#2dd4bf]" />
           </div>
-          <div className="mt-4 space-y-3">
-            {cards.length === 0 ? (
-              <div className="rounded-lg border border-[#263140] bg-[#0d131c] p-5">
-                <EmptyState
-                  icon={BookOpenCheck}
-                  title="Карток для цього матеріалу немає"
-                  description="Заповни поля й збережи."
-                />
-              </div>
-            ) : (
-              cards.map((card) => (
-                <CardRow key={card.id} card={card} />
-              ))
-            )}
+
+          <div>
+            <h3 className="flex items-center gap-2 text-sm font-semibold text-text-2">
+              <BookOpenCheck className="size-4 text-accent" />
+              Картки
+            </h3>
+            <div className="mt-3 space-y-2.5">
+              {cards.length === 0 ? (
+                <p className="rounded-xl border border-line p-4 text-sm text-muted">
+                  Карток немає — заповни поля й збережи.
+                </p>
+              ) : (
+                cards.map((card) => <CardRow key={card.id} card={card} />)
+              )}
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -969,237 +992,97 @@ function NoteEditForm({
   const [draft, setDraft] = useState<NoteContentDraft>(() => ({ ...note.content }));
   const [isSaving, setIsSaving] = useState(false);
   const hasChanges = JSON.stringify(draft) !== JSON.stringify(note.content);
-
   const canSave =
     note.module === "english"
-      ? textValue(draft.lemma_en) && textValue(draft.translation_uk)
-      : textValue(draft.term) && textValue(draft.short_definition);
+      ? textValue(draft.lemma_en).trim() && textValue(draft.translation_uk).trim()
+      : textValue(draft.term).trim() && textValue(draft.short_definition).trim();
 
-  function quickFixDraft() {
-    if (note.module === "english") {
-      setDraft((current) => ({
-        ...current,
-        lemma_en: textValue(current.lemma_en).trim(),
-        translation_uk: textValue(current.translation_uk).trim(),
-        part_of_speech: textValue(current.part_of_speech).trim() || "phrase",
-        example_en: normalizeSentence(textValue(current.example_en)),
-      }));
-      return;
-    }
-
-    setDraft((current) => ({
-      ...current,
-      term: textValue(current.term).trim(),
-      short_definition: normalizeSentence(textValue(current.short_definition)),
-      example: normalizeSentence(textValue(current.example)),
-    }));
+  function field(key: string) {
+    return {
+      value: textValue(draft[key]),
+      onChange: (value: string) => setDraft((current) => ({ ...current, [key]: value })),
+    };
   }
 
   async function save() {
     if (!canSave || isBusy || isSaving) return;
-
     setIsSaving(true);
     try {
-      await onSave(draft);
+      const clean = Object.fromEntries(
+        Object.entries(draft).map(([key, value]) => [
+          key,
+          typeof value === "string" ? value.trim().replace(/\s+/g, " ") : value,
+        ]),
+      );
+      await onSave(clean);
+    } catch {
+      // The app shows the error toast.
     } finally {
       setIsSaving(false);
     }
   }
 
   return (
-    <div className="rounded-lg border border-[#263140] bg-[#0d131c] p-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h3 className="text-lg font-semibold">Зміст</h3>
-        </div>
-        <div className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
-          <button
-            className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[#263140] px-3 py-2 text-sm font-medium text-[#c7d0dd] transition hover:border-[#2dd4bf] hover:text-[#52e0c4] sm:w-auto"
-            disabled={isBusy || isSaving}
-            onClick={quickFixDraft}
-            type="button"
-          >
-            <Sparkles className="size-4" />
-            Очистити
-          </button>
-          <button
-            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#2dd4bf] px-3 py-2 text-sm font-semibold text-[#071018] transition hover:bg-[#5eead4] disabled:cursor-not-allowed disabled:bg-[#344052] disabled:text-[#8d9aab] sm:w-auto"
-            disabled={!canSave || !hasChanges || isBusy || isSaving}
-            onClick={() => void save()}
-            type="button"
-          >
-            {isSaving ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <Save className="size-4" />
-            )}
-            Зберегти
-          </button>
-        </div>
-      </div>
-
-      <div className="mt-4 space-y-3">
-        {note.module === "english" ? (
-          <>
-            <TextInput
-              label="Слово або фраза"
-              value={textValue(draft.lemma_en)}
-              onChange={(lemma_en) =>
-                setDraft((current) => ({ ...current, lemma_en }))
-              }
-              placeholder="bug"
-            />
-            <TextInput
-              label="Значення"
-              value={textValue(draft.translation_uk)}
-              onChange={(translation_uk) =>
-                setDraft((current) => ({ ...current, translation_uk }))
-              }
-              placeholder="дефект у програмі"
-            />
-            <TextInput
-              label="Частина мови"
-              value={textValue(draft.part_of_speech)}
-              onChange={(part_of_speech) =>
-                setDraft((current) => ({ ...current, part_of_speech }))
-              }
-              placeholder="phrase"
-            />
-            <TextArea
-              label="Приклад"
-              value={textValue(draft.example_en)}
-              onChange={(example_en) =>
-                setDraft((current) => ({ ...current, example_en }))
-              }
-              placeholder="I found a bug in the checkout flow."
-            />
-          </>
-        ) : (
-          <>
-            <TextInput
-              label="Термін"
-              value={textValue(draft.term)}
-              onChange={(term) => setDraft((current) => ({ ...current, term }))}
-              placeholder="Regression testing"
-            />
-            <TextArea
-              label="Пояснення"
-              value={textValue(draft.short_definition)}
-              onChange={(short_definition) =>
-                setDraft((current) => ({ ...current, short_definition }))
-              }
-              placeholder="Перевірка, що вже робочий функціонал не зламався після змін."
-            />
-            <TextArea
-              label="Приклад"
-              value={textValue(draft.example)}
-              onChange={(example) =>
-                setDraft((current) => ({ ...current, example }))
-              }
-              placeholder="Після фікса checkout перевір payment і cart сценарії."
-            />
-          </>
-        )}
-      </div>
-    </div>
+    <form
+      className="space-y-4"
+      onSubmit={(event) => {
+        event.preventDefault();
+        void save();
+      }}
+    >
+      {note.module === "english" ? (
+        <>
+          <TextInput label="Англійською" {...field("lemma_en")} />
+          <TextInput hint="варіанти — через кому" label="Переклад" {...field("translation_uk")} />
+          <TextInput hint="noun, verb, phrase…" label="Частина мови" {...field("part_of_speech")} />
+          <TextArea label="Приклад речення" rows={2} {...field("example_en")} />
+        </>
+      ) : (
+        <>
+          <TextInput label="Термін" {...field("term")} />
+          <TextArea label="Пояснення" rows={3} {...field("short_definition")} />
+          <TextArea label="Приклад" rows={2} {...field("example")} />
+        </>
+      )}
+      <Button
+        disabled={!canSave || !hasChanges || isBusy || isSaving}
+        icon={Save}
+        isLoading={isSaving}
+        type="submit"
+        variant="primary"
+      >
+        Зберегти зміни
+      </Button>
+      {hasChanges ? (
+        <p className="text-xs text-faint">Картки оновляться, прогрес повторень збережеться.</p>
+      ) : null}
+    </form>
   );
 }
 
 function CardRow({ card }: { card: StudyCard }) {
+  const due = new Date(card.schedule.due);
+  const [now] = useState(() => Date.now());
+  const isDue = due.getTime() <= now;
+
   return (
-    <div className="rounded-lg border border-[#263140] bg-[#0d131c] p-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge tone="neutral">{labelCardType(card.type)}</Badge>
-        <span className="font-mono text-xs text-[#9aa8ba]">
-          наступний раз: {formatDate(card.schedule.due)}
+    <div className={`rounded-xl border border-line bg-surface-1 p-4 ${card.status !== "active" ? "opacity-60" : ""}`}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-[11px] font-medium uppercase tracking-[0.12em] text-faint">
+          {labelCardType(card.type)}
+        </span>
+        <span className="text-xs text-muted">
+          {card.status !== "active"
+            ? "на паузі"
+            : card.schedule.reps === 0
+              ? "ще не вивчалась"
+              : isDue
+                ? "пора повторити"
+                : `далі: ${formatDate(card.schedule.due)}`}
         </span>
       </div>
-      <div className="mt-3 space-y-3">
-        <CardField label="Питання" value={card.prompt} strong />
-        <CardField label="Відповідь" value={card.answer} />
-        {card.explanation ? (
-          <CardField label="Пояснення" value={card.explanation} />
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
-function CardField({
-  label,
-  strong = false,
-  value,
-}: {
-  label: string;
-  strong?: boolean;
-  value: string;
-}) {
-  return (
-    <div>
-      <p className="text-xs font-medium uppercase tracking-[0.12em] text-[#6f7d90]">
-        {label}
-      </p>
-      <p
-        className={`mt-1 text-sm leading-6 ${
-          strong ? "font-medium text-[#eef4ff]" : "text-[#c7d0dd]"
-        }`}
-      >
-        {value}
-      </p>
-    </div>
-  );
-}
-
-function StatusControls({
-  disabled,
-  status,
-  onChange,
-  onDelete,
-}: {
-  disabled: boolean;
-  status: ItemStatus;
-  onChange: (status: ItemStatus) => void;
-  onDelete: () => void;
-}) {
-  const controls = [
-    { status: "active" as const, label: "В навчанні", icon: PlayCircle },
-    { status: "suspended" as const, label: "Пауза", icon: PauseCircle },
-  ];
-
-  return (
-    <div className="grid w-full grid-cols-3 gap-2 sm:w-auto">
-      {controls.map((control) => {
-        const Icon = control.icon;
-        const isActive = status === control.status;
-
-        return (
-          <button
-            key={control.status}
-            className={`inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-lg border px-3 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-55 ${
-              isActive
-                ? "border-[#2dd4bf] bg-[#14352f] text-[#52e0c4]"
-                : "border-[#263140] text-[#9aa8ba] hover:bg-[#151d28]"
-            }`}
-            disabled={disabled || isActive}
-            onClick={() => onChange(control.status)}
-            title={control.label}
-            type="button"
-          >
-            <Icon className="size-4" />
-            <span>{control.label}</span>
-          </button>
-        );
-      })}
-      <button
-        className="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-[#4a2428] px-3 py-2 text-sm font-medium text-[#ff8d7f] transition hover:border-[#ef6351] hover:bg-[#2a1518] disabled:cursor-not-allowed disabled:opacity-55"
-        disabled={disabled}
-        onClick={onDelete}
-        title="Видалити матеріал"
-        type="button"
-      >
-        <Trash2 className="size-4" />
-        <span>Видалити</span>
-      </button>
+      <p className="mt-2 text-sm font-medium text-text">{card.prompt}</p>
+      <p className="mt-1 text-sm text-accent">{card.answer}</p>
     </div>
   );
 }
