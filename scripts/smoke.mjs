@@ -95,7 +95,7 @@ function section(page, label) {
 }
 
 async function assertLandingAndLogin(page) {
-  await expect(page.getByRole("heading", { level: 1 })).toContainText("Згадуй.");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Запам’ятовуй");
   await expect(page.getByRole("button", { name: "Почати навчання", exact: true }).first()).toBeVisible();
 
   // The interactive demo card works without an account.

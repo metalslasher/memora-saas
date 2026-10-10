@@ -344,8 +344,23 @@ export function MemoraApp({
 
   async function handleSignUp(email: string, password: string) {
     setAuthMessage(null);
-    const { data, error } = await supabase.auth.signUp({ email, password });
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo:
+          typeof window === "undefined" ? undefined : window.location.origin,
+      },
+    });
     if (error) throw error;
+
+    // Supabase hides existing accounts: it "succeeds" with no identities and
+    // sends no email, so tell the learner to sign in instead.
+    if (data.user && (data.user.identities?.length ?? 0) === 0) {
+      throw new Error(
+        "Акаунт з таким email уже існує. Увійди або скористайся «Забули пароль?».",
+      );
+    }
 
     if (!data.session) {
       setAuthMessage(
