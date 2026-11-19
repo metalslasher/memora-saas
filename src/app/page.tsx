@@ -1,7 +1,5 @@
-import { MemoraApp } from "@/components/memora-app";
+import { LandingPage } from "@/components/memora/landing-page";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-
-export const dynamic = "force-dynamic";
 
 export default async function Home() {
   const supabase = await createSupabaseServerClient();
@@ -9,5 +7,5 @@ export default async function Home() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  return <MemoraApp initialUser={user} />;
+  return <LandingPage isSignedIn={Boolean(user)} />;
 }

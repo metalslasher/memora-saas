@@ -1,8 +1,10 @@
 "use client";
 
 import { ArrowRight, RotateCcw, ShieldCheck } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { checkAnswer } from "@/lib/memora/answer-check";
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { AuthModal } from "./auth";
 import { LogoMark, Wordmark } from "./brand";
 import { Hero } from "./landing/hero";
@@ -10,33 +12,85 @@ import { Reveal } from "./landing/motion";
 import { Bento, CurveSection, Faq, Marquee, ScrollStatement, StickySteps } from "./landing/sections";
 import { Badge, buttonClass, Kbd } from "./shared-ui";
 import { SpeakButton } from "./speech";
+import { hardNavigate } from "./hard-navigate";
 
 type AuthMode = "sign-in" | "sign-up";
 
-type LandingPageProps = {
-  statusMessage: string | null;
-  onResetPassword: (email: string) => Promise<void>;
-  onSignIn: (email: string, password: string) => Promise<void>;
-  onSignUp: (email: string, password: string) => Promise<void>;
-};
-
-export function LandingPage({
-  statusMessage,
-  onResetPassword,
-  onSignIn,
-  onSignUp,
-}: LandingPageProps) {
+export function LandingPage({ isSignedIn }: { isSignedIn: boolean }) {
+  const [supabase] = useState(() => createSupabaseBrowserClient());
   const [authMode, setAuthMode] = useState<AuthMode>("sign-up");
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+
+  // Email links (sign-up confirmation, password reset) land here with a
+  // one-time code; the browser client exchanges it and we move on.
+  useEffect(() => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "PASSWORD_RECOVERY") hardNavigate("/app/settings?recovery=1");
+      else if (event === "SIGNED_IN" && session && !isSignedIn) hardNavigate("/app");
+    });
+    return () => subscription.unsubscribe();
+  }, [isSignedIn, supabase]);
 
   function openAuth(mode: AuthMode) {
+    if (isSignedIn) {
+      hardNavigate("/app");
+      return;
+    }
     setAuthMode(mode);
     setIsAuthOpen(true);
   }
 
+  async function signIn(email: string, password: string) {
+    setStatusMessage(null);
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+    hardNavigate("/app");
+  }
+
+  async function signUp(email: string, password: string) {
+    setStatusMessage(null);
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { emailRedirectTo: window.location.origin },
+    });
+    if (error) throw error;
+
+    // Supabase hides existing accounts: it "succeeds" with no identities and
+    // sends no email, so tell the learner to sign in instead.
+    if (data.user && (data.user.identities?.length ?? 0) === 0) {
+      throw new Error("Акаунт з таким email уже існує. Увійди або скористайся «Забули пароль?».");
+    }
+    if (data.session) {
+      hardNavigate("/app");
+      return;
+    }
+    setStatusMessage(
+      "Акаунт створено. Ми надіслали лист для підтвердження — перейди за посиланням, і можна починати.",
+    );
+  }
+
+  async function resetPassword(email: string) {
+    const cleanEmail = email.trim();
+    if (!cleanEmail) throw new Error("Вкажи email, на який надіслати лист.");
+    setStatusMessage(null);
+    const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
+      redirectTo: window.location.origin,
+    });
+    if (error) throw error;
+    setStatusMessage("Лист для відновлення пароля надіслано. Перевір пошту.");
+  }
+
   return (
     <div className="min-h-svh overflow-x-clip bg-ink text-text">
-      <NavBar onSignIn={() => openAuth("sign-in")} onStart={() => openAuth("sign-up")} />
+      <NavBar
+        isSignedIn={isSignedIn}
+        onSignIn={() => openAuth("sign-in")}
+        onStart={() => openAuth("sign-up")}
+      />
 
       <main>
         <Hero onStart={() => openAuth("sign-up")} />
@@ -65,16 +119,24 @@ export function LandingPage({
           initialMode={authMode}
           statusMessage={statusMessage}
           onClose={() => setIsAuthOpen(false)}
-          onResetPassword={onResetPassword}
-          onSignIn={onSignIn}
-          onSignUp={onSignUp}
+          onResetPassword={resetPassword}
+          onSignIn={signIn}
+          onSignUp={signUp}
         />
       ) : null}
     </div>
   );
 }
 
-function NavBar({ onSignIn, onStart }: { onSignIn: () => void; onStart: () => void }) {
+function NavBar({
+  isSignedIn,
+  onSignIn,
+  onStart,
+}: {
+  isSignedIn: boolean;
+  onSignIn: () => void;
+  onStart: () => void;
+}) {
   const [isScrolled, setIsScrolled] = useState(false);
 
   useEffect(() => {
@@ -110,14 +172,21 @@ function NavBar({ onSignIn, onStart }: { onSignIn: () => void; onStart: () => vo
             </a>
           ))}
         </nav>
-        <div className="flex items-center gap-1">
-          <button className={buttonClass("ghost", "sm", "rounded-full")} onClick={onSignIn} type="button">
-            Увійти
-          </button>
-          <button className={buttonClass("primary", "sm", "rounded-full px-4")} onClick={onStart} type="button">
-            Почати
-          </button>
-        </div>
+        {isSignedIn ? (
+          <Link className={buttonClass("primary", "sm", "rounded-full px-4")} href="/app">
+            Відкрити Memora
+            <ArrowRight className="size-4" />
+          </Link>
+        ) : (
+          <div className="flex items-center gap-1">
+            <button className={buttonClass("ghost", "sm", "rounded-full")} onClick={onSignIn} type="button">
+              Увійти
+            </button>
+            <button className={buttonClass("primary", "sm", "rounded-full px-4")} onClick={onStart} type="button">
+              Почати
+            </button>
+          </div>
+        )}
       </div>
     </header>
   );

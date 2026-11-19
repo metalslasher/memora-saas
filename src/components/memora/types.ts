@@ -1,56 +1,29 @@
-import {
-  BarChart3,
-  Code2,
-  FileText,
-  Languages,
-  Target,
-  UserCircle,
-} from "lucide-react";
-import type { CsvImportDraft } from "@/lib/memora/csv-import";
-import type { StudyMode } from "@/lib/memora/types";
-
-export type AppView = "today" | "english" | "qa" | "analytics" | "account" | "help";
-
-export type ItemStatus = "active" | "suspended" | "archived";
+import { BarChart3, CircleHelp, Languages, Target, UserCircle } from "lucide-react";
 
 export type IconType = typeof Target;
 
-export type ImportResultSummary = {
-  importedCount: number;
-  skippedDuplicates: number;
-  invalidRows: number;
-};
-
-export type ClientImportCommitRow = {
-  rowNumber: number;
-  draft?: CsvImportDraft;
-  errors?: string[];
-  raw?: Record<string, string>;
-};
-
-export const levelOptions = [
-  { value: "", label: "Не обрано" },
-  { value: "beginner", label: "Початковий" },
-  { value: "intermediate", label: "Середній" },
-  { value: "advanced", label: "Впевнений" },
-];
-
-export const modeLabels: Record<StudyMode, string> = {
-  daily: "Усе",
-  "english-productive": "Англійська",
-  "qa-interview": "QA",
-};
-
-export const navigationItems: Array<{
-  view: AppView;
+export type NavItem = {
+  href: string;
   label: string;
-  shortLabel: string;
   icon: IconType;
-}> = [
-  { view: "today", label: "Практика", shortLabel: "Практика", icon: Target },
-  { view: "english", label: "Англійські слова", shortLabel: "Слова", icon: Languages },
-  { view: "qa", label: "QA-терміни", shortLabel: "QA", icon: Code2 },
-  { view: "analytics", label: "Прогрес", shortLabel: "Прогрес", icon: BarChart3 },
-  { view: "account", label: "Профіль", shortLabel: "Профіль", icon: UserCircle },
-  { view: "help", label: "Довідка", shortLabel: "Довідка", icon: FileText },
+  /** Shown in the mobile bottom tab bar. */
+  inTabBar: boolean;
+};
+
+export const navigationItems: NavItem[] = [
+  { href: "/app", label: "Практика", icon: Target, inTabBar: true },
+  { href: "/app/words", label: "Слова", icon: Languages, inTabBar: true },
+  { href: "/app/progress", label: "Прогрес", icon: BarChart3, inTabBar: true },
+  { href: "/app/settings", label: "Профіль", icon: UserCircle, inTabBar: true },
+  { href: "/app/help", label: "Довідка", icon: CircleHelp, inTabBar: false },
 ];
+
+export function isNavActive(href: string, pathname: string) {
+  if (href === "/app") return pathname === "/app";
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+export function sectionTitle(pathname: string) {
+  if (pathname === "/app") return "Memora";
+  return navigationItems.find((item) => isNavActive(item.href, pathname))?.label ?? "Memora";
+}

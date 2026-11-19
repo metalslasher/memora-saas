@@ -3,9 +3,7 @@
 import type * as React from "react";
 import { useEffect, useId, useState } from "react";
 import { AlertCircle, Check, Eye, EyeOff, Loader2, X } from "lucide-react";
-import type { StudyMode } from "@/lib/memora/types";
 import type { IconType } from "./types";
-import { modeLabels } from "./types";
 
 export function ShellPanel({
   children,
@@ -238,32 +236,6 @@ export function SegmentedControl<T extends string>({
         );
       })}
     </div>
-  );
-}
-
-export function ModeSelector({
-  className = "",
-  counts,
-  value,
-  onChange,
-}: {
-  className?: string;
-  counts?: Partial<Record<StudyMode, number>>;
-  value: StudyMode;
-  onChange: (mode: StudyMode) => void;
-}) {
-  return (
-    <SegmentedControl
-      ariaLabel="Що повторювати"
-      className={className}
-      options={(Object.keys(modeLabels) as StudyMode[]).map((mode) => ({
-        value: mode,
-        label: modeLabels[mode],
-        count: counts?.[mode],
-      }))}
-      value={value}
-      onChange={onChange}
-    />
   );
 }
 

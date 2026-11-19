@@ -23,6 +23,10 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   devIndicators: false,
+  experimental: {
+    // JSON backup restore goes through a Server Action (Vercel caps bodies at 4.5 MB).
+    serverActions: { bodySizeLimit: "4mb" },
+  },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
