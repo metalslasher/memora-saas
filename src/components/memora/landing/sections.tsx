@@ -29,14 +29,14 @@ const marqueeTop = [
 ];
 
 const marqueeBottom = [
-  "Regression testing",
-  "Boundary values",
-  "Smoke testing",
-  "Equivalence partitioning",
-  "Test plan",
-  "Severity vs priority",
-  "Retest",
-  "Acceptance criteria",
+  "figure out",
+  "follow up",
+  "get used to",
+  "by the way",
+  "look forward to",
+  "come up with",
+  "on the same page",
+  "reliable",
 ];
 
 export function Marquee() {
@@ -111,7 +111,7 @@ export function ScrollStatement() {
 const steps = [
   {
     title: "Додай, що хочеш запам’ятати",
-    text: "Слово, фразу чи QA-термін — за 10 секунд вручну або цілим списком із таблиці. Memora сама зробить картки в обидва боки.",
+    text: "Слово чи фразу — за 10 секунд вручну або цілим списком із таблиці. Memora сама зробить картки в обидва боки.",
   },
   {
     title: "Згадай без підказки",
@@ -594,7 +594,7 @@ function ImportVisual() {
 
 function PhoneNavVisual() {
   const active = useCycle(4, 1300);
-  const labels = ["Практика", "Слова", "QA", "Прогрес"];
+  const labels = ["Практика", "Слова", "Прогрес", "Профіль"];
 
   return (
     <div className="w-full max-w-sm rounded-2xl border border-line bg-surface-1 p-2">
@@ -740,7 +740,7 @@ const faq = [
   ["Чим це краще за звичайні флешкартки?", "Звичайні картки змушують повторювати все підряд. Memora показує кожну картку тоді, коли ти от-от її забудеш — часу йде менше, а пам’ятаєш довше."],
   ["Обов’язково писати відповідь?", "Ні. Можна згадати подумки й одразу відкрити відповідь. Але якщо напишеш — Memora порівняє й підкаже, наскільки точно вийшло."],
   ["Чи зручно на телефоні?", "Так, інтерфейс зроблено під телефон: нижня навігація, великі кнопки оцінки. Додай Memora на головний екран — і вона відкриватиметься як застосунок."],
-  ["Чи можна вчити свої слова й терміни?", "Звісно. Стартові картки — лише приклад. Додавай власні вручну або імпортуй цілий список із таблиці."],
+  ["Чи можна вчити свої слова?", "Звісно. Стартові картки — лише приклад. Додавай власні вручну або імпортуй цілий список із таблиці."],
 ];
 
 export function Faq() {

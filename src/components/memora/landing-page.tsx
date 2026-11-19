@@ -125,21 +125,18 @@ function NavBar({ onSignIn, onStart }: { onSignIn: () => void; onStart: () => vo
 
 const demoCards = [
   {
-    module: "english" as const,
     prompt: "Як сказати англійською: нестабільний тест?",
     answer: "flaky test",
     example: "This flaky test fails only in CI.",
     speak: "flaky test",
   },
   {
-    module: "qa" as const,
-    prompt: "Яка техніка тест-дизайну перевіряє значення на межах діапазонів?",
-    answer: "Boundary value analysis",
-    example: "Для поля 1–100 перевіряємо 0, 1, 100 і 101.",
-    speak: "",
+    prompt: "Як сказати англійською: звикнути до чогось?",
+    answer: "get used to",
+    example: "You'll get used to it after a week or two.",
+    speak: "get used to",
   },
   {
-    module: "english" as const,
     prompt: "Що українською означає «to deploy»?",
     answer: "розгорнути, викотити реліз",
     example: "We deploy to production every Friday.",
@@ -195,9 +192,7 @@ function DemoCard() {
       <article key={index} className="animate-card overflow-hidden rounded-[29px] bg-gradient-to-b from-surface-3 to-surface-2">
         <div className="flex items-center justify-between px-5 pt-5">
           <div className="flex gap-1.5">
-            <Badge tone={card.module === "english" ? "green" : "violet"}>
-              {card.module === "english" ? "Англійська" : "QA"}
-            </Badge>
+            <Badge tone="green">Англійська</Badge>
             <Badge tone="violet">Нова</Badge>
           </div>
           <span className="font-mono text-xs text-faint">
