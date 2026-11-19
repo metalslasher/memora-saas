@@ -1,78 +1,45 @@
 import { describe, expect, it } from "vitest";
-import { parseCsvImport } from "./csv-import";
-import type { Note } from "./types";
+import { csvTemplate, MAX_IMPORT_ROWS, parseWordsCsv } from "./csv-import";
 
-const existingEnglishNote: Note = {
-  id: "note-existing-flaky",
-  module: "english",
-  title: "flaky test",
-  status: "active",
-  source: "user",
-  tags: ["english", "user"],
-  content: {
-    lemma_en: "flaky test",
-    translation_uk: "нестабільний тест",
-  },
-  createdAt: new Date(0).toISOString(),
-};
-
-describe("csv import", () => {
-  it("parses English CSV rows and marks existing duplicates", () => {
-    const preview = parseCsvImport(
-      [
-        "lemma_en,translation_uk,part_of_speech,example_en",
-        "flaky test,нестабільний тест,phrase,This flaky test fails only in CI.",
-        "edge case,крайній випадок,phrase,This edge case breaks validation.",
-      ].join("\n"),
-      "english",
-      [existingEnglishNote],
-    );
-
-    expect(preview.summary).toEqual({
-      total: 2,
-      ready: 1,
-      duplicates: 1,
-      invalid: 0,
-    });
-    expect(preview.rows[0].status).toBe("duplicate");
-    expect(preview.rows[1].draft).toMatchObject({
-      lemma: "edge case",
-      translation: "крайній випадок",
-      partOfSpeech: "phrase",
+describe("parseWordsCsv", () => {
+  it("parses the template", () => {
+    const preview = parseWordsCsv(csvTemplate(), new Set());
+    expect(preview.summary).toEqual({ total: 2, ready: 2, duplicates: 0, invalid: 0 });
+    expect(preview.rows[0].draft).toEqual({
+      lemma: "figure out",
+      translation: "розібратися, зрозуміти",
+      partOfSpeech: "phrasal verb",
+      example: "I'm still trying to figure out how this works.",
     });
   });
 
-  it("supports semicolon-delimited QA CSV with quoted separators", () => {
-    const preview = parseCsvImport(
-      [
-        "term;short_definition;example",
-        '"Smoke testing";"Швидка перевірка, що критичні функції працюють";"Після деплою: run smoke tests."',
-      ].join("\n"),
-      "qa",
-      [],
-    );
-
-    expect(preview.summary.ready).toBe(1);
-    expect(preview.rows[0].draft).toMatchObject({
-      term: "Smoke testing",
-      definition: "Швидка перевірка, що критичні функції працюють",
-      example: "Після деплою: run smoke tests.",
-    });
+  it("accepts Ukrainian headers and semicolons", () => {
+    const preview = parseWordsCsv("слово;переклад\nhandle;впоратися", new Set());
+    expect(preview.rows[0]).toMatchObject({ status: "ready", draft: { lemma: "handle", translation: "впоратися" } });
   });
 
-  it("reports missing required headers and invalid rows", () => {
-    const missingHeader = parseCsvImport("lemma_en,example_en\nbug,text", "english", []);
+  it("flags duplicates of the library and of earlier rows", () => {
+    const preview = parseWordsCsv("word,translation\nDeadline,дедлайн\nissue,проблема\nissue,питання", new Set(["deadline"]));
+    expect(preview.rows.map((row) => row.status)).toEqual(["duplicate", "ready", "duplicate"]);
+    expect(preview.rows[2].duplicateOf).toBe("повторює рядок 3");
+  });
 
-    expect(missingHeader.summary.invalid).toBe(1);
-    expect(missingHeader.rows[0].errors[0]).toContain("Не вистачає колонок");
+  it("reports invalid rows and missing columns", () => {
+    expect(parseWordsCsv("lemma_en,translation_uk\nhello,", new Set()).rows[0]).toMatchObject({
+      status: "invalid",
+      errors: ["Немає українського перекладу."],
+    });
+    expect(parseWordsCsv("foo,bar\n1,2", new Set()).rows[0].errors[0]).toMatch(/Не вистачає колонок/);
+    expect(parseWordsCsv("", new Set()).rows[0].errors).toEqual(["CSV-файл порожній."]);
+  });
 
-    const invalidRow = parseCsvImport(
-      "term,short_definition\nRegression testing,",
-      "qa",
-      [],
-    );
+  it("limits the number of rows", () => {
+    const rows = Array.from({ length: MAX_IMPORT_ROWS + 1 }, (_, i) => `w${i},с${i}`);
+    expect(parseWordsCsv(["lemma,translation", ...rows].join("\n"), new Set()).summary.invalid).toBe(1);
+  });
 
-    expect(invalidRow.summary.invalid).toBe(1);
-    expect(invalidRow.rows[0].errors).toContain("Немає українського пояснення.");
+  it("handles quoted cells with commas and quotes", () => {
+    const preview = parseWordsCsv('lemma,translation,example\nsay,"казати, говорити","He said ""hi""."', new Set());
+    expect(preview.rows[0].draft).toMatchObject({ translation: "казати, говорити", example: 'He said "hi".' });
   });
 });

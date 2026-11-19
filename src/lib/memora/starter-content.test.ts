@@ -1,27 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { hasUkrainianSignal } from "./language-policy";
-import { starterCards, starterNotes } from "./starter-content";
+import { lemmaKey } from "./duplicates";
+import { starterWords } from "./starter-content";
+import { wordDraftErrors } from "./word-content";
 
-describe("starter content", () => {
-  it("keeps the starter deck compact and complete", () => {
-    expect(starterNotes).toHaveLength(6);
-    expect(starterCards).toHaveLength(8);
-  });
-
-  it("does not contain mojibake artifacts", () => {
-    const serialized = JSON.stringify({ starterCards, starterNotes });
-
-    expect(serialized).not.toMatch(/[ÐÑ]/);
-  });
-
-  it("uses Ukrainian support text for prompts and explanations", () => {
-    for (const card of starterCards) {
-      expect(hasUkrainianSignal(card.explanation)).toBe(true);
-
-      if (card.module === "qa") {
-        expect(hasUkrainianSignal(card.prompt)).toBe(true);
-        expect(hasUkrainianSignal(card.answer)).toBe(true);
-      }
+describe("starter words", () => {
+  it("is a small set of valid, unique English words with examples", () => {
+    expect(starterWords.length).toBeGreaterThanOrEqual(8);
+    expect(starterWords.length).toBeLessThanOrEqual(12);
+    expect(new Set(starterWords.map((word) => lemmaKey(word.lemma))).size).toBe(starterWords.length);
+    for (const word of starterWords) {
+      expect(wordDraftErrors({ lemma: word.lemma, translation: word.content.translations.join(", ") })).toEqual([]);
+      expect(word.content.examples[0]?.en).toBeTruthy();
+      expect(word.content.examples[0]?.uk).toBeTruthy();
     }
   });
 });

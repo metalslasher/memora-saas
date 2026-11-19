@@ -1,0 +1,82 @@
+"use server";
+
+import { requireActionContext } from "../data/context";
+import {
+  getPracticeQueue,
+  getPracticeSummary,
+  gradeCard,
+  setCardStatus,
+  undoReview,
+} from "../data/practice";
+import { getProfile } from "../data/profile";
+import type {
+  CardStatus,
+  PracticeCard,
+  PracticeSummary,
+  ReviewOutcome,
+  ReviewRating,
+  StoredSchedule,
+} from "../types";
+import { validateCardStatus, validateId, validateReviewInput } from "../validation";
+import { fail, ok, type ActionResult } from "./result";
+
+/** Grades one card; the client has already moved on optimistically. */
+export async function gradeCardAction(input: {
+  cardId: string;
+  rating: ReviewRating;
+  responseText: string;
+  elapsedMs: number;
+}): Promise<ActionResult<ReviewOutcome>> {
+  try {
+    const review = validateReviewInput(input);
+    const { supabase } = await requireActionContext();
+    return ok(await gradeCard(supabase, review));
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+export async function undoReviewAction(
+  logId: string,
+): Promise<ActionResult<{ cardId: string; schedule: StoredSchedule }>> {
+  try {
+    const cleanId = validateId(logId, "Оцінку");
+    const { supabase } = await requireActionContext();
+    return ok(await undoReview(supabase, cleanId));
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+export async function setCardStatusAction(
+  cardId: string,
+  status: CardStatus,
+): Promise<ActionResult> {
+  try {
+    const cleanId = validateId(cardId, "Картку");
+    const cleanStatus = validateCardStatus(status);
+    const { supabase } = await requireActionContext();
+    await setCardStatus(supabase, cleanId, cleanStatus);
+    return ok();
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+/** Reloads the queue, allowing `extraNew` new cards beyond today's limit. */
+export async function loadPracticeAction(
+  extraNew: number,
+): Promise<ActionResult<{ cards: PracticeCard[]; summary: PracticeSummary }>> {
+  try {
+    const extra = Number.isInteger(extraNew) ? Math.min(Math.max(extraNew, 0), 100) : 0;
+    const { supabase, user } = await requireActionContext();
+    const timezone = (await getProfile(supabase, user.id))?.timezone ?? "UTC";
+    const [cards, summary] = await Promise.all([
+      getPracticeQueue(supabase, timezone, extra),
+      getPracticeSummary(supabase, timezone),
+    ]);
+    return ok({ cards, summary });
+  } catch (error) {
+    return fail(error);
+  }
+}
