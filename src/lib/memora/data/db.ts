@@ -10,7 +10,6 @@ type ScheduleColumns = Pick<
   | "due"
   | "stability"
   | "difficulty"
-  | "elapsed_days"
   | "scheduled_days"
   | "learning_steps"
   | "reps"
@@ -20,14 +19,13 @@ type ScheduleColumns = Pick<
 >;
 
 export const scheduleColumns =
-  "due,stability,difficulty,elapsed_days,scheduled_days,learning_steps,reps,lapses,state,last_review";
+  "due,stability,difficulty,scheduled_days,learning_steps,reps,lapses,state,last_review";
 
 export function scheduleFromRow(row: ScheduleColumns): StoredSchedule {
   return {
     due: row.due,
     stability: row.stability,
     difficulty: row.difficulty,
-    elapsed_days: row.elapsed_days,
     scheduled_days: row.scheduled_days,
     learning_steps: row.learning_steps,
     reps: row.reps,
@@ -42,7 +40,6 @@ export function scheduleToRow(schedule: StoredSchedule): ScheduleColumns {
     due: schedule.due,
     stability: schedule.stability,
     difficulty: schedule.difficulty,
-    elapsed_days: schedule.elapsed_days,
     scheduled_days: schedule.scheduled_days,
     learning_steps: schedule.learning_steps,
     reps: schedule.reps,

@@ -39,7 +39,19 @@ describe("word content", () => {
       translation: "надійний, певний",
       partOfSpeech: "adjective",
       example: "We need a more reliable way.",
+      accepted: "",
+      synonyms: "",
     });
+  });
+
+  it("edits accepted variants and synonyms only when the form has them", () => {
+    const base = { translations: ["надійний"], examples: [], synonyms: ["dependable"], accepted: ["relyable"] };
+    const draft = { lemma: "reliable", translation: "надійний" };
+    expect(contentFromDraft(draft, base)).toMatchObject({ synonyms: ["dependable"], accepted: ["relyable"] });
+
+    const edited = contentFromDraft({ ...draft, synonyms: "dependable, trustworthy", accepted: "" }, base);
+    expect(edited.synonyms).toEqual(["dependable", "trustworthy"]);
+    expect(edited).not.toHaveProperty("accepted");
   });
 
   it("keeps enriched fields and the example translation when editing", () => {

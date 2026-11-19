@@ -4,7 +4,7 @@ import { createStoredSchedule, scheduleReview } from "./scheduler";
 
 const reviewedAt = new Date("2026-11-18T10:00:00.000Z");
 const before = createStoredSchedule(reviewedAt);
-const after = scheduleReview(before, "good", reviewedAt).schedule;
+const after = scheduleReview("card-1", before, "good", reviewedAt).schedule;
 
 const word: BackupWord = {
   lemma: "reliable",

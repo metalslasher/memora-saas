@@ -7,8 +7,14 @@ import { validateId } from "@/lib/memora/validation";
 
 export const metadata: Metadata = { title: "Слово · Memora" };
 
-export default async function WordPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+export default async function WordPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ edit?: string }>;
+}) {
+  const [{ id }, { edit }] = await Promise.all([params, searchParams]);
   let wordId: string;
   try {
     wordId = validateId(id, "Слово");
@@ -21,5 +27,7 @@ export default async function WordPage({ params }: { params: Promise<{ id: strin
   if (!word) notFound();
   const snapshot = crypto.randomUUID();
 
-  return <WordDetailView key={snapshot} initialWord={word} snapshot={snapshot} />;
+  const focusField = edit === "translation" || edit === "example" ? edit : null;
+
+  return <WordDetailView key={snapshot} focusField={focusField} initialWord={word} snapshot={snapshot} />;
 }

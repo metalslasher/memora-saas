@@ -1,15 +1,15 @@
-import { defaultCardKinds } from "../card-render";
+import { exerciseOrder } from "../card-render";
+import { startingKinds } from "../exercise-unlock";
 import { lemmaKey } from "../duplicates";
 import { starterWords } from "../starter-content";
 import type {
   WordContent,
   WordDetail,
-  WordDraft,
   WordListItem,
   WordSource,
   WordStatus,
 } from "../types";
-import { contentFromDraft, readWordContent, translationText } from "../word-content";
+import { contentFromDraft, readWordContent, translationText, type NormalizedWordDraft } from "../word-content";
 import { wordProgress } from "../word-progress";
 import { check, isUniqueViolation, maybe, must, scheduleColumns, scheduleFromRow, type Db } from "./db";
 
@@ -87,7 +87,7 @@ export async function getWordDetail(db: Db, id: string): Promise<WordDetail | nu
         status: card.status,
         schedule: scheduleFromRow(card),
       }))
-      .sort((a, b) => defaultCardKinds.indexOf(a.kind) - defaultCardKinds.indexOf(b.kind)),
+      .sort((a, b) => exerciseOrder.indexOf(a.kind) - exerciseOrder.indexOf(b.kind)),
     reviews: { total: totalResult.count ?? 0, correct: correctResult.count ?? 0 },
   };
 }
@@ -95,8 +95,9 @@ export async function getWordDetail(db: Db, id: string): Promise<WordDetail | nu
 export type NewWord = { lemma: string; content: WordContent; source: WordSource };
 
 /**
- * Inserts words with their recognition + recall cards. If the cards cannot
- * be created the words are removed again, so no word is left without cards.
+ * Inserts words with their starting card (recognition; the other exercises
+ * are unlocked by practice). If the cards cannot be created the words are
+ * removed again, so no word is left without cards.
  */
 export async function insertWordsWithCards(db: Db, words: NewWord[]) {
   if (words.length === 0) return [];
@@ -108,7 +109,7 @@ export async function insertWordsWithCards(db: Db, words: NewWord[]) {
   );
 
   const cards = inserted.flatMap((word) =>
-    defaultCardKinds.map((kind) => ({ user_word_id: word.id, kind })),
+    startingKinds.map((kind) => ({ user_word_id: word.id, kind })),
   );
   const { error } = await db.from("cards").insert(cards);
   if (error) {
@@ -119,7 +120,7 @@ export async function insertWordsWithCards(db: Db, words: NewWord[]) {
   return inserted.map((row) =>
     toWordListItem({
       ...row,
-      cards: defaultCardKinds.map(() => ({
+      cards: startingKinds.map(() => ({
         status: "active" as const,
         reps: 0,
         lapses: 0,
@@ -130,7 +131,7 @@ export async function insertWordsWithCards(db: Db, words: NewWord[]) {
   );
 }
 
-export async function addWord(db: Db, draft: Required<WordDraft>): Promise<WordListItem> {
+export async function addWord(db: Db, draft: NormalizedWordDraft): Promise<WordListItem> {
   try {
     const [word] = await insertWordsWithCards(db, [
       { lemma: draft.lemma, content: contentFromDraft(draft), source: "manual" },
@@ -155,7 +156,7 @@ export async function seedStarterWords(db: Db) {
 }
 
 /** Applies the edit form; fields the form does not show are preserved. */
-export async function updateWord(db: Db, id: string, draft: Required<WordDraft>) {
+export async function updateWord(db: Db, id: string, draft: NormalizedWordDraft) {
   const current = must(await db.from("user_words").select("content").eq("id", id).single());
   const content = contentFromDraft(draft, readWordContent(current.content));
   const { data, error } = await db

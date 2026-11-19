@@ -21,13 +21,23 @@ export function splitTranslations(value: string) {
   ).slice(0, MAX_LIST);
 }
 
-export function normalizeWordDraft(draft: WordDraft): Required<WordDraft> {
-  return {
+/**
+ * A cleaned draft. `accepted` / `synonyms` stay undefined when the form did
+ * not have them (short add form, CSV), so stored lists are kept.
+ */
+export type NormalizedWordDraft = Required<Omit<WordDraft, "accepted" | "synonyms">> &
+  Pick<WordDraft, "accepted" | "synonyms">;
+
+export function normalizeWordDraft(draft: WordDraft): NormalizedWordDraft {
+  const normalized: NormalizedWordDraft = {
     lemma: cleanText(draft.lemma),
     translation: cleanText(draft.translation),
     partOfSpeech: cleanText(draft.partOfSpeech ?? ""),
     example: cleanText(draft.example ?? ""),
   };
+  if (draft.accepted !== undefined) normalized.accepted = cleanText(draft.accepted);
+  if (draft.synonyms !== undefined) normalized.synonyms = cleanText(draft.synonyms);
+  return normalized;
 }
 
 /** Returns Ukrainian error messages; empty when the draft is valid. */
@@ -41,10 +51,13 @@ export function wordDraftErrors(draft: WordDraft) {
   }
   if (normalized.example.length > MAX_TEXT) errors.push("Приклад задовгий (до 1000 символів).");
   if (normalized.partOfSpeech.length > 40) errors.push("Частина мови задовга.");
+  if ((normalized.accepted ?? "").length > MAX_TEXT || (normalized.synonyms ?? "").length > MAX_TEXT) {
+    errors.push("Список варіантів задовгий (до 1000 символів).");
+  }
   return errors;
 }
 
-export function validateWordDraft(draft: WordDraft): Required<WordDraft> {
+export function validateWordDraft(draft: WordDraft): NormalizedWordDraft {
   const errors = wordDraftErrors(draft);
   if (errors.length > 0) throw new Error(errors[0]);
   return normalizeWordDraft(draft);
@@ -76,6 +89,14 @@ export function contentFromDraft(
   };
   if (normalized.partOfSpeech) next.part_of_speech = normalized.partOfSpeech;
   else delete next.part_of_speech;
+  // Absent from a draft (CSV rows, the short add form) = keep what is stored.
+  for (const key of ["accepted", "synonyms"] as const) {
+    const value = normalized[key];
+    if (value === undefined) continue;
+    const list = splitTranslations(value);
+    if (list.length > 0) next[key] = list;
+    else delete next[key];
+  }
   return next;
 }
 
@@ -85,6 +106,8 @@ export function draftFromContent(lemma: string, content: WordContent): Required<
     translation: content.translations.join(", "),
     partOfSpeech: content.part_of_speech ?? "",
     example: content.examples[0]?.en ?? "",
+    accepted: (content.accepted ?? []).join(", "),
+    synonyms: (content.synonyms ?? []).join(", "),
   };
 }
 
@@ -105,7 +128,7 @@ export function readWordContent(value: Json | unknown): WordContent {
   const ipa = cleanText(record.ipa);
   if (ipa) content.ipa = ipa;
 
-  for (const key of ["collocations", "synonyms", "common_mistakes"] as const) {
+  for (const key of ["accepted", "collocations", "synonyms", "common_mistakes"] as const) {
     const list = readStringList(record[key]);
     if (list.length > 0) content[key] = list;
   }

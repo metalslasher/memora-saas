@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { AppShell } from "@/components/memora/app-shell";
 import { getAppContext, loadPracticeSummary } from "@/lib/memora/data/context";
 import { getStreak } from "@/lib/memora/data/progress";
-import { heldBackNew } from "@/lib/memora/queue";
+import { heldBackNew } from "@/lib/memora/pace";
 
 export const metadata: Metadata = {
   title: "Memora",
@@ -16,7 +16,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     loadPracticeSummary(),
     cookies(),
   ]);
-  const dueCount = summary.dueReviews + summary.newReady - heldBackNew(summary, 0);
+  const dueCount = summary.dueWords + summary.newReady - heldBackNew(summary, 0);
 
   return (
     <AppShell

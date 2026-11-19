@@ -1,14 +1,13 @@
 import type { Database } from "@/lib/supabase/database.types";
-import type { LearningSettings, Profile } from "../types";
-import { learningSettingsToJson, readLearningSettings } from "../validation";
+import type { Profile } from "../types";
 import { check, isUniqueViolation, maybe, must, type Db } from "./db";
 import { seedStarterWords } from "./words";
 
-const profileColumns = "id,timezone,daily_minutes,goals,settings";
+const profileColumns = "id,timezone,daily_minutes,goals";
 
 type ProfileRow = Pick<
   Database["public"]["Tables"]["profiles"]["Row"],
-  "id" | "timezone" | "daily_minutes" | "goals" | "settings"
+  "id" | "timezone" | "daily_minutes" | "goals"
 >;
 
 export function mapProfile(row: ProfileRow): Profile {
@@ -17,7 +16,6 @@ export function mapProfile(row: ProfileRow): Profile {
     timezone: row.timezone,
     dailyMinutes: row.daily_minutes,
     goals: row.goals,
-    settings: readLearningSettings(row.settings),
   };
 }
 
@@ -55,27 +53,11 @@ export async function ensureProfile(db: Db, userId: string): Promise<Profile> {
   return mapProfile(data);
 }
 
-export async function updateLearningSettings(
-  db: Db,
-  userId: string,
-  settings: LearningSettings,
-): Promise<LearningSettings> {
-  const current = must(
-    await db.from("profiles").select("settings").eq("id", userId).single(),
-  );
-  const base =
-    typeof current.settings === "object" && current.settings && !Array.isArray(current.settings)
-      ? current.settings
-      : {};
+export async function updateDailyMinutes(db: Db, userId: string, minutes: number) {
   const row = must(
-    await db
-      .from("profiles")
-      .update({ settings: { ...base, ...learningSettingsToJson(settings) } })
-      .eq("id", userId)
-      .select("settings")
-      .single(),
+    await db.from("profiles").update({ daily_minutes: minutes }).eq("id", userId).select("daily_minutes").single(),
   );
-  return readLearningSettings(row.settings);
+  return row.daily_minutes;
 }
 
 export async function updateTimezone(db: Db, userId: string, timezone: string) {

@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { unwrap } from "@/lib/memora/actions/result";
 import { addWordAction, updateWordAction } from "@/lib/memora/actions/words";
-import { cardKindLabels, defaultCardKinds, renderCard } from "@/lib/memora/card-render";
+import { cardKindLabels, renderCard } from "@/lib/memora/card-render";
 import { findSimilarWords } from "@/lib/memora/duplicates";
+import { lockedKinds } from "@/lib/memora/exercise-unlock";
 import type { WordDraft, WordListItem } from "@/lib/memora/types";
 import { contentFromDraft, normalizeWordDraft, wordDraftErrors } from "@/lib/memora/word-content";
 import { useShell } from "../app-shell";
@@ -34,7 +35,7 @@ export function AddWordForm({
   const previews = useMemo(() => {
     if (!canSubmit) return [];
     const content = contentFromDraft(normalized);
-    return defaultCardKinds.map((kind) => ({ kind, ...renderCard(kind, normalized.lemma, content) }));
+    return lockedKinds([], normalized.lemma, content).map((kind) => renderCard(kind, normalized.lemma, content));
   }, [canSubmit, normalized]);
   const isBlocked = similar.exact !== null || (similar.close.length > 0 && !allowSimilar);
   const submitDisabled = !canSubmit || isBlocked || isSubmitting;
@@ -139,7 +140,8 @@ export function AddWordForm({
         <details className="group rounded-2xl border border-line bg-surface-1">
           <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm font-medium text-text-2 [&::-webkit-details-marker]:hidden">
             <Sparkles className="size-4 text-accent" />
-            Буде створено {previews.length} картки
+            Вправи для слова: {previews.length}
+            <span className="font-normal text-faint">· відкриваються поступово</span>
             <ChevronDown className="ml-auto size-4 text-faint transition group-open:rotate-180" />
           </summary>
           <div className="space-y-2 px-4 pb-4">
@@ -148,7 +150,7 @@ export function AddWordForm({
                 <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-faint">
                   {cardKindLabels[card.kind]} · {card.instruction}
                 </p>
-                <p className="mt-1 text-sm text-text">{card.cue}</p>
+                <p className="mt-1 text-sm text-text">{card.cue || card.audio}</p>
                 <p className="mt-1 text-sm text-accent">{card.answer}</p>
               </div>
             ))}

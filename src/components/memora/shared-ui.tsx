@@ -375,18 +375,23 @@ export function TextArea({
   value,
   onChange,
   placeholder,
+  autoFocus,
+  hint,
   rows = 3,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  autoFocus?: boolean;
+  hint?: React.ReactNode;
   rows?: number;
 }) {
   return (
     <label className="block">
-      <FieldLabel>{label}</FieldLabel>
+      <FieldLabel hint={hint}>{label}</FieldLabel>
       <textarea
+        autoFocus={autoFocus}
         className={`mt-1.5 resize-none py-3 leading-6 ${fieldClass}`}
         rows={rows}
         value={value}
