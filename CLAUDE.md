@@ -8,8 +8,8 @@ Memora — веб-тренажер англійської для україно�
 1. Прочитай `docs/roadmap.md`: розділ **«Поточний стан»** (що робимо зараз)
    і **«Журнал рішень»** (що вже вирішено, не перепитувати).
 2. `git status` + `git log --oneline -5`.
-3. Документи в `docs/`, крім `roadmap.md`, — **застарілі** (стара PDF-специфікація
-   з QA/Redis). Не спирайся на них; їх замінять у пачці 0.
+3. Актуальні доки: `docs/product.md` (цільовий продукт), `docs/architecture.md`
+   (поточна архітектура коду). Після змін коду/структури оновлюй architecture.md.
 
 ## Власник і стиль роботи
 - Власник — користувач і валідатор, не програміст. Пиши йому українською,
@@ -42,9 +42,10 @@ Memora — веб-тренажер англійської для україно�
   Postgres + RLS), `ts-fsrs`, Vitest, Playwright. Хостинг Vercel (Hobby),
   Supabase Free (засинає після ~7 днів без запитів).
 - Supabase project id: `whqfpktgwwctqhqvsoqm` (MCP-інструменти доступні).
-- Команди: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, `pnpm smoke`.
-  Локальний dev: `node node_modules/next/dist/bin/next dev` (поки `pnpm dev`
-  зламаний — фікс у пачці 0).
+- Команди: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, `pnpm smoke`, `pnpm test-user`.
+  Локальний dev: `pnpm dev` (у `pnpm-workspace.yaml` має бути `packages: ["."]`,
+  інакше pnpm 9 падає з «packages field missing»). Тестовий акаунт:
+  `pnpm test-user`; smoke: `pnpm smoke` (див. docs/architecture.md).
 - Секрети тільки в `.env.local` (gitignored) і Vercel env. Ніколи в git/чат.
 - AI-ключі (OpenAI, Google) — тільки на сервері. Жорсткий ліміт витрат
   $10/міс на весь проєкт.
