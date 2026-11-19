@@ -267,32 +267,6 @@ export function ModeSelector({
   );
 }
 
-export function Metric({
-  icon: Icon,
-  label,
-  value,
-  accent,
-  className = "",
-}: {
-  icon: IconType;
-  label: string;
-  value: string;
-  accent: string;
-  className?: string;
-}) {
-  return (
-    <div
-      className={`rounded-2xl border border-line bg-surface-2/70 p-4 ${className}`}
-    >
-      <div className={`grid size-8 place-items-center rounded-lg ${accent}`}>
-        <Icon className="size-4" />
-      </div>
-      <p className="mt-3 text-2xl font-semibold tracking-tight">{value}</p>
-      <p className="mt-0.5 text-sm text-muted">{label}</p>
-    </div>
-  );
-}
-
 export function EmptyState({
   action,
   description,
@@ -475,26 +449,6 @@ export function Badge({
   );
 }
 
-export function DeckStat({
-  title,
-  value,
-  tone,
-}: {
-  title: string;
-  value: number;
-  tone: "green" | "violet";
-}) {
-  return (
-    <div className="rounded-xl border border-line bg-surface-1 p-4">
-      <p className="font-mono text-2xl font-semibold">{value}</p>
-      <p className="mt-1 text-sm text-text-2">{title}</p>
-      <div
-        className={`mt-3 h-1 rounded-full ${tone === "green" ? "bg-accent" : "bg-violet"}`}
-      />
-    </div>
-  );
-}
-
 export function MiniStat({
   className = "",
   hint,
@@ -513,26 +467,6 @@ export function MiniStat({
     >
       <p className="text-xl font-semibold tracking-tight">{value}</p>
       <p className="mt-0.5 text-xs text-muted">{label}</p>
-    </div>
-  );
-}
-
-export function ReadOnlyField({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon: IconType;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div>
-      <FieldLabel>{label}</FieldLabel>
-      <div className="mt-1.5 flex h-11 items-center gap-2 rounded-xl border border-line bg-surface-1/60 px-3.5 text-sm text-text-2">
-        <Icon className="size-4 text-accent" />
-        <span className="min-w-0 truncate">{value}</span>
-      </div>
     </div>
   );
 }

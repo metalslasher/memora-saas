@@ -25,10 +25,8 @@ import {
   remoteImportQaNotes,
   remotePauseCard,
   remoteResetLearningStats,
-  remoteReviewCard,
   remoteReviewSingleCard,
   remoteRestoreBackup,
-  remoteSuspendCard,
   remoteUpdateCardStatus,
   remoteUpdateNoteContent,
   remoteUpdateNoteStatus,
@@ -191,31 +189,6 @@ export async function resetLearningStatsAction(): Promise<ActionResult> {
   }
 }
 
-export async function reviewCardAction(input: {
-  cardId: string;
-  rating: ReviewRating;
-  responseText: string;
-  elapsedMs: number;
-}): Promise<ActionResult> {
-  try {
-    const reviewInput = validateReviewInput(input);
-    const { supabase, state } = await getStateContext();
-    const nextState = await remoteReviewCard(
-      supabase,
-      state,
-      reviewInput.cardId,
-      reviewInput.rating,
-      reviewInput.responseText,
-      reviewInput.elapsedMs,
-    );
-    revalidatePath("/");
-
-    return ok(nextState);
-  } catch (error) {
-    return fail(error);
-  }
-}
-
 type ReviewActionResult =
   | ({ ok: true } & ReviewOutcome)
   | { ok: false; error: string };
@@ -270,19 +243,6 @@ export async function pauseCardAction(
     return { ok: true };
   } catch (error) {
     return { ok: false, error: formatActionError(error) };
-  }
-}
-
-export async function suspendCardAction(cardId: string): Promise<ActionResult> {
-  try {
-    const cleanCardId = validateId(cardId, "Картку");
-    const { supabase, state } = await getStateContext();
-    const nextState = await remoteSuspendCard(supabase, state, cleanCardId);
-    revalidatePath("/");
-
-    return ok(nextState);
-  } catch (error) {
-    return fail(error);
   }
 }
 

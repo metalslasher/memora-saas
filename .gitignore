@@ -44,3 +44,6 @@ next-env.d.ts
 
 # supabase
 supabase/.temp/
+
+# codex remote attachments
+.codex-remote-attachments/

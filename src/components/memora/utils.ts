@@ -211,13 +211,6 @@ export function textValue(value: unknown) {
   return typeof value === "string" ? value : "";
 }
 
-export function normalizeSentence(value: string) {
-  const clean = value.replace(/\s+/g, " ").trim();
-  if (!clean) return "";
-
-  return /[.!?]$/.test(clean) ? clean : `${clean}.`;
-}
-
 /** Ukrainian plural: plural(3, ["слово", "слова", "слів"]) → "3 слова". */
 export function plural(count: number, forms: [string, string, string]) {
   const abs = Math.abs(count);

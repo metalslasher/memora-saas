@@ -13,6 +13,7 @@ import {
   TextInput,
 } from "./shared-ui";
 import { formatError } from "./utils";
+import { validatePassword } from "@/lib/memora/password-policy";
 
 export function LoadingScreen({
   error = null,
@@ -86,10 +87,9 @@ export function AuthModal({
   const [localError, setLocalError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const text = copy[mode];
-  const minPassword = mode === "sign-up" ? 8 : 1;
   const canSubmit =
     /\S+@\S+\.\S+/.test(email.trim()) &&
-    (mode === "reset" || password.length >= minPassword);
+    (mode === "reset" || password.length > 0);
 
   function changeMode(nextMode: AuthMode) {
     setMode(nextMode);
@@ -101,11 +101,13 @@ export function AuthModal({
     if (isSubmitting) return;
 
     if (!canSubmit) {
-      setLocalError(
-        mode === "sign-up" && password.length > 0 && password.length < 8
-          ? "Пароль має містити щонайменше 8 символів."
-          : "Перевір email і пароль.",
-      );
+      setLocalError("Перевір email і пароль.");
+      return;
+    }
+
+    const passwordError = mode === "sign-up" ? validatePassword(password) : null;
+    if (passwordError) {
+      setLocalError(passwordError);
       return;
     }
 
@@ -191,7 +193,9 @@ export function AuthModal({
                   >
                     Забули пароль?
                   </button>
-                ) : null
+                ) : (
+                  "Від 8 символів, з літерою і цифрою"
+                )
               }
               label="Пароль"
               value={password}

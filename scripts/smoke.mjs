@@ -62,15 +62,19 @@ async function main() {
 }
 
 async function launchBrowser() {
+  const headless = process.env.MEMORA_SMOKE_HEADLESS !== "0";
+  // MEMORA_SMOKE_BROWSER_PATH: explicit browser executable (e.g. a locally installed chromium).
+  const executablePath = process.env.MEMORA_SMOKE_BROWSER_PATH;
+  if (executablePath) {
+    return chromium.launch({ executablePath, headless });
+  }
   try {
     return await chromium.launch({
       channel: process.env.MEMORA_SMOKE_BROWSER_CHANNEL ?? "chrome",
-      headless: process.env.MEMORA_SMOKE_HEADLESS !== "0",
+      headless,
     });
   } catch {
-    return chromium.launch({
-      headless: process.env.MEMORA_SMOKE_HEADLESS !== "0",
-    });
+    return chromium.launch({ headless });
   }
 }
 
@@ -90,7 +94,7 @@ async function assertServerReady() {
 function section(page, label) {
   return page
     .getByRole("navigation", { name: "Розділи" })
-    .getByRole("button", { name: new RegExp(`^${label}`) })
+    .getByRole("button", { name: new RegExp(`(?:^|\\s)${label}(?:\\s|$)`) })
     .first();
 }
 

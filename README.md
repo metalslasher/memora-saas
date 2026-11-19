@@ -1,68 +1,37 @@
-# Memora SaaS
+# Memora
 
-Memora is a spaced-recall learning service for English vocabulary and QA knowledge. This repository contains a Ukrainian-first, dark-only, mobile-first product build backed by Supabase, plus the product and technical specifications in [`docs`](docs).
+A web trainer for learning English, built for Ukrainian speakers. Active recall
+plus spaced repetition (FSRS). The UI is in Ukrainian; the learning content is
+English with Ukrainian translations.
 
-## Production
+Production: https://memora-saas.vercel.app (Vercel, auto-deploys from `main`).
 
-Production app:
+## Setup
 
-- https://memora-saas.vercel.app
-
-The production deployment is connected to GitHub through Vercel. Pushes to `main` trigger a Vercel deployment.
-
-## Getting Started
-
-Install dependencies and run the development server:
+Requires Node 20+ and pnpm 11 (see `packageManager` in `package.json`).
 
 ```bash
 pnpm install
-pnpm dev
+cp .env.example .env.local   # then fill in the Supabase values
+pnpm dev                     # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser.
+`.env.local` needs `NEXT_PUBLIC_SUPABASE_URL` and
+`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`. `SUPABASE_SERVICE_ROLE_KEY` is only
+used by `pnpm test-user`. Never commit secrets.
 
-The app expects `.env.local` to contain the variables listed in `.env.example`:
+## Commands
 
-```bash
-NEXT_PUBLIC_SUPABASE_URL=...
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=...
-```
+| Command | What it does |
+|---|---|
+| `pnpm dev` / `pnpm build` / `pnpm start` | Next.js dev server / production build / serve the build |
+| `pnpm lint` / `pnpm typecheck` / `pnpm test` | ESLint / TypeScript / Vitest |
+| `pnpm test-user` | Create or reset the e2e test user and save its credentials to `.env.local` |
+| `pnpm smoke` | Playwright smoke test against a running app (`MEMORA_SMOKE_MUTATE=0` to avoid writes) |
 
-## Current Scope
+## Docs
 
-- Next.js App Router + TypeScript + Tailwind CSS v4 design tokens.
-- Supabase Auth + Postgres persistence with RLS; server actions for mutations.
-- Public landing with an interactive demo card.
-- Mobile-first cabinet: practice, English words, QA terms, progress, profile, help.
-- Practice: optional typing with auto-check, FSRS interval preview on grade
-  buttons, keyboard shortcuts, pronunciation, optimistic grading, undo,
-  daily new-card limit, session summary.
-- CSV import/export, JSON backup/restore, PWA manifest.
-
-See [`docs/current-implementation.md`](docs/current-implementation.md) for details.
-
-## Useful Commands
-
-```bash
-pnpm lint
-pnpm typecheck
-pnpm test
-pnpm build
-pnpm smoke
-```
-
-Production smoke without changing learning data:
-
-```powershell
-$env:MEMORA_SMOKE_URL="https://memora-saas.vercel.app"
-$env:MEMORA_SMOKE_MUTATE="0"
-pnpm smoke
-```
-
-## Specs
-
-Start with [`docs/README.md`](docs/README.md), then follow the product, learning/content, technical, and MVP backlog documents from there.
-
-## Deployment
-
-Memora is deployed on Vercel and backed by Supabase Auth/Postgres. Browser-side Supabase is used for Auth, while learning mutations go through server actions with Supabase RLS.
+- [`CLAUDE.md`](CLAUDE.md) — working rules and conventions for each session
+- [`docs/product.md`](docs/product.md) — target product (Ukrainian)
+- [`docs/architecture.md`](docs/architecture.md) — current architecture (Ukrainian)
+- [`docs/roadmap.md`](docs/roadmap.md) — audit, decisions, batch plan (Ukrainian)

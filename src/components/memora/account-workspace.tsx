@@ -45,6 +45,7 @@ import {
   TextArea,
 } from "./shared-ui";
 import { dateStamp, downloadTextFile, formatDate, formatError } from "./utils";
+import { validatePassword } from "@/lib/memora/password-policy";
 
 const MAX_DAILY_NEW = 50;
 
@@ -307,8 +308,9 @@ function SecurityPanel({
     event.preventDefault();
     setError(null);
 
-    if (newPassword.length < 8) {
-      setError("Пароль має містити щонайменше 8 символів.");
+    const passwordError = validatePassword(newPassword);
+    if (passwordError) {
+      setError(passwordError);
       return;
     }
     if (newPassword !== confirmPassword) {

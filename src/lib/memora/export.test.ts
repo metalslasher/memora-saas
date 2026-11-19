@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createInitialState } from "./seed";
+import { createInitialState } from "./test-fixtures";
 import { createBackupJson, notesToCsv } from "./export";
 
 describe("export helpers", () => {
