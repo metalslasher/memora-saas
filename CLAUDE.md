@@ -41,7 +41,8 @@ Memora — веб-тренажер англійської для україно�
 - Next.js 16 App Router, React 19, TypeScript, Tailwind v4, Supabase (Auth +
   Postgres + RLS), `ts-fsrs`, Vitest, Playwright. Хостинг Vercel (Hobby),
   Supabase Free (засинає після ~7 днів без запитів).
-- Supabase project id: `whqfpktgwwctqhqvsoqm` (MCP-інструменти доступні).
+- Supabase project id: `whqfpktgwwctqhqvsoqm` (див. розділ «Supabase і Vercel»).
+- Залежності ставити через `npx pnpm@11.7.0 …` (глобально стоїть pnpm 9).
 - Команди: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, `pnpm smoke`, `pnpm test-user`.
   Локальний dev: `pnpm dev` (у `pnpm-workspace.yaml` має бути `packages: ["."]`,
   інакше pnpm 9 падає з «packages field missing»). Тестовий акаунт:
@@ -65,8 +66,27 @@ Memora — веб-тренажер англійської для україно�
 - **Рішення в навчанні спираються на дослідження/кращі практики** — якщо їх
   нема, позначати як експеримент.
 
-## Виконання пачок
-Пачку запускає головна сесія як окремого агента (Agent tool) з моделлю й
-effort з таблиці в roadmap, локально (щоб був доступ до `.env.local`).
-Агент працює в гілці `batch-N-<slug>`, не мержить сам. Головна сесія
-рев'юїть diff, перевіряє preview, мержить і оновлює roadmap.
+## Виконання пачок (з 2026-11-19)
+- **Головний чат** — обговорення, рев'ю, merge, оновлення roadmap.
+- **Кожна пачка — вкладений чат під головним.** Головний чат пише ТЗ у
+  `docs/batches/batch-N.md`, пушить його і створює чат через
+  `mcp__claude-code-remote__create_session` (модель і effort — з таблиці в roadmap,
+  title «Memora · пачка N — <суть>», prompt: «Виконай docs/batches/batch-N.md»
+  + абсолютний шлях до репо). Чат працює на ПК власника (Remote Control), бачить
+  `.env.local`, а власник бачить у ньому всі запити. Стан перевіряти через
+  `get_session` / `list_events`. **Фонові агенти (Agent tool) для пачок не
+  використовувати** — вони не можуть показати запит на дозвіл і зависають.
+- Чат пачки працює в гілці `batch-N-<slug>`, у кінці пушить її і пише короткий
+  звіт. Merge у `main` робить головний чат після рев'ю.
+
+## Supabase і Vercel
+- Міграції: MCP `apply_migration` зависає на невидимому підтвердженні — не
+  використовувати. Робочий шлях — CLI (залогінений, проєкт прив'язаний):
+  `supabase db query --linked -f <file.sql>` (усе в `begin; … commit;`) +
+  `insert into supabase_migrations.schema_migrations (version, name) …`;
+  файл — `supabase/migrations/<version>_<name>.sql`. Потім advisors і
+  `supabase gen types typescript --linked > src/lib/supabase/database.types.ts`.
+  Читання (list_tables, advisors, execute_sql select) через MCP — ок.
+- Vercel MCP: team `metalslashers-projects` (`team_fxQ3xAZ8zn9jn0C9dPrtBgwJ`),
+  project `memora-saas`; доступ авторизовано. При 403 — `authorize_team_access`
+  і дати власнику лінк. Запасний шлях: `gh api repos/metalslasher/memora-saas/commits/<ref>/status`.
