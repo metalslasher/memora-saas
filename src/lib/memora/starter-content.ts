@@ -1,206 +1,116 @@
-import type { GeneratedCardTemplate } from "./card-generator";
-import type { ModuleType, Note } from "./types";
+import type { WordContent } from "./types";
 
-export type StarterNote = {
-  key: string;
-  module: ModuleType;
-  title: string;
-  tags: string[];
-  content: Note["content"];
-};
+export type StarterWord = { lemma: string; content: WordContent };
 
-export type StarterCard = GeneratedCardTemplate & {
-  key: string;
-  noteKey: string;
-  scheduledDays?: number;
-};
-
-export const starterNotes: StarterNote[] = [
+/**
+ * A small everyday/work starter set for brand-new accounts, so practice is
+ * not empty until the curriculum arrives (batch 4).
+ */
+export const starterWords: StarterWord[] = [
   {
-    key: "bug",
-    module: "english",
-    title: "bug",
-    tags: ["english", "qa", "work"],
+    lemma: "figure out",
     content: {
-      lemma_en: "bug",
-      translation_uk: "помилка в програмі",
-      part_of_speech: "noun",
-      example_en: "I found a bug in the checkout flow.",
+      translations: ["розібратися", "зрозуміти"],
+      part_of_speech: "phrasal verb",
+      examples: [
+        {
+          en: "I'm still trying to figure out how this works.",
+          uk: "Я досі намагаюся розібратися, як це працює.",
+        },
+      ],
     },
   },
   {
-    key: "handoff",
-    module: "english",
-    title: "handoff",
-    tags: ["english", "meetings", "work"],
+    lemma: "follow up",
     content: {
-      lemma_en: "handoff",
-      translation_uk: "передача задачі або контексту іншій людині",
-      part_of_speech: "noun",
-      example_en: "Let's write a short handoff before the release.",
+      translations: ["нагадати про себе", "повернутися до питання"],
+      part_of_speech: "phrasal verb",
+      examples: [
+        {
+          en: "I'll follow up with them tomorrow if I don't hear back.",
+          uk: "Якщо вони не відповідуть, я завтра їм нагадаю.",
+        },
+      ],
     },
   },
   {
-    key: "edge-case",
-    module: "english",
-    title: "edge case",
-    tags: ["english", "qa", "product"],
+    lemma: "reliable",
     content: {
-      lemma_en: "edge case",
-      translation_uk: "рідкісний або крайній випадок",
+      translations: ["надійний"],
+      part_of_speech: "adjective",
+      examples: [
+        { en: "We need a more reliable way to track this.", uk: "Нам потрібен надійніший спосіб це відстежувати." },
+      ],
+    },
+  },
+  {
+    lemma: "get used to",
+    content: {
+      translations: ["звикнути до"],
       part_of_speech: "phrase",
-      example_en: "This edge case breaks the validation logic.",
+      examples: [
+        { en: "You'll get used to it after a week or two.", uk: "Ти звикнеш за тиждень-два." },
+      ],
     },
   },
   {
-    key: "regression-testing",
-    module: "qa",
-    title: "Regression testing",
-    tags: ["qa", "fundamentals", "interview"],
+    lemma: "by the way",
     content: {
-      term: "Regression testing",
-      short_definition:
-        "Перевірка, що вже працюючий функціонал не зламався після змін у коді, конфігурації або даних.",
-      example:
-        "Після фікса checkout треба прогнати payment і cart тести, щоб не зламати стару поведінку.",
+      translations: ["до речі"],
+      part_of_speech: "phrase",
+      examples: [
+        { en: "By the way, did you see Sarah's email?", uk: "До речі, ти бачив лист від Сари?" },
+      ],
     },
   },
   {
-    key: "boundary-value-analysis",
-    module: "qa",
-    title: "Boundary value analysis",
-    tags: ["qa", "test-design", "interview"],
+    lemma: "deadline",
     content: {
-      term: "Boundary value analysis",
-      short_definition:
-        "Техніка тест-дизайну, де перевіряють значення на межах діапазону і поруч із ними.",
-      example: "Для поля 1-100 перевір 0, 1, 2, 99, 100 і 101.",
+      translations: ["дедлайн", "кінцевий термін"],
+      part_of_speech: "noun",
+      examples: [
+        { en: "The deadline got pushed to Friday.", uk: "Дедлайн перенесли на п’ятницю." },
+      ],
     },
   },
   {
-    key: "user-facing-locators",
-    module: "qa",
-    title: "User-facing locators",
-    tags: ["qa", "automation", "playwright"],
+    lemma: "handle",
     content: {
-      term: "User-facing locators",
-      short_definition:
-        "Локатори, які шукають елементи так, як їх сприймає користувач: за роллю, текстом, label або доступною назвою.",
-      example: "Краще getByRole('button', { name: 'Save' }), ніж крихкий CSS selector.",
+      translations: ["впоратися з", "взяти на себе"],
+      part_of_speech: "verb",
+      examples: [
+        { en: "Can you handle this while I'm out?", uk: "Можеш узяти це на себе, поки мене не буде?" },
+      ],
     },
   },
-];
-
-export const starterCards: StarterCard[] = [
   {
-    key: "bug-productive",
-    noteKey: "bug",
-    module: "english",
-    type: "productive_translation",
-    priority: 100,
-    prompt: "Як сказати англійською: помилка в програмі?",
-    answer: "bug",
-    explanation:
-      "Bug означає дефект у програмі. Issue ширше: це може бути задача, проблема або тема для обговорення.",
-    example: "I found a bug in the checkout flow.",
-    tags: ["english", "qa", "work"],
-    scheduledDays: 2,
+    lemma: "available",
+    content: {
+      translations: ["вільний", "доступний"],
+      part_of_speech: "adjective",
+      examples: [
+        { en: "Are you available for a quick call at three?", uk: "Ти вільний о третій на коротку розмову?" },
+      ],
+    },
   },
   {
-    key: "bug-cloze",
-    noteKey: "bug",
-    module: "english",
-    type: "cloze_context",
-    priority: 95,
-    prompt: "I found a ___ in the checkout flow.",
-    answer: "bug",
-    explanation:
-      "У цьому реченні бракує слова для дефекту в програмі або поведінці продукту.",
-    example: "I found a bug in the checkout flow.",
-    tags: ["english", "qa", "work"],
+    lemma: "look forward to",
+    content: {
+      translations: ["чекати з нетерпінням"],
+      part_of_speech: "phrase",
+      examples: [
+        { en: "I'm really looking forward to the weekend.", uk: "Я дуже чекаю на вихідні." },
+      ],
+    },
   },
   {
-    key: "handoff-productive",
-    noteKey: "handoff",
-    module: "english",
-    type: "productive_translation",
-    priority: 90,
-    prompt: "Як англійською назвати передачу задачі або контексту іншій людині?",
-    answer: "handoff",
-    explanation:
-      "Handoff - це передача контексту, відповідальності або роботи іншій людині чи команді.",
-    example: "Let's write a short handoff before the release.",
-    tags: ["english", "meetings", "work"],
-  },
-  {
-    key: "edge-case-productive",
-    noteKey: "edge-case",
-    module: "english",
-    type: "productive_translation",
-    priority: 88,
-    prompt: "Як сказати англійською: рідкісний або крайній випадок?",
-    answer: "edge case",
-    explanation:
-      "Edge case - це незвична ситуація на межі очікуваної поведінки системи.",
-    example: "This edge case breaks the validation logic.",
-    tags: ["english", "qa", "product"],
-  },
-  {
-    key: "regression-definition",
-    noteKey: "regression-testing",
-    module: "qa",
-    type: "term_definition",
-    priority: 100,
-    prompt: "Поясни українською: що таке Regression testing?",
-    answer:
-      "Перевірка, що вже працюючий функціонал не зламався після змін у коді, конфігурації або даних.",
-    explanation:
-      "Regression testing захищає стару робочу поведінку від випадкових поломок після змін.",
-    example:
-      "Після фікса checkout треба прогнати payment і cart тести, щоб не зламати стару поведінку.",
-    tags: ["qa", "fundamentals", "interview"],
-    scheduledDays: 4,
-  },
-  {
-    key: "bva-definition",
-    noteKey: "boundary-value-analysis",
-    module: "qa",
-    type: "term_definition",
-    priority: 92,
-    prompt: "Поясни українською: що таке Boundary value analysis?",
-    answer:
-      "Техніка тест-дизайну, де перевіряють значення на межах діапазону і поруч із ними.",
-    explanation:
-      "Баги часто з'являються саме на межах дозволених значень, тому такі перевірки дають багато користі.",
-    example: "Для поля 1-100 перевір 0, 1, 2, 99, 100 і 101.",
-    tags: ["qa", "test-design", "interview"],
-  },
-  {
-    key: "regression-vs-confirmation",
-    noteKey: "regression-testing",
-    module: "qa",
-    type: "contrast",
-    priority: 88,
-    prompt: "Regression testing vs confirmation testing: у чому ключова різниця?",
-    answer:
-      "Confirmation testing перевіряє, що конкретний fix спрацював. Regression testing перевіряє, що інша вже робоча поведінка не зламалась після зміни.",
-    explanation:
-      "Confirmation testing вузько дивиться на виправлений дефект. Regression testing ширше дивиться на ризик побічних поломок.",
-    tags: ["qa", "fundamentals", "interview"],
-  },
-  {
-    key: "playwright-locators-scenario",
-    noteKey: "user-facing-locators",
-    module: "qa",
-    type: "scenario",
-    priority: 86,
-    prompt:
-      "Playwright тест шукає '.primary-btn:nth-child(2)' і ламається після невеликого UI refactor. Який стиль локатора краще обрати?",
-    answer:
-      "Краще user-facing locator: getByRole(), getByLabel() або getByText(), якщо він відповідає наміру тесту.",
-    explanation:
-      "User-facing locators зазвичай стабільніші, бо спираються на роль, текст або доступну назву, а не на крихку DOM-структуру.",
-    example: "page.getByRole('button', { name: 'Save' })",
-    tags: ["qa", "automation", "playwright"],
+    lemma: "come up with",
+    content: {
+      translations: ["придумати", "вигадати"],
+      part_of_speech: "phrasal verb",
+      examples: [
+        { en: "We need to come up with a better plan.", uk: "Нам треба придумати кращий план." },
+      ],
+    },
   },
 ];

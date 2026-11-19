@@ -6,7 +6,7 @@ import { useRef, useState } from "react";
 import { buttonClass } from "../shared-ui";
 import { useCycle } from "./motion";
 
-const rotatingWords = ["англійські слова", "QA-терміни", "нові фрази", "що завгодно"];
+const rotatingWords = ["англійські слова", "живі фрази", "робочу лексику", "нові вирази"];
 
 const stackCards = [
   {
@@ -17,11 +17,11 @@ const stackCards = [
     hint: "The deadline slips again.",
   },
   {
-    tag: "QA",
+    tag: "Англійська",
     tone: "violet" as const,
-    prompt: "Що таке smoke testing?",
-    answer: "Швидка перевірка, що ключові функції працюють",
-    hint: "Запускаємо одразу після деплою.",
+    prompt: "Як сказати англійською: розібратися?",
+    answer: "figure out",
+    hint: "I'm still trying to figure it out.",
   },
   {
     tag: "Англійська",

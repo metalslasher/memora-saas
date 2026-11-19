@@ -2,7 +2,7 @@
 
 import type { FormEvent } from "react";
 import { useState } from "react";
-import { ArrowLeft, RotateCw } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { LogoMark } from "./brand";
 import {
   Button,
@@ -15,37 +15,6 @@ import {
 import { formatError } from "./utils";
 import { validatePassword } from "@/lib/memora/password-policy";
 
-export function LoadingScreen({
-  error = null,
-  onRetry,
-}: {
-  error?: string | null;
-  onRetry?: () => void;
-}) {
-  return (
-    <main className="grid min-h-svh place-items-center bg-ink px-6 text-text">
-      {error ? (
-        <div className="max-w-sm text-center">
-          <LogoMark className="mx-auto size-12" />
-          <h1 className="mt-5 text-lg font-semibold">Не вдалося завантажити дані</h1>
-          <p className="mt-2 text-sm leading-6 text-muted">{error}</p>
-          {onRetry ? (
-            <Button className="mt-5" icon={RotateCw} variant="primary" onClick={onRetry}>
-              Спробувати ще раз
-            </Button>
-          ) : null}
-        </div>
-      ) : (
-        <div aria-label="Завантаження" className="relative grid place-items-center" role="status">
-          <span className="absolute size-20 animate-ping rounded-3xl bg-accent/10 [animation-duration:1.6s]" />
-          <LogoMark className="relative size-12 animate-pulse" />
-          <span className="sr-only">Завантаження</span>
-        </div>
-      )}
-    </main>
-  );
-}
-
 type AuthMode = "sign-in" | "sign-up" | "reset";
 
 const copy: Record<AuthMode, { title: string; subtitle: string; submit: string }> = {
@@ -56,7 +25,7 @@ const copy: Record<AuthMode, { title: string; subtitle: string; submit: string }
   },
   "sign-up": {
     title: "Створи акаунт",
-    subtitle: "Хвилина — і стартові картки вже чекають.",
+    subtitle: "Memora зараз у закритій беті — увійти можуть лише запрошені.",
     submit: "Створити акаунт",
   },
   reset: {
@@ -224,7 +193,7 @@ export function AuthModal({
 
         {mode === "sign-up" ? (
           <p className="mt-4 text-center text-xs leading-5 text-faint">
-            Реєструючись, ти отримуєш особистий простір — матеріали бачиш лише ти.
+            Акаунт запрацює, коли твій email буде в списку бета-тестерів. Твої слова бачиш лише ти.
           </p>
         ) : null}
       </form>

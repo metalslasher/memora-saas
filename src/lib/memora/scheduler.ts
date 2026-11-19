@@ -33,27 +33,36 @@ export function createStoredSchedule(now = new Date()): StoredSchedule {
   return toStoredSchedule(createEmptyCard(now));
 }
 
-export function createReviewSchedule(
-  now = new Date(),
-  scheduledDays = 3,
-): StoredSchedule {
-  const lastReview = new Date(now);
-  lastReview.setDate(lastReview.getDate() - scheduledDays);
+const fsrsStates: FsrsState[] = ["New", "Learning", "Review", "Relearning"];
 
-  const due = new Date(now);
-  due.setMinutes(due.getMinutes() - 20);
+/** Parses a schedule stored as JSON (review log snapshots, backups). */
+export function readStoredSchedule(value: unknown): StoredSchedule | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  const state = raw.state as FsrsState;
+  if (typeof raw.due !== "string" || !Number.isFinite(Date.parse(raw.due))) return null;
+  if (!fsrsStates.includes(state)) return null;
+  const lastReview =
+    typeof raw.last_review === "string" && Number.isFinite(Date.parse(raw.last_review))
+      ? raw.last_review
+      : null;
+  const number = (key: string, integer: boolean) => {
+    const parsed = Number(raw[key] ?? 0);
+    const safe = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+    return integer ? Math.round(safe) : safe;
+  };
 
   return {
-    due: due.toISOString(),
-    stability: Math.max(1.2, scheduledDays + 0.4),
-    difficulty: 5.6,
-    elapsed_days: scheduledDays,
-    scheduled_days: scheduledDays,
-    learning_steps: 0,
-    reps: 3,
-    lapses: 0,
-    state: "Review",
-    last_review: lastReview.toISOString(),
+    due: raw.due,
+    stability: number("stability", false),
+    difficulty: number("difficulty", false),
+    elapsed_days: number("elapsed_days", true),
+    scheduled_days: number("scheduled_days", true),
+    learning_steps: number("learning_steps", true),
+    reps: number("reps", true),
+    lapses: number("lapses", true),
+    state,
+    last_review: lastReview,
   };
 }
 

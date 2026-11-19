@@ -1,60 +1,51 @@
+// Playwright smoke test against a running Memora (pnpm dev or pnpm start).
+// Env: MEMORA_SMOKE_URL, MEMORA_SMOKE_EMAIL/PASSWORD, MEMORA_SMOKE_MUTATE=0
+// (read-only), MEMORA_SMOKE_BROWSER_PATH, MEMORA_SMOKE_HEADLESS=0,
+// MEMORA_SMOKE_SHOTS=<dir> (save 375/1440 screenshots of every screen).
 import { chromium, expect } from "@playwright/test";
+import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-const baseUrl = process.env.MEMORA_SMOKE_URL ?? "http://localhost:3000";
+const baseUrl = (process.env.MEMORA_SMOKE_URL ?? "http://localhost:3000").replace(/\/$/, "");
 const email = process.env.MEMORA_SMOKE_EMAIL;
 const password = process.env.MEMORA_SMOKE_PASSWORD;
 const shouldMutate = process.env.MEMORA_SMOKE_MUTATE !== "0";
+const shotsDir = process.env.MEMORA_SMOKE_SHOTS;
+const desktop = { width: 1440, height: 900 };
+const mobile = { width: 375, height: 812 };
 const consoleProblems = [];
 
 async function main() {
   await assertServerReady();
+  if (shotsDir) fs.mkdirSync(shotsDir, { recursive: true });
 
   const browser = await launchBrowser();
-  const context = await browser.newContext({
-    acceptDownloads: true,
-    viewport: { width: 1440, height: 1000 },
-  });
+  const context = await browser.newContext({ acceptDownloads: true, viewport: desktop });
   const page = await context.newPage();
-
   page.on("console", (message) => {
-    if (message.type() === "error") {
-      consoleProblems.push(message.text());
-    }
+    if (message.type() === "error") consoleProblems.push(message.text());
   });
-  page.on("pageerror", (error) => {
-    consoleProblems.push(error.message);
-  });
+  page.on("pageerror", (error) => consoleProblems.push(error.message));
 
   try {
-    await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
-    await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
-
-    await assertNoNextOverlay(page);
-    await assertLandingAndLogin(page);
+    await assertGuestRedirect(page);
+    await assertLanding(page);
 
     if (!email || !password) {
-      console.log("Smoke OK: login screen. Authenticated checks skipped because MEMORA_SMOKE_EMAIL/PASSWORD are not set.");
+      console.log("Smoke OK: landing only (MEMORA_SMOKE_EMAIL/PASSWORD are not set).");
       return;
     }
 
-    await signIn(page, email, password);
-    await assertPracticeView(page);
-    await assertHelpAndAccount(page);
-    await assertCsvImportPreview(page);
-    await assertBackupExportAndRestorePreview(page);
-    await assertProgressWeakCardEdit(page);
-    await assertMobileNavigation(page);
-
-    if (shouldMutate) {
-      await assertAddAndEditEnglishNote(page);
-    } else {
-      console.log("Mutation checks skipped because MEMORA_SMOKE_MUTATE=0.");
-    }
-
+    await signIn(page);
+    await assertPractice(page);
+    await assertWords(page);
+    await assertProgress(page);
+    await assertSettings(page);
+    await assertHelp(page);
+    await assertMobile(page);
     await assertNoConsoleErrors();
-    console.log("Smoke OK: authenticated UI flow.");
+    console.log(`Smoke OK: authenticated flow${shouldMutate ? " with mutations" : " (read-only)"}.`);
   } finally {
     await context.close();
     await browser.close();
@@ -63,16 +54,10 @@ async function main() {
 
 async function launchBrowser() {
   const headless = process.env.MEMORA_SMOKE_HEADLESS !== "0";
-  // MEMORA_SMOKE_BROWSER_PATH: explicit browser executable (e.g. a locally installed chromium).
   const executablePath = process.env.MEMORA_SMOKE_BROWSER_PATH;
-  if (executablePath) {
-    return chromium.launch({ executablePath, headless });
-  }
+  if (executablePath) return chromium.launch({ executablePath, headless });
   try {
-    return await chromium.launch({
-      channel: process.env.MEMORA_SMOKE_BROWSER_CHANNEL ?? "chrome",
-      headless,
-    });
+    return await chromium.launch({ channel: process.env.MEMORA_SMOKE_BROWSER_CHANNEL ?? "chrome", headless });
   } catch {
     return chromium.launch({ headless });
   }
@@ -81,9 +66,7 @@ async function launchBrowser() {
 async function assertServerReady() {
   try {
     const response = await fetch(baseUrl);
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
   } catch (error) {
     throw new Error(
       `Memora is not reachable at ${baseUrl}. Start it with "pnpm dev" or set MEMORA_SMOKE_URL. ${error instanceof Error ? error.message : ""}`,
@@ -91,201 +74,242 @@ async function assertServerReady() {
   }
 }
 
-function section(page, label) {
+/** A visible link of the main navigation (sidebar on desktop, tab bar on phones). */
+function navLink(page, label) {
   return page
     .getByRole("navigation", { name: "Розділи" })
-    .getByRole("button", { name: new RegExp(`(?:^|\\s)${label}(?:\\s|$)`) })
+    .getByRole("link", { name: new RegExp(`^${label}`) })
+    .filter({ visible: true })
     .first();
 }
 
-async function assertLandingAndLogin(page) {
+async function heading(page, name) {
+  await expect(page.getByRole("heading", { level: 1, name, exact: true })).toBeVisible({ timeout: 20000 });
+}
+
+async function shot(page, name) {
+  if (!shotsDir) return;
+  const size = page.viewportSize();
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: path.join(shotsDir, `${name}-${size?.width ?? 0}.png`), fullPage: true });
+}
+
+async function assertGuestRedirect(page) {
+  await page.goto(`${baseUrl}/app/words`, { waitUntil: "domcontentloaded" });
+  await expect(page).toHaveURL(`${baseUrl}/`);
+}
+
+async function assertLanding(page) {
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Запам’ятовуй");
-  await expect(page.getByRole("button", { name: "Почати навчання", exact: true }).first()).toBeVisible();
+  await expect(page.getByText(/QA/)).toHaveCount(0);
 
   // The interactive demo card works without an account.
   await page.locator("#demo-answer").fill("flaky tset");
   await page.locator("#demo-answer").press("Enter");
   await expect(page.getByText("Майже — є описка")).toBeVisible();
+  await shot(page, "landing");
 
-  await page.getByRole("button", { name: "Увійти", exact: true }).first().click();
+  await page.getByRole("button", { name: "Почати", exact: true }).first().click();
+  await expect(page.getByRole("dialog", { name: "Створи акаунт" })).toContainText("закритій беті");
+  await page.getByRole("button", { name: "Вхід", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "З поверненням" })).toBeVisible();
-  await expect(page.getByLabel("Email")).toBeVisible();
-  await expect(page.getByLabel("Пароль", { exact: true })).toBeVisible();
-  await expect(page.locator('form button[type="submit"]')).toContainText("Увійти");
 }
 
-async function signIn(page, userEmail, userPassword) {
-  await page.getByLabel("Email").fill(userEmail);
-  await page.getByLabel("Пароль", { exact: true }).fill(userPassword);
+async function signIn(page) {
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Пароль", { exact: true }).fill(password);
   await page.locator('form button[type="submit"]').click();
-  await expect(section(page, "Практика")).toBeVisible({ timeout: 20000 });
+  await expect(page).toHaveURL(`${baseUrl}/app`, { timeout: 30000 });
+  await expect(navLink(page, "Практика")).toBeVisible({ timeout: 20000 });
 }
 
-async function assertPracticeView(page) {
-  await section(page, "Практика").click();
-  await expect(page.getByRole("tab", { name: /^Усе/ })).toBeVisible();
-
+async function assertPractice(page) {
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   const answerBox = page.locator("#practice-answer");
-  if (await answerBox.isVisible().catch(() => false)) {
-    await answerBox.fill("smoke");
-    await answerBox.press("Enter");
-    await expect(page.getByText("Відповідь", { exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: /^Не згадав/ })).toBeVisible();
-    await expect(page.getByRole("button", { name: /^Згадав/ })).toBeVisible();
-  } else {
-    console.log("Practice card check skipped because the queue is empty.");
+  if (!(await answerBox.isVisible().catch(() => false))) {
+    console.log("Practice card check skipped: the queue is empty.");
+    await shot(page, "practice");
+    return;
   }
+
+  const cue = await page.getByRole("heading", { level: 2 }).first().innerText();
+  await shot(page, "practice");
+  await answerBox.fill("smoke");
+  await answerBox.press("Enter");
+  await expect(page.getByText("Відповідь", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Не згадав/ })).toBeVisible();
+  await shot(page, "practice-revealed");
+
+  if (!shouldMutate) return;
+  await page.getByRole("button", { name: /^Згадав/ }).click();
+  const undo = page.getByRole("button", { name: "Скасувати останню оцінку" });
+  const progress = page.getByRole("progressbar");
+  if (await progress.isVisible().catch(() => false)) {
+    await expect(progress).toHaveAttribute("aria-valuenow", "1");
+    await undo.click();
+  } else {
+    // That was the last card: the session summary is shown, nothing to undo here.
+    await expect(page.getByText("Сесію завершено")).toBeVisible();
+    return;
+  }
+  await expect(page.getByRole("heading", { level: 2 }).first()).toHaveText(cue);
+  await expect(progress).toHaveAttribute("aria-valuenow", "0");
 }
 
-async function assertHelpAndAccount(page) {
-  await section(page, "Довідка").click();
-  await expect(page.getByRole("heading", { name: "Довідка", exact: true })).toBeVisible();
-  await expect(page.locator("#help-core")).toContainText("Як це працює");
-  await expect(page.locator("#help-keys")).toContainText("Гарячі клавіші");
+async function assertWords(page) {
+  await navLink(page, "Слова").click();
+  await heading(page, "Слова");
+  await expect(page).toHaveURL(`${baseUrl}/app/words`);
 
-  await section(page, "Профіль").click();
-  await expect(page.getByRole("heading", { name: "Профіль", exact: true })).toBeVisible();
-  await expect(page.getByLabel("Нових карток на день")).toBeVisible();
-  await expect(page.getByRole("tab", { name: "2 кнопки" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Оновити пароль", exact: true })).toBeDisabled();
-  await expect(page.getByRole("heading", { name: "Дані", exact: true })).toBeVisible();
-  await expect(page.getByText("Небезпечна зона")).toBeVisible();
-
-  await section(page, "Англійські слова").click();
-  await expect(page.getByRole("heading", { name: "Англійські слова", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Додати слово" }).first()).toBeVisible();
-
-  await section(page, "QA-терміни").click();
-  await expect(page.getByRole("heading", { name: "QA-терміни", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Додати термін" }).first()).toBeVisible();
-}
-
-async function assertCsvImportPreview(page) {
+  // CSV import preview (nothing is written).
   const stamp = Date.now();
-  const csv = [
-    "lemma_en,translation_uk,example_en",
-    `smoke csv ${stamp},csv перевірка ${stamp},This CSV smoke row stays in preview.`,
-  ].join("\n");
-
-  await section(page, "Англійські слова").click();
   await page.getByRole("button", { name: /Імпорт/ }).first().click();
-  const dialog = page.getByRole("dialog", { name: "Імпорт з CSV" });
-  await dialog.locator('input[type="file"][accept*=".csv"]').setInputFiles({
+  const importDialog = page.getByRole("dialog", { name: "Імпорт з CSV" });
+  await importDialog.locator('input[type="file"]').setInputFiles({
     name: `memora-smoke-${stamp}.csv`,
     mimeType: "text/csv",
-    buffer: Buffer.from(csv, "utf8"),
+    buffer: Buffer.from(`lemma_en,translation_uk\nsmoke csv ${stamp},перевірка`, "utf8"),
   });
-
-  await expect(dialog.getByText(`memora-smoke-${stamp}.csv`)).toBeVisible();
-  await expect(dialog.getByText("готові", { exact: true })).toBeVisible();
-  await expect(dialog.getByRole("button", { name: /^Додати \d+/ })).toBeVisible();
+  await expect(importDialog.getByText("готові", { exact: true })).toBeVisible();
+  await expect(importDialog.getByRole("button", { name: /^Додати 1/ })).toBeVisible();
   await page.keyboard.press("Escape");
-  await expect(dialog).toHaveCount(0);
+  await expect(importDialog).toHaveCount(0);
+  await shot(page, "words");
+
+  if (!shouldMutate) {
+    const firstWord = page.locator("main ul li a").first();
+    if ((await firstWord.count()) > 0) {
+      await firstWord.click();
+      await expect(page).toHaveURL(/\/app\/words\/[0-9a-f-]{36}$/);
+      await page.goBack();
+      await heading(page, "Слова");
+    }
+    return;
+  }
+
+  const lemma = `smoke word ${stamp}`;
+  await page.getByRole("button", { name: "Додати слово" }).first().click();
+  const addDialog = page.getByRole("dialog", { name: "Додати слово" });
+  await addDialog.getByLabel("Англійською").fill(lemma);
+  await addDialog.getByLabel(/^Переклад/).fill("тестове слово");
+  await addDialog.getByLabel(/^Приклад речення/).fill(`This is a ${lemma}.`);
+  await addDialog.getByRole("button", { name: "Додати", exact: true }).click();
+  await expect(addDialog.getByText("Додано. Можна вводити наступне.")).toBeVisible({ timeout: 20000 });
+  await addDialog.getByLabel("Англійською").fill(lemma);
+  await expect(addDialog.getByText("Це слово вже є:")).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  await page.getByRole("searchbox", { name: "Пошук" }).fill(lemma);
+  await page.locator("main ul li a").filter({ hasText: lemma }).click();
+  await expect(page).toHaveURL(/\/app\/words\/[0-9a-f-]{36}$/);
+  const detailUrl = page.url();
+  await expect(page.getByRole("heading", { level: 1 })).toContainText(lemma);
+  await expect(page.getByText("впізнати", { exact: true })).toBeVisible();
+  await expect(page.getByText("згадати", { exact: true })).toBeVisible();
+  await page.getByLabel(/^Переклад/).fill("оновлене тестове слово");
+  await page.getByRole("button", { name: "Зберегти зміни" }).click();
+  await expect(page.getByText("Зміни збережено.")).toBeVisible({ timeout: 20000 });
+  await shot(page, "word-detail");
+
+  // Browser back/forward between real routes.
+  await page.goBack();
+  await heading(page, "Слова");
+  await page.goForward();
+  await expect(page).toHaveURL(detailUrl);
+  await expect(page.getByLabel(/^Переклад/)).toHaveValue("оновлене тестове слово");
+
+  // Clean up the smoke word.
+  page.once("dialog", (dialog) => void dialog.accept());
+  await page.getByRole("button", { name: "Видалити", exact: true }).click();
+  await expect(page).toHaveURL(`${baseUrl}/app/words`, { timeout: 20000 });
+  await page.getByRole("searchbox", { name: "Пошук" }).fill(lemma);
+  await expect(page.getByText("Нічого не знайдено")).toBeVisible();
 }
 
-async function assertBackupExportAndRestorePreview(page) {
-  await section(page, "Профіль").click();
+async function assertProgress(page) {
+  await navLink(page, "Прогрес").click();
+  await heading(page, "Прогрес");
+  await expect(page.getByText("Активність", { exact: true })).toBeVisible();
+  await expect(page.getByText("Прогноз повторень", { exact: true })).toBeVisible();
+  await expect(page.getByText("Стадії запам’ятовування", { exact: true })).toBeVisible();
+  await shot(page, "progress");
+}
+
+async function assertSettings(page) {
+  await navLink(page, "Профіль").click();
+  await heading(page, "Профіль");
+  await expect(page.getByLabel("Нових карток на день")).toBeVisible();
+  await expect(page.getByRole("tab", { name: "2 кнопки" })).toBeVisible();
+  await expect(page.getByText("Рівень англійської")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Оновити пароль", exact: true })).toBeDisabled();
+  await expect(page.getByText("Небезпечна зона")).toBeVisible();
+  await shot(page, "settings");
 
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: /Повна копія/ }).click();
   const download = await downloadPromise;
-  const restorePath = path.join(os.tmpdir(), `memora-smoke-backup-${Date.now()}.json`);
-  await download.saveAs(restorePath);
+  const backupPath = path.join(os.tmpdir(), `memora-smoke-backup-${Date.now()}.json`);
+  await download.saveAs(backupPath);
+  const backup = JSON.parse(fs.readFileSync(backupPath, "utf8"));
+  if (backup.format !== "memora-backup-v2" || !Array.isArray(backup.words)) {
+    throw new Error("Backup download has an unexpected format.");
+  }
 
-  await page.locator('input[type="file"][accept*="json"]').setInputFiles(restorePath);
-
+  await page.locator('input[type="file"][accept*="json"]').setInputFiles(backupPath);
   await expect(page.getByText("Дата копії", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Відновити", exact: true })).toBeDisabled();
   await page.getByRole("button", { name: "Скасувати", exact: true }).click();
   await expect(page.getByText("Дата копії", { exact: true })).toHaveCount(0);
+  fs.rmSync(backupPath, { force: true });
 }
 
-async function assertProgressWeakCardEdit(page) {
-  await section(page, "Прогрес").click();
-  await expect(page.getByRole("heading", { name: "Прогрес", exact: true })).toBeVisible();
-  await expect(page.getByText("Активність", { exact: true })).toBeVisible();
-  await expect(page.getByText("Слабкі місця", { exact: true })).toBeVisible();
+async function assertHelp(page) {
+  await navLink(page, "Довідка").click();
+  await heading(page, "Довідка");
+  await expect(page.locator("#help-core")).toContainText("Як це працює");
+  await expect(page.getByText(/QA/)).toHaveCount(0);
+  await shot(page, "help");
+}
 
-  const editButtons = page.getByRole("button", { name: "Редагувати матеріал", exact: true });
-  if ((await editButtons.count()) === 0) {
-    console.log("Weak-card edit check skipped because there are no weak cards yet.");
-    return;
+async function assertMobile(page) {
+  await page.setViewportSize(mobile);
+  const screens = [
+    ["Практика", "/app", "practice"],
+    ["Слова", "/app/words", "words"],
+    ["Прогрес", "/app/progress", "progress"],
+    ["Профіль", "/app/settings", "settings"],
+  ];
+
+  for (const [label, url, name] of screens) {
+    await navLink(page, label).click();
+    await expect(page).toHaveURL(`${baseUrl}${url}`);
+    await expect(navLink(page, label)).toHaveAttribute("aria-current", "page");
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await assertNoHorizontalOverflow(page);
+    await shot(page, name);
   }
 
-  await editButtons.first().click();
-  await expect(page.getByRole("dialog", { name: "Матеріал" })).toBeVisible({ timeout: 10000 });
-  await page.keyboard.press("Escape");
+  await page.getByRole("link", { name: "Довідка" }).filter({ visible: true }).first().click();
+  await heading(page, "Довідка");
+  await assertNoHorizontalOverflow(page);
+  await shot(page, "help");
+
+  // Android back button returns through the visited routes; refresh keeps the screen.
+  await page.goBack();
+  await expect(page).toHaveURL(`${baseUrl}/app/settings`);
+  await page.reload();
+  await heading(page, "Профіль");
+  await page.setViewportSize(desktop);
 }
 
-async function assertMobileNavigation(page) {
-  await page.setViewportSize({ width: 390, height: 844 });
-  await expect(section(page, "Прогрес")).toBeVisible();
-  await section(page, "Прогрес").click();
-  await expect(page.getByRole("heading", { name: "Прогрес", exact: true })).toBeVisible();
-  await section(page, "Профіль").click();
-  await expect(page.getByRole("button", { name: "Вийти" }).first()).toBeVisible();
-  await section(page, "Практика").click();
-  await expect(page.getByRole("tab", { name: /^Усе/ })).toBeVisible();
-  const overflow = await page.evaluate(
-    () => document.documentElement.scrollWidth - window.innerWidth,
-  );
-  if (overflow > 1) throw new Error(`Mobile layout overflows horizontally by ${overflow}px.`);
-  await page.setViewportSize({ width: 1440, height: 1000 });
-}
-
-async function assertAddAndEditEnglishNote(page) {
-  const stamp = new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14);
-  const phrase = `smoke phrase ${stamp}`;
-  const translation = `тестова фраза ${stamp}`;
-  const updatedTranslation = `оновлена тестова фраза ${stamp}`;
-
-  await section(page, "Англійські слова").click();
-  await page.getByRole("button", { name: "Додати слово" }).first().click();
-  let addDialog = page.getByRole("dialog", { name: "Додати слово" });
-  await addDialog.getByLabel("Англійською").fill(phrase);
-  await addDialog.getByLabel(/^Переклад/).fill(translation);
-  await addDialog.getByLabel(/^Приклад речення/).fill(`This is a ${phrase}.`);
-  await addDialog.getByRole("button", { name: "Додати", exact: true }).click();
-  await expect(addDialog.getByText("Додано. Можна вводити наступне.")).toBeVisible({
-    timeout: 20000,
-  });
-  await page.keyboard.press("Escape");
-
-  await page.getByRole("searchbox", { name: "Пошук" }).fill(phrase);
-  await page.locator("li button").filter({ hasText: phrase }).click();
-  const details = page.getByRole("dialog", { name: "Матеріал" });
-  await details.getByLabel(/^Переклад/).fill(updatedTranslation);
-  await details.getByRole("button", { name: "Зберегти зміни" }).click();
-  await expect(page.getByText("Зміни збережено.")).toBeVisible({ timeout: 20000 });
-  await page.keyboard.press("Escape");
-
-  const mergeTranslation = `злита тестова фраза ${stamp}`;
-  await page.getByRole("button", { name: "Додати слово" }).first().click();
-  addDialog = page.getByRole("dialog", { name: "Додати слово" });
-  await addDialog.getByLabel("Англійською").fill(phrase);
-  await addDialog.getByLabel(/^Переклад/).fill(mergeTranslation);
-  await expect(addDialog.getByText(/Схоже, це вже є/)).toBeVisible();
-  await addDialog.getByRole("button", { name: "Оновити наявний" }).click();
-  const mergedDetails = page.getByRole("dialog", { name: "Матеріал" });
-  await expect(mergedDetails).toBeVisible({ timeout: 20000 });
-  await expect(mergedDetails.getByLabel(/^Переклад/)).toHaveValue(mergeTranslation);
-}
-
-async function assertNoNextOverlay(page) {
-  const hasOverlay = await page.locator("[data-nextjs-dialog-overlay]").count();
-  if (hasOverlay > 0) {
-    throw new Error("Next.js error overlay is visible.");
-  }
+async function assertNoHorizontalOverflow(page) {
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  if (overflow > 1) throw new Error(`${page.url()} overflows horizontally by ${overflow}px.`);
 }
 
 async function assertNoConsoleErrors() {
-  const meaningful = consoleProblems.filter(
-    (message) => !message.includes("Auth session missing"),
-  );
-
-  if (meaningful.length > 0) {
-    throw new Error(`Browser console errors:\n${meaningful.join("\n")}`);
-  }
+  const meaningful = consoleProblems.filter((message) => !message.includes("Auth session missing"));
+  if (meaningful.length > 0) throw new Error(`Browser console errors:\n${meaningful.join("\n")}`);
 }
 
 main().catch((error) => {

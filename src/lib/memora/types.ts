@@ -1,34 +1,15 @@
-export type ModuleType = "english" | "qa";
+import type { Database } from "@/lib/supabase/database.types";
 
-export type StudyMode = "daily" | "english-productive" | "qa-interview";
+type Enums = Database["public"]["Enums"];
 
-export type CardType =
-  | "productive_translation"
-  | "receptive_translation"
-  | "cloze_context"
-  | "collocation_recall"
-  | "term_definition"
-  | "definition_term"
-  | "contrast"
-  | "scenario"
-  | "code_tool";
+export type CardKind = Enums["card_kind"];
+export type CardStatus = Enums["card_status"];
+export type WordSource = Enums["word_source"];
+export type WordStatus = Enums["word_status"];
+export type ReviewRating = Enums["review_rating"];
+export type FsrsState = Enums["card_state"];
 
-export type ReviewRating = "again" | "hard" | "good" | "easy";
-
-export type FsrsState = "New" | "Learning" | "Review" | "Relearning";
-
-export type NoteStatus = "active" | "suspended" | "archived";
-
-export type ImportStatus =
-  | "uploaded"
-  | "validating"
-  | "ready"
-  | "processing"
-  | "completed"
-  | "failed";
-
-export type ImportRowStatus = "valid" | "invalid" | "imported" | "skipped";
-
+/** FSRS state of one card, stored column-by-column in `cards`. */
 export type StoredSchedule = {
   due: string;
   stability: number;
@@ -39,116 +20,114 @@ export type StoredSchedule = {
   reps: number;
   lapses: number;
   state: FsrsState;
-  last_review?: string | null;
+  last_review: string | null;
 };
 
-export type Note = {
-  id: string;
-  module: ModuleType;
-  title: string;
-  status: NoteStatus;
-  source: "seed" | "user" | "imported";
-  tags: string[];
-  content: Record<string, string | string[] | undefined>;
-  createdAt: string;
+export type WordExample = {
+  en: string;
+  uk?: string;
 };
 
-export type StudyCard = {
-  id: string;
-  noteId: string;
-  module: ModuleType;
-  type: CardType;
-  priority: number;
-  prompt: string;
-  answer: string;
-  explanation: string;
+/**
+ * Learning content of a word. The same shape is used by `lexicon.content`
+ * (shared, AI-enriched from batch 3) and `user_words.content` (the learner's
+ * own words and overrides). Only `translations` and `examples` are filled by
+ * the manual form today; the rest is reserved for enrichment.
+ */
+export type WordContent = {
+  translations: string[];
+  part_of_speech?: string;
+  ipa?: string;
+  examples: WordExample[];
+  collocations?: string[];
+  synonyms?: string[];
+  cloze?: Array<{ text: string; answer: string }>;
+  common_mistakes?: string[];
+};
+
+/** Fields of the manual "add word" form and CSV rows. */
+export type WordDraft = {
+  lemma: string;
+  /** Ukrainian translations, comma separated. */
+  translation: string;
+  partOfSpeech?: string;
   example?: string;
-  tags: string[];
-  schedule: StoredSchedule;
-  status: NoteStatus;
 };
 
-export type ReviewLog = {
-  id: string;
-  cardId: string;
-  noteId: string;
-  module: ModuleType;
-  rating: ReviewRating;
-  responseText: string;
-  elapsedMs: number;
-  reviewedAt: string;
-  dueBefore: string;
-  dueAfter: string;
-  wasCorrect: boolean;
-};
-
-export type ImportRow = {
-  id: string;
-  importId: string;
-  rowNumber: number;
-  status: ImportRowStatus;
-  errors: string[];
-  raw: Record<string, unknown>;
-  module?: ModuleType;
-  createdAt: string;
-};
-
-export type ImportRun = {
-  id: string;
-  fileName: string;
-  status: ImportStatus;
-  rowCount: number;
-  createdAt: string;
-  updatedAt: string;
-  rows: ImportRow[];
-};
-
-export type UserProfile = {
-  id: string;
-  email: string | null;
-  locale: string;
-  timezone: string;
-  level: string;
-  goals: {
-    dailyMinutes: number;
-    primaryGoal: string;
-  };
-  createdAt: string;
-  updatedAt: string;
-};
-
-export type UserProfileDraft = {
-  locale: string;
-  timezone: string;
-  level: string;
-  dailyMinutes: number;
-  primaryGoal: string;
-};
-
-export type AppSettings = {
-  desiredRetention: number;
+/** Temporary knobs stored in `profiles.settings` until batch 2. */
+export type LearningSettings = {
   dailyNewLimit: number;
   reviewButtons: "simple" | "advanced";
-  studyMode: StudyMode;
 };
 
-export type MemoraState = {
-  version: 1;
-  settings: AppSettings;
-  notes: Note[];
-  cards: StudyCard[];
-  reviewLogs: ReviewLog[];
-  imports: ImportRun[];
+export type Profile = {
+  id: string;
+  timezone: string;
+  dailyMinutes: number;
+  goals: string[];
+  settings: LearningSettings;
 };
 
-export type QueueSummary = {
+export type PracticeCard = {
+  id: string;
+  userWordId: string;
+  kind: CardKind;
+  lemma: string;
+  content: WordContent;
+  schedule: StoredSchedule;
+};
+
+export type PracticeSummary = {
   dueReviews: number;
-  newAvailable: number;
-  totalDue: number;
-  estimatedMinutes: number;
-  retention: number | null;
-  desiredRetentionGap: number | null;
-  lapses: number;
-  matureCards: number;
-  leeches: number;
+  newReady: number;
+  newToday: number;
+  dailyNewLimit: number;
+  nextDueAt: string | null;
+  activeCards: number;
+};
+
+export type WordProgressLevel = 0 | 1 | 2 | 3;
+
+export type WordListItem = {
+  id: string;
+  lemma: string;
+  translation: string;
+  status: WordStatus;
+  source: WordSource;
+  createdAt: string;
+  progress: { label: string; level: WordProgressLevel };
+  maxLapses: number;
+};
+
+export type WordCard = {
+  id: string;
+  kind: CardKind;
+  status: CardStatus;
+  schedule: StoredSchedule;
+};
+
+export type WordDetail = {
+  id: string;
+  lemma: string;
+  status: WordStatus;
+  source: WordSource;
+  content: WordContent;
+  createdAt: string;
+  cards: WordCard[];
+  reviews: { total: number; correct: number };
+};
+
+export type ReviewOutcome = {
+  cardId: string;
+  schedule: StoredSchedule;
+  logId: string;
+};
+
+export type StreakSummary = {
+  streak: number;
+  reviewedToday: boolean;
+  /** Local date (YYYY-MM-DD) in the learner's timezone. */
+  today: string;
+  /** Local dates of the current Monday–Sunday week with reviews. */
+  weekDays: string[];
 };
