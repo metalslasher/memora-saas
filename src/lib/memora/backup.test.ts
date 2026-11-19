@@ -5,7 +5,7 @@ import {
   previewBackup,
 } from "./backup";
 import { createBackupJson } from "./export";
-import { createInitialState } from "./seed";
+import { createInitialState } from "./test-fixtures";
 
 describe("backup helpers", () => {
   it("parses and previews a Memora backup", () => {

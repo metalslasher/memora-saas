@@ -339,61 +339,6 @@ export async function remoteResetLearningStats(
   return loadRemoteMemoraState(supabase, userId);
 }
 
-export async function remoteReviewCard(
-  supabase: SupabaseClient,
-  state: MemoraState,
-  cardId: string,
-  rating: ReviewRating,
-  responseText: string,
-  elapsedMs: number,
-) {
-  const card = state.cards.find((item) => item.id === cardId);
-  if (!card) return state;
-
-  const reviewedAt = new Date();
-  const outcome = scheduleReview(card.schedule, rating, reviewedAt);
-  const cardPatch = scheduleToCardPatch(outcome.schedule, reviewedAt);
-
-  const { error: cardError } = await supabase
-    .from("cards")
-    .update(cardPatch)
-    .eq("id", cardId);
-
-  if (cardError) throw cardError;
-
-  const { data: insertedLog, error: logError } = await supabase
-    .from("review_logs")
-    .insert({
-      card_id: card.id,
-      note_id: card.noteId,
-      module_type: card.module,
-      rating,
-      elapsed_ms: elapsedMs,
-      response_text: responseText,
-      was_correct: rating !== "again",
-      due_before: card.schedule.due,
-      due_after: outcome.schedule.due,
-      schedule_before: card.schedule,
-      schedule_after: outcome.schedule,
-      reviewed_at: reviewedAt.toISOString(),
-    })
-    .select("id,card_id,note_id,module_type,reviewed_at,rating,elapsed_ms,response_text,was_correct,due_before,due_after")
-    .single();
-
-  if (logError) throw logError;
-
-  return {
-    ...state,
-    cards: state.cards.map((item) =>
-      item.id === cardId ? { ...item, schedule: outcome.schedule } : item,
-    ),
-    reviewLogs: [
-      ...state.reviewLogs,
-      mapReviewLog(insertedLog as DbReviewLog),
-    ],
-  };
-}
-
 export async function remoteAddEnglishNote(
   supabase: SupabaseClient,
   draft: EnglishDraft,
@@ -586,26 +531,6 @@ export async function remotePauseCard(supabase: SupabaseClient, cardId: string) 
     .eq("id", cardId);
 
   if (error) throw error;
-}
-
-export async function remoteSuspendCard(
-  supabase: SupabaseClient,
-  state: MemoraState,
-  cardId: string,
-) {
-  const { error } = await supabase
-    .from("cards")
-    .update({ status: "suspended", state: "suspended" })
-    .eq("id", cardId);
-
-  if (error) throw error;
-
-  return {
-    ...state,
-    cards: state.cards.map((card) =>
-      card.id === cardId ? { ...card, status: "suspended" as const } : card,
-    ),
-  };
 }
 
 export async function remoteUpdateCardStatus(
