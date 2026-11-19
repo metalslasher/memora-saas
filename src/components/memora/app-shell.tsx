@@ -2,7 +2,7 @@
 
 import { CircleHelp, Flame, LogOut, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import type * as React from "react";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { updateTimezoneAction } from "@/lib/memora/actions/account";
@@ -51,7 +51,6 @@ type ShellProps = {
 
 export function AppShell({ children, email, streak, dueCount, timezone, sidebarCollapsed }: ShellProps) {
   const pathname = usePathname();
-  const router = useRouter();
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const [isCollapsed, setIsCollapsed] = useState(sidebarCollapsed);
   // Server data wins whenever the layout re-renders (router.refresh);
@@ -79,13 +78,13 @@ export function AppShell({ children, email, streak, dueCount, timezone, sidebarC
   );
 
   // Keep "today" (streak, daily limits) in the learner's own timezone.
+  // Saved silently: a router.refresh here would remount the current page and
+  // wipe an in-progress practice card. The new zone applies on next navigation.
   useEffect(() => {
     const browserZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     if (!browserZone || browserZone === timezone) return;
-    void updateTimezoneAction(browserZone).then((result) => {
-      if (result.ok) router.refresh();
-    });
-  }, [router, timezone]);
+    void updateTimezoneAction(browserZone);
+  }, [timezone]);
 
   function toggleSidebar() {
     setIsCollapsed((value) => {
@@ -375,12 +374,16 @@ function MobileTabBar({ dueCount, pathname }: { dueCount: number; pathname: stri
               >
                 <Icon className="size-5" />
                 {badge ? (
-                  <span className="absolute -right-0.5 -top-1 min-w-4 rounded-full bg-accent px-1 font-mono text-[10px] font-semibold leading-4 text-accent-ink">
+                  <span
+                    aria-hidden="true"
+                    className="absolute -right-0.5 -top-1 min-w-4 rounded-full bg-accent px-1 font-mono text-[10px] font-semibold leading-4 text-accent-ink"
+                  >
                     {badge > 99 ? "99+" : badge}
                   </span>
                 ) : null}
               </span>
               {item.label}
+              {badge ? <span className="sr-only">, {badge} на сьогодні</span> : null}
             </Link>
           );
         })}
