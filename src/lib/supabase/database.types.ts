@@ -300,6 +300,39 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_practice_cards: {
+        Args: { p_limit?: number; p_new_words?: number; p_tz: string }
+        Returns: {
+          content: Json
+          difficulty: number
+          due: string
+          id: string
+          kind: Database["public"]["Enums"]["card_kind"]
+          lapses: number
+          last_review: string
+          learning_steps: number
+          lemma: string
+          reps: number
+          scheduled_days: number
+          stability: number
+          state: Database["public"]["Enums"]["card_state"]
+          user_word_id: string
+          word_reviewed_at: string
+        }[]
+      }
+      get_practice_overview: {
+        Args: { p_tz: string }
+        Returns: {
+          active_cards: number
+          daily_minutes: number
+          day_start: string
+          due_words: number
+          new_ready: number
+          new_today: number
+          next_due_at: string
+          reviews_today: number
+        }[]
+      }
       get_practice_queue: {
         Args: { p_extra_new?: number; p_limit?: number; p_tz: string }
         Returns: {
