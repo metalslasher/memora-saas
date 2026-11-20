@@ -10,12 +10,12 @@
 (правила — у `CLAUDE.md`).
 
 ## Поточний стан
-- **Етап:** пачки 0 і 1 — у main (2026-11-19). **Пачка 2** (двигун практики) готова в
-  гілці `batch-2-practice-engine`, чекає рев'ю й merge (2026-11-20). Після merge —
-  застосувати `20261120100000_practice_engine_cleanup` + advisors + gen types. Кожна пачка — вкладений чат під головним; ТЗ — `docs/batches/batch-N.md`.
-- **Прод:** https://memora-saas.vercel.app — схема v2, тільки англійська, маршрути `/app/*`, закрита бета.
-- **Supabase:** схема v2 + `20261120090000_practice_engine` (застосовано; сумісна з кодом
-  main); `..._practice_engine_cleanup` — ще ні. Дані тестові.
+- **Етап:** пачки 0, 1 і 2 — у main (пачка 2, двигун практики — 2026-11-20). **Далі — пачка 3**
+  (AI-шар). Кожна пачка — вкладений чат під головним; ТЗ — `docs/batches/batch-N.md`.
+- **Прод:** https://memora-saas.vercel.app — схема v2, тільки англійська, маршрути `/app/*`,
+  закрита бета, 4 типи вправ, темп «хвилин на день», автооцінка.
+- **Supabase:** схема v2 + `20261120090000_practice_engine` + `20261120100000_practice_engine_cleanup`
+  (застосовано після merge). Дані тестові.
 
 ---
 
@@ -347,7 +347,7 @@ Android і ПК. UI українською, вивчення — англійс�
 |---|---|---|
 | Повний аудит (код, БД, лендінг) | 2026-11-19 | після пачки 5 або за ≥ 4 тижні |
 | Візуальний аудит кабінету | 2026-11-19 (пачка 0, знімки «до», §2.4) | пачка 5 (знімки «після») |
-| Supabase advisors | 2026-11-20 після `practice_engine` — нового нічого (ті самі навмисні WARN `is_current_user_allowed`, INFO `allowed_emails`, leaked password — Free; INFO unused index `user_words_lexicon_idx` — знадобиться в пачці 4) | після кожної міграції (наступна — cleanup після merge) |
+| Supabase advisors | 2026-11-20 після `practice_engine_cleanup` — нового нічого (ті самі навмисні WARN `is_current_user_allowed`, INFO `allowed_emails`, leaked password — Free; INFO unused index `user_words_lexicon_idx` — знадобиться в пачці 4) | після кожної міграції |
 | Оновлення залежностей | 2026-11-19 (пачка 0: next 16.4.6, react 19.3.1, supabase-js 2.119, tailwind 4.3.5; ts-fsrs 6 — у пачці 2; мажори vitest 5, eslint 10, typescript 7, playwright 1.65 — відкладено) | ≥ 4 тижні |
 | Перевірка AI-витрат | — | після пачки 3, далі щомісяця |
 | Тестовий акаунт і authenticated smoke | 2026-11-20 (пачка 2: засів усіх 4 типів вправ, прохід на 375 px, зелений) | перед кожним merge |
