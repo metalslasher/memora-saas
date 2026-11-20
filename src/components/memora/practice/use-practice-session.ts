@@ -29,6 +29,8 @@ type LastReview = {
   countedMs: number;
   /** Resolves to the server log id, or null when the write failed. */
   serverLogId: Promise<string | null>;
+  /** Identifies the review, so a late server reply after undo is ignored. */
+  token: object;
 };
 
 function orderOf(cards: PracticeCard[], offset = 0) {
@@ -72,6 +74,8 @@ export function usePracticeSession(
   const [clock, setClock] = useState(() => Date.now());
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const reviewChainRef = useRef<Promise<unknown>>(Promise.resolve());
+  /** Reviews undone in this session: their late server replies are ignored. */
+  const undoneRef = useRef(new WeakSet<object>());
 
   // Re-evaluate the queue every minute so learning steps come back on time.
   useEffect(() => {
@@ -151,12 +155,13 @@ export function usePracticeSession(
     markReviewed();
     resetCardUi();
 
+    const token = {};
     const serverLogId = reviewChainRef.current
       .catch(() => undefined)
       .then(() => gradeCardAction({ cardId: card.id, rating, responseText: response, elapsedMs }))
       .then((result) => {
         if (!result.ok) throw new Error(result.error);
-        updateSchedule(result.data.cardId, result.data.schedule);
+        if (!undoneRef.current.has(token)) updateSchedule(result.data.cardId, result.data.schedule);
         return result.data.logId;
       })
       .catch((error: unknown) => {
@@ -166,7 +171,7 @@ export function usePracticeSession(
       });
 
     reviewChainRef.current = serverLogId;
-    setLastReview({ cardId: card.id, previousSchedule: card.schedule, wasCorrect, countedMs, serverLogId });
+    setLastReview({ cardId: card.id, previousSchedule: card.schedule, wasCorrect, countedMs, serverLogId, token });
   }
 
   async function undo() {
@@ -174,6 +179,7 @@ export function usePracticeSession(
     if (!review) return;
 
     setLastReview(null);
+    undoneRef.current.add(review.token);
     updateSchedule(review.cardId, review.previousSchedule);
     setSession((current) => ({
       ...current,
@@ -186,13 +192,22 @@ export function usePracticeSession(
     setRevealedAfterMs(null);
     setShownAt(Date.now());
 
-    const logId = await review.serverLogId;
-    if (!logId) return;
-    const result = await undoReviewAction(logId);
-    if (!result.ok) {
-      showToast("error", `Не вдалося скасувати: ${result.error}`);
-      void reload(extraNew);
-    }
+    // Serialized with grades: a quick next grade must not reach the server
+    // before this undo (it would be rolled back or applied to a stale card).
+    const undone = reviewChainRef.current
+      .catch(() => undefined)
+      .then(async () => {
+        const logId = await review.serverLogId;
+        if (!logId) return;
+        const result = await undoReviewAction(logId);
+        if (!result.ok) throw new Error(result.error);
+      })
+      .catch((error: unknown) => {
+        showToast("error", `Не вдалося скасувати: ${formatError(error)}`);
+        void reload(extraNew);
+      });
+    reviewChainRef.current = undone;
+    await undone;
   }
 
   /** Hides a card for the rest of this session without rating it. */
