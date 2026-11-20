@@ -59,7 +59,6 @@ export type Database = {
           created_at: string
           difficulty: number
           due: string
-          elapsed_days: number
           id: string
           kind: Database["public"]["Enums"]["card_kind"]
           lapses: number
@@ -78,7 +77,6 @@ export type Database = {
           created_at?: string
           difficulty?: number
           due?: string
-          elapsed_days?: number
           id?: string
           kind: Database["public"]["Enums"]["card_kind"]
           lapses?: number
@@ -97,7 +95,6 @@ export type Database = {
           created_at?: string
           difficulty?: number
           due?: string
-          elapsed_days?: number
           id?: string
           kind?: Database["public"]["Enums"]["card_kind"]
           lapses?: number
@@ -168,7 +165,6 @@ export type Database = {
           goals: string[]
           id: string
           level_estimate: Json | null
-          settings: Json
           timezone: string
           updated_at: string
         }
@@ -178,7 +174,6 @@ export type Database = {
           goals?: string[]
           id?: string
           level_estimate?: Json | null
-          settings?: Json
           timezone?: string
           updated_at?: string
         }
@@ -188,7 +183,6 @@ export type Database = {
           goals?: string[]
           id?: string
           level_estimate?: Json | null
-          settings?: Json
           timezone?: string
           updated_at?: string
         }
@@ -331,37 +325,6 @@ export type Database = {
           new_today: number
           next_due_at: string
           reviews_today: number
-        }[]
-      }
-      get_practice_queue: {
-        Args: { p_extra_new?: number; p_limit?: number; p_tz: string }
-        Returns: {
-          content: Json
-          difficulty: number
-          due: string
-          elapsed_days: number
-          id: string
-          kind: Database["public"]["Enums"]["card_kind"]
-          lapses: number
-          last_review: string
-          learning_steps: number
-          lemma: string
-          reps: number
-          scheduled_days: number
-          stability: number
-          state: Database["public"]["Enums"]["card_state"]
-          user_word_id: string
-        }[]
-      }
-      get_practice_summary: {
-        Args: { p_tz: string }
-        Returns: {
-          active_cards: number
-          daily_new_limit: number
-          due_reviews: number
-          new_ready: number
-          new_today: number
-          next_due_at: string
         }[]
       }
       get_progress_stats: { Args: { p_tz: string }; Returns: Json }
