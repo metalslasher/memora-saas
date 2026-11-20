@@ -4,19 +4,17 @@ import { normalizeBackupDocument, type BackupDocument } from "../backup";
 import { exportBackup, exportWordsCsv, restoreBackup } from "../data/backup";
 import { requireActionContext } from "../data/context";
 import { resetProgress } from "../data/practice";
-import { updateLearningSettings, updateTimezone } from "../data/profile";
+import { updateDailyMinutes, updateTimezone } from "../data/profile";
 import { deleteAllWords } from "../data/words";
-import type { LearningSettings } from "../types";
-import { isValidTimezone, validateLearningSettings } from "../validation";
+import { isValidTimezone, validateDailyMinutes } from "../validation";
 import { fail, ok, type ActionResult } from "./result";
 
-export async function updateLearningSettingsAction(
-  settings: LearningSettings,
-): Promise<ActionResult<LearningSettings>> {
+/** Minutes per day: the pace new words are derived from. */
+export async function updateDailyMinutesAction(minutes: number): Promise<ActionResult<number>> {
   try {
-    const clean = validateLearningSettings(settings);
+    const clean = validateDailyMinutes(minutes);
     const { supabase, user } = await requireActionContext();
-    return ok(await updateLearningSettings(supabase, user.id, clean));
+    return ok(await updateDailyMinutes(supabase, user.id, clean));
   } catch (error) {
     return fail(error);
   }

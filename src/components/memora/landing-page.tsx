@@ -238,7 +238,7 @@ function DemoCard() {
   const [typed, setTyped] = useState("");
   const [isRevealed, setIsRevealed] = useState(false);
   const card = demoCards[index % demoCards.length];
-  const check = isRevealed ? checkAnswer(typed, card.answer) : null;
+  const check = isRevealed ? checkAnswer(typed, { answers: [card.answer] }) : null;
 
   function next() {
     setIndex((value) => value + 1);
@@ -251,6 +251,8 @@ function DemoCard() {
       ? {
           exact: ["Точно!", "bg-accent-soft text-accent"],
           close: ["Майже — є описка", "bg-amber-soft text-amber"],
+          form: ["Слово те, форма інша", "bg-amber-soft text-amber"],
+          synonym: ["Синонім — теж підходить", "bg-amber-soft text-amber"],
           self: ["Порівняй за змістом", "bg-surface-4 text-text-2"],
           different: ["Не збігається", "bg-danger-soft text-danger"],
         }[check.verdict]

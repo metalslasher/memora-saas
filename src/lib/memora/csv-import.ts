@@ -1,13 +1,13 @@
 import { lemmaKey, normalizeLookupText } from "./duplicates";
 import type { WordDraft } from "./types";
-import { normalizeWordDraft, wordDraftErrors } from "./word-content";
+import { normalizeWordDraft, wordDraftErrors, type NormalizedWordDraft } from "./word-content";
 
 export const MAX_IMPORT_ROWS = 200;
 
 export type CsvImportRow = {
   rowNumber: number;
   status: "ready" | "duplicate" | "invalid";
-  draft?: Required<WordDraft>;
+  draft?: NormalizedWordDraft;
   errors: string[];
   /** Why the row is a duplicate: an existing word or an earlier CSV row. */
   duplicateOf?: string;

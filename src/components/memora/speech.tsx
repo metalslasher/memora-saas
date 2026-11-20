@@ -25,7 +25,8 @@ function pickEnglishVoice() {
   );
 }
 
-export function speakEnglish(text: string) {
+/** Speaks English text with the best en-US voice on the device (Web Speech API). */
+export function speakEnglish(text: string, { rate = 0.92 }: { rate?: number } = {}) {
   if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
   const clean = text.trim();
   if (!clean) return;
@@ -33,7 +34,7 @@ export function speakEnglish(text: string) {
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(clean);
   utterance.lang = "en-US";
-  utterance.rate = 0.92;
+  utterance.rate = rate;
   const voice = pickEnglishVoice();
   if (voice) utterance.voice = voice;
   window.speechSynthesis.speak(utterance);

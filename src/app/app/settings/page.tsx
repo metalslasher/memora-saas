@@ -20,7 +20,7 @@ export default async function SettingsPage({
       counts={counts}
       email={user.email ?? null}
       isRecovery={params.recovery === "1"}
-      settings={profile.settings}
+      dailyMinutes={profile.dailyMinutes}
       snapshot={snapshot}
     />
   );

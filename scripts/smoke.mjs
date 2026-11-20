@@ -91,7 +91,9 @@ async function shot(page, name) {
   if (!shotsDir) return;
   const size = page.viewportSize();
   await page.waitForTimeout(400);
-  await page.screenshot({ path: path.join(shotsDir, `${name}-${size?.width ?? 0}.png`), fullPage: true });
+  // Phone answer screens: what is on screen after the reveal scroll (the tab bar is fixed).
+  const fullPage = !(name.endsWith("-answer") && size?.width === mobile.width);
+  await page.screenshot({ path: path.join(shotsDir, `${name}-${size?.width ?? 0}.png`), fullPage });
 }
 
 async function assertGuestRedirect(page) {
@@ -132,28 +134,78 @@ async function assertPractice(page) {
     return;
   }
 
-  const cue = await page.getByRole("heading", { level: 2 }).first().innerText();
-  await shot(page, "practice");
+  await expect(page.getByRole("tablist", { name: "Довжина сесії" })).toBeVisible();
+  const count = page.getByTestId("session-count");
+
+  // First card: check, rate, undo — the same card comes back.
+  const firstKind = await exerciseKind(page);
+  const firstCue = await cueText(page);
   await answerBox.fill("smoke");
   await answerBox.press("Enter");
   await expect(page.getByText("Відповідь", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: /^Не згадав/ })).toBeVisible();
-  await shot(page, "practice-revealed");
-
+  await expect(ratingButton(page, firstKind)).toBeVisible();
   if (!shouldMutate) return;
-  await page.getByRole("button", { name: /^Згадав/ }).click();
-  const undo = page.getByRole("button", { name: "Скасувати останню оцінку" });
-  const progress = page.getByRole("progressbar");
-  if (await progress.isVisible().catch(() => false)) {
-    await expect(progress).toHaveAttribute("aria-valuenow", "1");
-    await undo.click();
-  } else {
-    // That was the last card: the session summary is shown, nothing to undo here.
-    await expect(page.getByText("Сесію завершено")).toBeVisible();
-    return;
+  await ratingButton(page, firstKind).click();
+  if (await visibleSoon(answerBox)) {
+    await expect(count).toHaveText(/^1 ·/);
+    await page.getByRole("button", { name: "Скасувати останню оцінку" }).click();
+    await expect(count).toHaveText(/^0 ·/);
+    expect(await cueText(page)).toBe(firstCue);
   }
-  await expect(page.getByRole("heading", { level: 2 }).first()).toHaveText(cue);
-  await expect(progress).toHaveAttribute("aria-valuenow", "0");
+
+  // Walk the queue on a phone: every exercise type (question + answer), with
+  // screenshots at both sizes. Seeded by `pnpm test-user`: one card of each type is due.
+  await page.setViewportSize(mobile);
+  const seen = new Set();
+  for (let step = 0; step < 12 && (await visibleSoon(answerBox)); step += 1) {
+    const kind = await exerciseKind(page);
+    const typedAnswer = kind === "recognition" ? "" : "smoke";
+    const first = !seen.has(kind);
+    if (first) await shotBoth(page, `practice-${kind}`);
+    if (typedAnswer) await answerBox.fill(typedAnswer);
+    await page.keyboard.press("Enter");
+    await expect(page.getByText("Відповідь", { exact: true })).toBeVisible();
+    await expect(ratingButton(page, kind)).toBeVisible();
+    if (kind !== "recognition") await expect(page.getByTestId("auto-rating")).toContainText("Не згадав");
+    await assertAboveTabBar(page, ratingButton(page, kind));
+    if (first) await shotBoth(page, `practice-${kind}-answer`);
+    seen.add(kind);
+    await ratingButton(page, kind).click();
+    await page.waitForTimeout(300);
+  }
+  await page.setViewportSize(desktop);
+  const missing = ["recognition", "recall", "cloze", "listening"].filter((kind) => !seen.has(kind));
+  if (missing.length > 0) throw new Error(`Exercise types not met in the queue (run "pnpm test-user" to reseed): ${missing.join(", ")}`);
+}
+
+/** Which exercise the current card is, from its instruction and input. */
+async function exerciseKind(page) {
+  if (await page.getByRole("button", { name: "Прослухати ще раз" }).isVisible().catch(() => false)) return "listening";
+  const placeholder = await page.locator("#practice-answer").getAttribute("placeholder");
+  if (placeholder?.startsWith("Впиши переклад")) return "recognition";
+  if ((await page.locator("article").getByText("Встав пропущене слово", { exact: true }).count()) > 0) return "cloze";
+  return "recall";
+}
+
+/** The card's prompt, to tell cards of the same type apart. */
+function cueText(page) {
+  return page.locator("article p.text-sm.text-muted").first().evaluate((node) => node.parentElement?.innerText ?? "");
+}
+
+/** Self-rated cards (recognition) show «Не згадав», typed ones a single «Далі». */
+function ratingButton(page, kind) {
+  return kind === "recognition"
+    ? page.getByRole("button", { name: /^Не згадав/ })
+    : page.getByRole("button", { name: /^Далі/ });
+}
+
+async function shotBoth(page, name) {
+  if (!shotsDir) return;
+  const size = page.viewportSize();
+  await shot(page, name);
+  await page.setViewportSize(size?.width === mobile.width ? desktop : mobile);
+  await shot(page, name);
+  await page.setViewportSize(size ?? desktop);
 }
 
 async function assertWords(page) {
@@ -205,7 +257,7 @@ async function assertWords(page) {
   const detailUrl = page.url();
   await expect(page.getByRole("heading", { level: 1 })).toContainText(lemma);
   await expect(page.getByText("впізнати", { exact: true })).toBeVisible();
-  await expect(page.getByText("згадати", { exact: true })).toBeVisible();
+  await expect(page.getByText("згадати", { exact: true })).toHaveCount(0); // recall unlocks later
   await page.getByLabel(/^Переклад/).fill("оновлене тестове слово");
   await page.getByRole("button", { name: "Зберегти зміни" }).click();
   await expect(page.getByText("Зміни збережено.")).toBeVisible({ timeout: 20000 });
@@ -238,8 +290,8 @@ async function assertProgress(page) {
 async function assertSettings(page) {
   await navLink(page, "Профіль").click();
   await heading(page, "Профіль");
-  await expect(page.getByLabel("Нових карток на день")).toBeVisible();
-  await expect(page.getByRole("tab", { name: "2 кнопки" })).toBeVisible();
+  await expect(page.getByRole("tablist", { name: "Хвилин на день" })).toBeVisible();
+  await expect(page.getByText("Нових карток на день")).toHaveCount(0);
   await expect(page.getByText("Рівень англійської")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Оновити пароль", exact: true })).toBeDisabled();
   await expect(page.getByText("Небезпечна зона")).toBeVisible();
@@ -316,3 +368,21 @@ main().catch((error) => {
   console.error(error);
   process.exit(1);
 });
+
+/** After the answer is shown on a phone, the rating button is on screen, not under the tab bar. */
+async function assertAboveTabBar(page, button) {
+  await page.waitForTimeout(700); // the reveal scrolls the button into view smoothly
+  const box = await button.boundingBox();
+  const bar = await page.getByRole("navigation", { name: "Розділи" }).filter({ visible: true }).first().boundingBox();
+  const limit = Math.min(bar?.y ?? Infinity, page.viewportSize()?.height ?? Infinity);
+  if (!box || box.y + box.height > limit + 1) {
+    throw new Error(`Rating button is hidden on a phone (bottom ${box ? box.y + box.height : "?"}px, tab bar at ${limit}px).`);
+  }
+}
+
+function visibleSoon(locator, timeout = 5000) {
+  return locator.waitFor({ state: "visible", timeout }).then(
+    () => true,
+    () => false,
+  );
+}

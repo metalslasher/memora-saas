@@ -2,7 +2,7 @@
 
 import type { ChangeEvent, FormEvent } from "react";
 import { useRef, useState } from "react";
-import { CircleHelp, Download, GraduationCap, KeyRound, LogOut, Minus, Plus, Save, ShieldCheck, Trash2, Upload } from "lucide-react";
+import { CircleHelp, Download, GraduationCap, KeyRound, LogOut, ShieldCheck, Trash2, Upload } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -11,13 +11,12 @@ import {
   exportWordsCsvAction,
   resetProgressAction,
   restoreBackupAction,
-  updateLearningSettingsAction,
+  updateDailyMinutesAction,
 } from "@/lib/memora/actions/account";
 import { unwrap } from "@/lib/memora/actions/result";
 import { parseBackupJson, previewBackup, type BackupDocument, type BackupPreview } from "@/lib/memora/backup";
 import { validatePassword } from "@/lib/memora/password-policy";
-import type { LearningSettings } from "@/lib/memora/types";
-import { MAX_DAILY_NEW } from "@/lib/memora/validation";
+import { DAILY_MINUTES_OPTIONS, newWordsPerDay } from "@/lib/memora/pace";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { useShell } from "./app-shell";
 import {
@@ -32,20 +31,20 @@ import {
   StatusBanner,
 } from "./shared-ui";
 import { useFreshSnapshot } from "./use-fresh-snapshot";
-import { dateStamp, downloadTextFile, formatDate, formatError } from "./utils";
+import { dateStamp, downloadTextFile, formatDate, formatError, plural } from "./utils";
 import { hardNavigate } from "./hard-navigate";
 
 export function SettingsWorkspace({
   counts,
   email,
+  dailyMinutes,
   isRecovery,
-  settings,
   snapshot,
 }: {
   counts: { words: number; reviews: number };
   email: string | null;
+  dailyMinutes: number;
   isRecovery: boolean;
-  settings: LearningSettings;
   snapshot: string;
 }) {
   useFreshSnapshot(snapshot);
@@ -84,7 +83,7 @@ export function SettingsWorkspace({
       ) : null}
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] xl:items-start">
-        <LearningPanel settings={settings} />
+        <LearningPanel dailyMinutes={dailyMinutes} />
         <PasswordPanel />
       </div>
 
@@ -93,29 +92,23 @@ export function SettingsWorkspace({
   );
 }
 
-function LearningPanel({ settings }: { settings: LearningSettings }) {
+function LearningPanel({ dailyMinutes }: { dailyMinutes: number }) {
   const { showToast } = useShell();
-  const [saved, setSaved] = useState(settings);
-  const [draft, setDraft] = useState(settings);
+  const [minutes, setMinutes] = useState(dailyMinutes);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const hasChanges = draft.dailyNewLimit !== saved.dailyNewLimit || draft.reviewButtons !== saved.reviewButtons;
 
-  function setDailyNew(value: number) {
-    setDraft((current) => ({ ...current, dailyNewLimit: Math.max(0, Math.min(MAX_DAILY_NEW, Math.round(value))) }));
-  }
-
-  async function save(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!hasChanges || isSaving) return;
+  async function choose(value: number) {
+    if (value === minutes || isSaving) return;
+    const previous = minutes;
+    setMinutes(value);
     setIsSaving(true);
     setError(null);
     try {
-      const next = unwrap(await updateLearningSettingsAction(draft));
-      setSaved(next);
-      setDraft(next);
-      showToast("success", "Налаштування збережено.");
+      setMinutes(unwrap(await updateDailyMinutesAction(value)));
+      showToast("success", "Збережено.");
     } catch (saveError) {
+      setMinutes(previous);
       setError(formatError(saveError));
     } finally {
       setIsSaving(false);
@@ -124,94 +117,25 @@ function LearningPanel({ settings }: { settings: LearningSettings }) {
 
   return (
     <ShellPanel className="p-5 md:p-6">
-      <SectionHeader icon={GraduationCap} title="Навчання" description="Скільки нового брати щодня і як оцінювати відповіді." />
+      <SectionHeader icon={GraduationCap} title="Навчання" description="Скільки часу на день готовий приділяти." />
 
-      <form className="mt-6 space-y-6" onSubmit={save}>
-        <div>
-          <FieldLabel hint="рекомендуємо 5–15">Нових карток на день</FieldLabel>
-          <div className="mt-2 flex flex-wrap items-center gap-3">
-            <div className="flex items-center rounded-xl border border-line-strong bg-surface-1">
-              <button
-                aria-label="Менше"
-                className="grid size-11 place-items-center text-muted transition hover:text-text disabled:opacity-40"
-                disabled={draft.dailyNewLimit <= 0}
-                onClick={() => setDailyNew(draft.dailyNewLimit - 1)}
-                type="button"
-              >
-                <Minus className="size-4" />
-              </button>
-              <input
-                aria-label="Нових карток на день"
-                className="h-11 w-14 bg-transparent text-center font-mono text-base font-semibold text-text outline-none"
-                inputMode="numeric"
-                max={MAX_DAILY_NEW}
-                min={0}
-                type="number"
-                value={draft.dailyNewLimit}
-                onChange={(event) => setDailyNew(Number(event.target.value) || 0)}
-              />
-              <button
-                aria-label="Більше"
-                className="grid size-11 place-items-center text-muted transition hover:text-text disabled:opacity-40"
-                disabled={draft.dailyNewLimit >= MAX_DAILY_NEW}
-                onClick={() => setDailyNew(draft.dailyNewLimit + 1)}
-                type="button"
-              >
-                <Plus className="size-4" />
-              </button>
-            </div>
-            <div className="flex gap-1.5">
-              {[5, 10, 20].map((preset) => (
-                <button
-                  key={preset}
-                  className={`h-9 rounded-lg border px-3 text-sm font-medium transition ${
-                    draft.dailyNewLimit === preset
-                      ? "border-accent/50 bg-accent-soft text-accent"
-                      : "border-line text-muted hover:text-text"
-                  }`}
-                  onClick={() => setDailyNew(preset)}
-                  type="button"
-                >
-                  {preset}
-                </button>
-              ))}
-            </div>
-          </div>
-          <p className="mt-2 text-xs leading-5 text-faint">Повторення не обмежуються — ліміт стосується лише нових карток.</p>
-        </div>
+      <div className="mt-5">
+        <FieldLabel>Хвилин на день</FieldLabel>
+        <SegmentedControl
+          ariaLabel="Хвилин на день"
+          className="mt-2 w-full sm:w-auto"
+          options={DAILY_MINUTES_OPTIONS.map((value) => ({ value: String(value), label: String(value) }))}
+          value={String(minutes)}
+          onChange={(value) => void choose(Number(value))}
+        />
+        <p className="mt-2 text-xs leading-5 text-faint">
+          Це приблизно {plural(newWordsPerDay(minutes, 0), ["нове слово", "нові слова", "нових слів"])} на день,
+          коли повторень небагато. Якщо
+          повторень назбиралося, нових буде менше — Memora рахує це сама.
+        </p>
+      </div>
 
-        <div>
-          <FieldLabel>Кнопки оцінювання</FieldLabel>
-          <SegmentedControl
-            ariaLabel="Кнопки оцінювання"
-            className="mt-2 w-full sm:w-72"
-            options={[
-              { value: "simple", label: "2 кнопки" },
-              { value: "advanced", label: "4 кнопки" },
-            ]}
-            value={draft.reviewButtons}
-            onChange={(reviewButtons) => setDraft((current) => ({ ...current, reviewButtons }))}
-          />
-          <p className="mt-2 text-xs leading-5 text-faint">
-            {draft.reviewButtons === "simple"
-              ? "«Не згадав» і «Згадав». Найпростіше для старту."
-              : "Додаються «Важко» та «Легко» — розклад підлаштовується тонше."}
-          </p>
-        </div>
-
-        {error ? <StatusBanner tone="error" message={error} /> : null}
-
-        <Button
-          className="w-full sm:w-auto"
-          disabled={isSaving || !hasChanges}
-          icon={Save}
-          isLoading={isSaving}
-          type="submit"
-          variant="primary"
-        >
-          Зберегти
-        </Button>
-      </form>
+      {error ? <StatusBanner className="mt-4" tone="error" message={error} /> : null}
     </ShellPanel>
   );
 }

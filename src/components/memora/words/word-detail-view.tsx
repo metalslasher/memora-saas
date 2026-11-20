@@ -8,6 +8,7 @@ import { setCardStatusAction } from "@/lib/memora/actions/practice";
 import { unwrap } from "@/lib/memora/actions/result";
 import { deleteWordAction, setWordStatusAction, updateWordAction } from "@/lib/memora/actions/words";
 import { cardKindLabels, renderCard } from "@/lib/memora/card-render";
+import { lockedKinds } from "@/lib/memora/exercise-unlock";
 import type { WordCard, WordContent, WordDetail, WordDraft } from "@/lib/memora/types";
 import { draftFromContent, normalizeWordDraft, wordDraftErrors } from "@/lib/memora/word-content";
 import { useShell } from "../app-shell";
@@ -16,7 +17,16 @@ import { SpeakButton } from "../speech";
 import { useFreshSnapshot } from "../use-fresh-snapshot";
 import { formatDate, wordSourceLabels } from "../utils";
 
-export function WordDetailView({ initialWord, snapshot }: { initialWord: WordDetail; snapshot: string }) {
+export function WordDetailView({
+  focusField,
+  initialWord,
+  snapshot,
+}: {
+  /** Field to focus when opened from the practice "hard word" panel. */
+  focusField: "translation" | "example" | null;
+  initialWord: WordDetail;
+  snapshot: string;
+}) {
   useFreshSnapshot(snapshot);
   const router = useRouter();
   const { showError, showToast } = useShell();
@@ -104,6 +114,7 @@ export function WordDetailView({ initialWord, snapshot }: { initialWord: WordDet
           <WordEditForm
             key={`${word.lemma}:${JSON.stringify(word.content)}`}
             content={word.content}
+            focusField={focusField}
             isBusy={isBusy}
             lemma={word.lemma}
             onSave={save}
@@ -121,7 +132,7 @@ export function WordDetailView({ initialWord, snapshot }: { initialWord: WordDet
         <section>
           <h2 className="flex items-center gap-2 text-sm font-semibold text-text-2">
             <BookOpenCheck className="size-4 text-accent" />
-            Картки
+            Вправи
           </h2>
           <div className="mt-3 space-y-2.5">
             {word.cards.map((card) => (
@@ -135,19 +146,37 @@ export function WordDetailView({ initialWord, snapshot }: { initialWord: WordDet
               />
             ))}
           </div>
+          <LockedExercises word={word} />
         </section>
       </div>
     </div>
   );
 }
 
+function LockedExercises({ word }: { word: WordDetail }) {
+  const locked = lockedKinds(
+    word.cards.map((card) => card.kind),
+    word.lemma,
+    word.content,
+  );
+  if (locked.length === 0) return null;
+  return (
+    <p className="mt-3 rounded-xl border border-dashed border-line px-4 py-3 text-xs leading-5 text-muted">
+      Згодом відкриються: {locked.map((kind) => cardKindLabels[kind]).join(", ")}. Нові вправи з’являються, коли
+      попередню вже добре знаєш.
+    </p>
+  );
+}
+
 function WordEditForm({
   content,
+  focusField,
   isBusy,
   lemma,
   onSave,
 }: {
   content: WordContent;
+  focusField: "translation" | "example" | null;
   isBusy: boolean;
   lemma: string;
   onSave: (draft: WordDraft) => Promise<void>;
@@ -168,6 +197,7 @@ function WordEditForm({
     >
       <TextInput label="Англійською" value={draft.lemma} onChange={(value) => setDraft((d) => ({ ...d, lemma: value }))} />
       <TextInput
+        autoFocus={focusField === "translation"}
         hint="варіанти — через кому"
         label="Переклад"
         value={draft.translation}
@@ -180,15 +210,31 @@ function WordEditForm({
         onChange={(value) => setDraft((d) => ({ ...d, partOfSpeech: value }))}
       />
       <TextArea
+        autoFocus={focusField === "example"}
+        hint="з цього речення будується вправа з пропуском"
         label="Приклад речення"
         rows={2}
         value={draft.example ?? ""}
         onChange={(value) => setDraft((d) => ({ ...d, example: value }))}
       />
+      <TextInput
+        hint="інше написання чи форма, через кому"
+        label="Теж правильно"
+        placeholder="okay, OK"
+        value={draft.accepted ?? ""}
+        onChange={(value) => setDraft((d) => ({ ...d, accepted: value }))}
+      />
+      <TextInput
+        hint="зарахуємо, але підкажемо, яке слово вчимо"
+        label="Синоніми"
+        placeholder="dependable, trustworthy"
+        value={draft.synonyms ?? ""}
+        onChange={(value) => setDraft((d) => ({ ...d, synonyms: value }))}
+      />
       <Button disabled={!canSave || !hasChanges || isBusy} icon={Save} type="submit" variant="primary">
         Зберегти зміни
       </Button>
-      {hasChanges ? <p className="text-xs text-faint">Картки оновляться, прогрес повторень збережеться.</p> : null}
+      {hasChanges ? <p className="text-xs text-faint">Вправи оновляться, прогрес повторень збережеться.</p> : null}
     </form>
   );
 }
@@ -228,7 +274,7 @@ function CardRow({
         </span>
       </div>
       <p className="mt-2 text-xs text-faint">{view.instruction}</p>
-      <p className="mt-0.5 text-sm font-medium text-text">{view.cue}</p>
+      <p className="mt-0.5 text-sm font-medium text-text">{view.cue || view.audio}</p>
       <p className="mt-1 text-sm text-accent">{view.answer}</p>
       <div className="mt-3 flex items-center justify-between gap-2">
         <span className="text-xs text-faint">

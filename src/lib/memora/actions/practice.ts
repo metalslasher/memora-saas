@@ -2,8 +2,7 @@
 
 import { requireActionContext } from "../data/context";
 import {
-  getPracticeQueue,
-  getPracticeSummary,
+  getPracticeSession,
   gradeCard,
   setCardStatus,
   undoReview,
@@ -63,7 +62,7 @@ export async function setCardStatusAction(
   }
 }
 
-/** Reloads the queue, allowing `extraNew` new cards beyond today's limit. */
+/** Reloads the session cards, allowing `extraNew` new words beyond today's pace. */
 export async function loadPracticeAction(
   extraNew: number,
 ): Promise<ActionResult<{ cards: PracticeCard[]; summary: PracticeSummary }>> {
@@ -71,11 +70,7 @@ export async function loadPracticeAction(
     const extra = Number.isInteger(extraNew) ? Math.min(Math.max(extraNew, 0), 100) : 0;
     const { supabase, user } = await requireActionContext();
     const timezone = (await getProfile(supabase, user.id))?.timezone ?? "UTC";
-    const [cards, summary] = await Promise.all([
-      getPracticeQueue(supabase, timezone, extra),
-      getPracticeSummary(supabase, timezone),
-    ]);
-    return ok({ cards, summary });
+    return ok(await getPracticeSession(supabase, timezone, extra));
   } catch (error) {
     return fail(error);
   }

@@ -7,46 +7,75 @@ import {
   setCardStatusAction,
   undoReviewAction,
 } from "@/lib/memora/actions/practice";
-import { buildPracticeQueue, heldBackNew, nextDueAt } from "@/lib/memora/queue";
+import { heldBackNew, MAX_COUNTED_CARD_MS, sessionOptions } from "@/lib/memora/pace";
+import { buildPracticeQueue, nextDueAt } from "@/lib/memora/queue";
 import { scheduleReview } from "@/lib/memora/scheduler";
 import type { PracticeCard, PracticeSummary, ReviewRating, StoredSchedule } from "@/lib/memora/types";
 import { useShell } from "../app-shell";
 import { formatError } from "../utils";
 
-export type SessionStats = { reviewed: number; correct: number; startedAt: number };
+export type SessionStats = {
+  reviewed: number;
+  correct: number;
+  startedAt: number;
+  /** Time spent on cards, idle time capped per card. */
+  activeMs: number;
+};
 
 type LastReview = {
   cardId: string;
   previousSchedule: StoredSchedule;
   wasCorrect: boolean;
+  countedMs: number;
   /** Resolves to the server log id, or null when the write failed. */
   serverLogId: Promise<string | null>;
+  /** Identifies the review, so a late server reply after undo is ignored. */
+  token: object;
 };
 
 function orderOf(cards: PracticeCard[], offset = 0) {
   return new Map(cards.map((card, index) => [card.id, offset + index]));
 }
 
+function defaultSessionMinutes(dailyMinutes: number) {
+  return sessionOptions(dailyMinutes).includes(dailyMinutes) ? dailyMinutes : 10;
+}
+
 /**
  * Client state of one practice session: the cards it holds, optimistic
  * grading (the next card appears instantly, server writes run in an ordered
- * background chain), undo, pause and "more new cards".
+ * background chain), undo, pause, skip, the session timer and "more new
+ * words". `canPlayAudio` = false hides listening exercises (no speech on
+ * this device).
  */
-export function usePracticeSession(initialCards: PracticeCard[], initialSummary: PracticeSummary) {
+export function usePracticeSession(
+  initialCards: PracticeCard[],
+  initialSummary: PracticeSummary,
+  { canPlayAudio }: { canPlayAudio: boolean },
+) {
   const { showToast, setDueCount, markReviewed } = useShell();
   const [cards, setCards] = useState(initialCards);
   const [newOrder, setNewOrder] = useState(() => orderOf(initialCards));
   const [summary, setSummary] = useState(initialSummary);
   const [extraNew, setExtraNew] = useState(0);
+  const [skipped, setSkipped] = useState<ReadonlySet<string>>(() => new Set());
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
   const [responseText, setResponseText] = useState("");
-  const [isRevealed, setIsRevealed] = useState(false);
-  const [startedAt, setStartedAt] = useState(() => Date.now());
-  const [session, setSession] = useState<SessionStats>(() => ({ reviewed: 0, correct: 0, startedAt: Date.now() }));
+  const [revealedAfterMs, setRevealedAfterMs] = useState<number | null>(null);
+  const [shownAt, setShownAt] = useState(() => Date.now());
+  const [session, setSession] = useState<SessionStats>(() => ({
+    reviewed: 0,
+    correct: 0,
+    startedAt: Date.now(),
+    activeMs: 0,
+  }));
+  const [sessionMinutes, setSessionMinutes] = useState(() => defaultSessionMinutes(initialSummary.dailyMinutes));
   const [lastReview, setLastReview] = useState<LastReview | null>(null);
   const [clock, setClock] = useState(() => Date.now());
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const reviewChainRef = useRef<Promise<unknown>>(Promise.resolve());
+  /** Reviews undone in this session: their late server replies are ignored. */
+  const undoneRef = useRef(new WeakSet<object>());
 
   // Re-evaluate the queue every minute so learning steps come back on time.
   useEffect(() => {
@@ -55,16 +84,27 @@ export function usePracticeSession(initialCards: PracticeCard[], initialSummary:
   }, []);
 
   const now = useMemo(() => new Date(clock), [clock]);
-  const queue = useMemo(() => buildPracticeQueue(cards, now, newOrder), [cards, newOrder, now]);
-  const activeCard = queue.find((card) => card.id === activeCardId) ?? queue[0] ?? null;
+  const dayStart = useMemo(() => new Date(summary.dayStart), [summary.dayStart]);
+  const playable = useMemo(
+    () => (canPlayAudio ? cards : cards.filter((card) => card.kind !== "listening")),
+    [canPlayAudio, cards],
+  );
+  const queue = useMemo(
+    () => buildPracticeQueue(playable, now, { dayStart, newOrder, skipped }),
+    [dayStart, newOrder, now, playable, skipped],
+  );
+  const isTimeUp = session.activeMs >= sessionMinutes * 60_000;
+  const activeCard = isTimeUp ? null : (queue.find((card) => card.id === activeCardId) ?? queue[0] ?? null);
+  const isRevealed = revealedAfterMs !== null;
 
   useEffect(() => setDueCount(queue.length), [queue.length, setDueCount]);
 
   const resetCardUi = useCallback(() => {
     setActiveCardId(null);
     setResponseText("");
-    setIsRevealed(false);
-    setStartedAt(Date.now());
+    setRevealedAfterMs(null);
+    setShownAt(Date.now());
+    setClock(Date.now());
   }, []);
 
   const updateSchedule = useCallback((cardId: string, schedule: StoredSchedule) => {
@@ -88,14 +128,21 @@ export function usePracticeSession(initialCards: PracticeCard[], initialSummary:
     [resetCardUi, showToast],
   );
 
+  function reveal() {
+    if (!activeCard || isRevealed) return;
+    setActiveCardId(activeCard.id);
+    setRevealedAfterMs(Date.now() - shownAt);
+  }
+
   function grade(rating: ReviewRating) {
     const card = activeCard;
     if (!card) return;
 
     const reviewedAt = new Date();
-    const elapsedMs = Math.min(reviewedAt.getTime() - startedAt, 30 * 60_000);
+    const elapsedMs = Math.min(revealedAfterMs ?? reviewedAt.getTime() - shownAt, 30 * 60_000);
+    const countedMs = Math.min(reviewedAt.getTime() - shownAt, MAX_COUNTED_CARD_MS);
     const response = responseText.trim();
-    const { schedule } = scheduleReview(card.schedule, rating, reviewedAt);
+    const { schedule } = scheduleReview(card.id, card.schedule, rating, reviewedAt);
     const wasCorrect = rating !== "again";
 
     updateSchedule(card.id, schedule);
@@ -103,16 +150,18 @@ export function usePracticeSession(initialCards: PracticeCard[], initialSummary:
       ...current,
       reviewed: current.reviewed + 1,
       correct: current.correct + (wasCorrect ? 1 : 0),
+      activeMs: current.activeMs + countedMs,
     }));
     markReviewed();
     resetCardUi();
 
+    const token = {};
     const serverLogId = reviewChainRef.current
       .catch(() => undefined)
       .then(() => gradeCardAction({ cardId: card.id, rating, responseText: response, elapsedMs }))
       .then((result) => {
         if (!result.ok) throw new Error(result.error);
-        updateSchedule(result.data.cardId, result.data.schedule);
+        if (!undoneRef.current.has(token)) updateSchedule(result.data.cardId, result.data.schedule);
         return result.data.logId;
       })
       .catch((error: unknown) => {
@@ -122,7 +171,7 @@ export function usePracticeSession(initialCards: PracticeCard[], initialSummary:
       });
 
     reviewChainRef.current = serverLogId;
-    setLastReview({ cardId: card.id, previousSchedule: card.schedule, wasCorrect, serverLogId });
+    setLastReview({ cardId: card.id, previousSchedule: card.schedule, wasCorrect, countedMs, serverLogId, token });
   }
 
   async function undo() {
@@ -130,24 +179,41 @@ export function usePracticeSession(initialCards: PracticeCard[], initialSummary:
     if (!review) return;
 
     setLastReview(null);
+    undoneRef.current.add(review.token);
     updateSchedule(review.cardId, review.previousSchedule);
     setSession((current) => ({
       ...current,
       reviewed: Math.max(0, current.reviewed - 1),
       correct: Math.max(0, current.correct - (review.wasCorrect ? 1 : 0)),
+      activeMs: Math.max(0, current.activeMs - review.countedMs),
     }));
     setActiveCardId(review.cardId);
     setResponseText("");
-    setIsRevealed(false);
-    setStartedAt(Date.now());
+    setRevealedAfterMs(null);
+    setShownAt(Date.now());
 
-    const logId = await review.serverLogId;
-    if (!logId) return;
-    const result = await undoReviewAction(logId);
-    if (!result.ok) {
-      showToast("error", `Не вдалося скасувати: ${result.error}`);
-      void reload(extraNew);
-    }
+    // Serialized with grades: a quick next grade must not reach the server
+    // before this undo (it would be rolled back or applied to a stale card).
+    const undone = reviewChainRef.current
+      .catch(() => undefined)
+      .then(async () => {
+        const logId = await review.serverLogId;
+        if (!logId) return;
+        const result = await undoReviewAction(logId);
+        if (!result.ok) throw new Error(result.error);
+      })
+      .catch((error: unknown) => {
+        showToast("error", `Не вдалося скасувати: ${formatError(error)}`);
+        void reload(extraNew);
+      });
+    reviewChainRef.current = undone;
+    await undone;
+  }
+
+  /** Hides a card for the rest of this session without rating it. */
+  function skip(cardId: string) {
+    setSkipped((current) => new Set([...current, cardId]));
+    resetCardUi();
   }
 
   async function pause(cardId: string) {
@@ -175,7 +241,7 @@ export function usePracticeSession(initialCards: PracticeCard[], initialSummary:
     });
   }
 
-  /** Adds `count` more new cards beyond today's limit. */
+  /** Adds `count` more new words beyond today's pace. */
   async function learnMore(count: number) {
     if (isLoadingMore) return;
     const extra = extraNew + count;
@@ -190,6 +256,8 @@ export function usePracticeSession(initialCards: PracticeCard[], initialSummary:
       const added = result.data.cards.filter((card) => !known.has(card.id));
       setCards((current) => [...current, ...added]);
       setNewOrder((current) => new Map([...current, ...orderOf(added, current.size)]));
+      if (isTimeUp) setSessionMinutes((minutes) => minutes + 5);
+      resetCardUi();
     } catch (error) {
       showToast("error", formatError(error));
     } finally {
@@ -202,15 +270,26 @@ export function usePracticeSession(initialCards: PracticeCard[], initialSummary:
     queue,
     summary,
     session,
+    sessionMinutes,
+    isTimeUp,
     responseText,
     isRevealed,
+    /** Time from showing the card to checking the answer. */
+    revealedAfterMs,
     isLoadingMore,
     canUndo: lastReview !== null,
     heldBackNew: heldBackNew(summary, extraNew),
     nextDue: nextDueAt(cards, now, summary.nextDueAt),
-    setResponseText,
-    reveal: () => setIsRevealed(true),
+    /** Typing pins the card, so a queue refresh cannot swap it mid-answer. */
+    setResponseText: (value: string) => {
+      if (activeCard && activeCardId !== activeCard.id) setActiveCardId(activeCard.id);
+      setResponseText(value);
+    },
+    setSessionMinutes,
+    extendSession: (minutes: number) => setSessionMinutes((current) => current + minutes),
+    reveal,
     grade,
+    skip,
     undo: () => void undo(),
     pause: (cardId: string) => void pause(cardId),
     learnMore: (count: number) => void learnMore(count),

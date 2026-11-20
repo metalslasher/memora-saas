@@ -1,10 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   isValidTimezone,
-  learningSettingsToJson,
-  readLearningSettings,
+  validateDailyMinutes,
   validateId,
-  validateLearningSettings,
   validateReviewInput,
   validateWordStatus,
 } from "./validation";
@@ -28,23 +26,12 @@ describe("validation", () => {
     expect(() => validateReviewInput({ cardId: id, rating: "good", responseText: "", elapsedMs: -1 })).toThrow();
   });
 
-  it("validates statuses and settings", () => {
+  it("validates statuses and daily minutes", () => {
     expect(validateWordStatus("paused")).toBe("paused");
     expect(() => validateWordStatus("suspended")).toThrow();
-    expect(validateLearningSettings({ dailyNewLimit: 10, reviewButtons: "advanced" })).toEqual({
-      dailyNewLimit: 10,
-      reviewButtons: "advanced",
-    });
-    expect(() => validateLearningSettings({ dailyNewLimit: 51, reviewButtons: "simple" })).toThrow();
-  });
-
-  it("reads stored settings with defaults", () => {
-    expect(readLearningSettings({})).toEqual({ dailyNewLimit: 8, reviewButtons: "simple" });
-    expect(readLearningSettings(learningSettingsToJson({ dailyNewLimit: 0, reviewButtons: "advanced" }))).toEqual({
-      dailyNewLimit: 0,
-      reviewButtons: "advanced",
-    });
-    expect(readLearningSettings({ daily_new_limit: "lots" }).dailyNewLimit).toBe(8);
+    expect(validateDailyMinutes(20)).toBe(20);
+    expect(() => validateDailyMinutes(25)).toThrow();
+    expect(() => validateDailyMinutes("15")).toThrow();
   });
 
   it("checks timezones", () => {

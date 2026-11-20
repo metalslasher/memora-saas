@@ -14,7 +14,6 @@ export type StoredSchedule = {
   due: string;
   stability: number;
   difficulty: number;
-  elapsed_days: number;
   scheduled_days: number;
   learning_steps: number;
   reps: number;
@@ -31,15 +30,19 @@ export type WordExample = {
 /**
  * Learning content of a word. The same shape is used by `lexicon.content`
  * (shared, AI-enriched from batch 3) and `user_words.content` (the learner's
- * own words and overrides). Only `translations` and `examples` are filled by
- * the manual form today; the rest is reserved for enrichment.
+ * own words and overrides). The manual form fills translations, part of
+ * speech, the first example, accepted variants and synonyms; the rest is
+ * reserved for AI enrichment.
  */
 export type WordContent = {
   translations: string[];
+  /** Other spellings/forms of the word that count as fully correct ("OK, okay"). */
+  accepted?: string[];
   part_of_speech?: string;
   ipa?: string;
   examples: WordExample[];
   collocations?: string[];
+  /** English synonyms: accepted in recall, but rated Hard (not the target word). */
   synonyms?: string[];
   cloze?: Array<{ text: string; answer: string }>;
   common_mistakes?: string[];
@@ -52,12 +55,10 @@ export type WordDraft = {
   translation: string;
   partOfSpeech?: string;
   example?: string;
-};
-
-/** Temporary knobs stored in `profiles.settings` until batch 2. */
-export type LearningSettings = {
-  dailyNewLimit: number;
-  reviewButtons: "simple" | "advanced";
+  /** Other correct spellings/forms, comma separated. */
+  accepted?: string;
+  /** English synonyms, comma separated. */
+  synonyms?: string;
 };
 
 export type Profile = {
@@ -65,7 +66,6 @@ export type Profile = {
   timezone: string;
   dailyMinutes: number;
   goals: string[];
-  settings: LearningSettings;
 };
 
 export type PracticeCard = {
@@ -75,15 +75,24 @@ export type PracticeCard = {
   lemma: string;
   content: WordContent;
   schedule: StoredSchedule;
+  /** Latest review of any card of the same word (sibling burying). */
+  wordReviewedAt: string | null;
 };
 
 export type PracticeSummary = {
-  dueReviews: number;
+  /** Words with a card to review now (one card per word, burying applied). */
+  dueWords: number;
+  /** Reviews done today (local day), not counting first looks at new words. */
+  reviewsToday: number;
+  /** Words waiting for their first look. */
   newReady: number;
+  /** Words introduced today. */
   newToday: number;
-  dailyNewLimit: number;
+  dailyMinutes: number;
   nextDueAt: string | null;
   activeCards: number;
+  /** Start of the learner's local day (ISO). */
+  dayStart: string;
 };
 
 export type WordProgressLevel = 0 | 1 | 2 | 3;
@@ -121,6 +130,8 @@ export type ReviewOutcome = {
   cardId: string;
   schedule: StoredSchedule;
   logId: string;
+  /** Exercises this review unlocked on the word. */
+  unlocked: CardKind[];
 };
 
 export type StreakSummary = {
