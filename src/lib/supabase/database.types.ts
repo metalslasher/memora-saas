@@ -39,6 +39,51 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_usage: {
+        Row: {
+          audio_seconds: number
+          characters: number
+          cost_usd: number
+          created_at: string
+          feature: string
+          id: string
+          input_tokens: number
+          model: string
+          output_tokens: number
+          provider: string
+          status: string
+          user_id: string | null
+        }
+        Insert: {
+          audio_seconds?: number
+          characters?: number
+          cost_usd?: number
+          created_at?: string
+          feature: string
+          id?: string
+          input_tokens?: number
+          model: string
+          output_tokens?: number
+          provider: string
+          status?: string
+          user_id?: string | null
+        }
+        Update: {
+          audio_seconds?: number
+          characters?: number
+          cost_usd?: number
+          created_at?: string
+          feature?: string
+          id?: string
+          input_tokens?: number
+          model?: string
+          output_tokens?: number
+          provider?: string
+          status?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       allowed_emails: {
         Row: {
           created_at: string
@@ -125,6 +170,8 @@ export type Database = {
           cefr: string | null
           content: Json
           created_at: string
+          enrich_model: string | null
+          enriched_at: string | null
           frequency_rank: number | null
           id: string
           lemma: string
@@ -137,6 +184,8 @@ export type Database = {
           cefr?: string | null
           content?: Json
           created_at?: string
+          enrich_model?: string | null
+          enriched_at?: string | null
           frequency_rank?: number | null
           id?: string
           lemma: string
@@ -149,6 +198,8 @@ export type Database = {
           cefr?: string | null
           content?: Json
           created_at?: string
+          enrich_model?: string | null
+          enriched_at?: string | null
           frequency_rank?: number | null
           id?: string
           lemma?: string
@@ -294,6 +345,23 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      ai_month_spend: { Args: never; Returns: number }
+      ai_reserve: {
+        Args: {
+          p_estimate: number
+          p_feature: string
+          p_model: string
+          p_monthly_limit: number
+          p_per_day: number
+          p_per_minute: number
+          p_provider: string
+          p_user: string
+        }
+        Returns: {
+          reason: string
+          reservation_id: string
+        }[]
+      }
       get_practice_cards: {
         Args: { p_limit?: number; p_new_words?: number; p_tz: string }
         Returns: {
