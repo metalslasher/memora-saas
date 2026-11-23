@@ -204,11 +204,8 @@ export function toGeminiSchema(schema: unknown): unknown {
   return result;
 }
 
-function geminiThinking(model: string) {
-  // 2.5 Flash-Lite does not think by default; 3.x models take a level.
-  if (model.startsWith("gemini-2.5")) return { thinkingBudget: 0 };
-  return { thinkingLevel: "minimal" };
-}
+/** Gemini 3.x text models: least thinking (cards need no reasoning). */
+const geminiThinking = { thinkingLevel: "minimal" };
 
 type GeminiResponse = {
   candidates?: Array<{
@@ -242,7 +239,7 @@ export function geminiTextProvider(apiKey: string, model: string, fetchImpl: Fet
             responseMimeType: "application/json",
             responseJsonSchema: toGeminiSchema(request.schema),
             maxOutputTokens: request.maxOutputTokens,
-            thinkingConfig: geminiThinking(model),
+            thinkingConfig: geminiThinking,
           },
         }),
       });

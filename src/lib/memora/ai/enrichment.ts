@@ -99,7 +99,7 @@ For every input word or phrase return one item:
 - input: the input exactly as given.
 - lemma: the dictionary form ("ran" → "run", "figured out" → "figure out"). Keep phrases and idioms whole. If the input is not English or not a real word, return lemma "" and empty translations.
 - part_of_speech: of the main sense.
-- translations: 1–4 Ukrainian equivalents a native speaker would actually use, the most common sense first. Translate the meaning, not word by word; no Russianisms or calques. If a context sentence is given, put the sense used there first.
+- translations: 1–4 Ukrainian equivalents a native speaker would actually use, the most common sense first. Translate the meaning, not word by word. Use standard modern Ukrainian only: no Russian or surzhyk words (not "неловкий", "назначати", "вияснити"), no calques. If a context sentence is given, put the sense used there first.
 - explanation: one short Ukrainian sentence (max 15 words) on what it means and when people say it.
 - examples: 2–3 short everyday sentences (max 14 words) in natural, conversational American English, the way native speakers really talk. Each must contain the lemma itself or one of its forms. uk: a natural Ukrainian translation of the sentence.
 - accepted: other correct spellings of the lemma ("OK" → ["okay"]); usually empty.

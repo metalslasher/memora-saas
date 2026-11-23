@@ -15,8 +15,8 @@ import {
  * MEMORA_TTS_MODEL, MEMORA_TTS_VOICE, MEMORA_AI_MONTHLY_LIMIT_USD.
  */
 export const defaults = {
-  textProvider: "gemini" as ProviderId,
-  textModel: { openai: "gpt-5-nano", gemini: "gemini-2.5-flash-lite" } satisfies Record<ProviderId, string>,
+  textProvider: "openai" as ProviderId,
+  textModel: { openai: "gpt-6-luna", gemini: "gemini-3.1-flash-lite" } satisfies Record<ProviderId, string>,
   ttsProvider: "openai" as ProviderId,
   ttsModel: { openai: "gpt-4o-mini-tts", gemini: "gemini-2.5-flash-preview-tts" } satisfies Record<ProviderId, string>,
   ttsVoice: { openai: "alloy", gemini: "Kore" } satisfies Record<ProviderId, string>,

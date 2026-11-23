@@ -47,7 +47,7 @@ describe("pricing", () => {
   it("bills tokens by the model's per-million rates", () => {
     // gpt-5-nano: $0.05 in, $0.40 out
     expect(textCost("gpt-5-nano", 1_000_000, 1_000_000)).toBeCloseTo(0.45, 6);
-    expect(textCost("gemini-2.5-flash-lite", 2000, 1000)).toBeCloseTo(0.0006, 6);
+    expect(textCost("gemini-3.1-flash-lite", 2000, 1000)).toBeCloseTo(0.002, 6);
   });
 
   it("refuses unknown models instead of guessing a price", () => {
@@ -164,7 +164,7 @@ describe("providers", () => {
         usageMetadata: { promptTokenCount: 800, candidatesTokenCount: 300, thoughtsTokenCount: 50 },
       }),
     );
-    const provider = geminiTextProvider("key", "gemini-2.5-flash-lite", fetchMock as unknown as typeof fetch);
+    const provider = geminiTextProvider("key", "gemini-3.1-flash-lite", fetchMock as unknown as typeof fetch);
     const result = await provider.generateJson({
       system: "s",
       user: "u",
@@ -185,7 +185,7 @@ describe("providers", () => {
         usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 5 },
       }),
     );
-    const provider = geminiTextProvider("key", "gemini-2.5-flash-lite", fetchMock as unknown as typeof fetch);
+    const provider = geminiTextProvider("key", "gemini-3.1-flash-lite", fetchMock as unknown as typeof fetch);
     const error = await provider
       .generateJson({ system: "s", user: "u", schema: {}, schemaName: "x", maxOutputTokens: 10 })
       .catch((caught: unknown) => caught);
@@ -229,11 +229,12 @@ describe("providers", () => {
 describe("config and budget messages", () => {
   it("needs the chosen provider's key", () => {
     expect(textProviderFromEnv({ MEMORA_AI_PROVIDER: "openai" })).toBeNull();
-    expect(textProviderFromEnv({ MEMORA_AI_PROVIDER: "openai", OPENAI_API_KEY: "k" })?.model).toBe("gpt-5-nano");
+    expect(textProviderFromEnv({ MEMORA_AI_PROVIDER: "openai", OPENAI_API_KEY: "k" })?.model).toBe("gpt-6-luna");
+    expect(textProviderFromEnv({ OPENAI_API_KEY: "k", MEMORA_AI_TEXT_MODEL: "gpt-5-nano" })?.model).toBe("gpt-5-nano");
     expect(
       textProviderFromEnv({ MEMORA_AI_PROVIDER: "gemini", GEMINI_API_KEY: "k", MEMORA_AI_TEXT_MODEL: "gpt-5-nano" })
         ?.model,
-    ).toBe("gemini-2.5-flash-lite");
+    ).toBe("gemini-3.1-flash-lite");
     expect(ttsProviderFromEnv({ MEMORA_TTS_PROVIDER: "gemini", GEMINI_API_KEY: "k" })?.voice).toBe("Kore");
   });
 

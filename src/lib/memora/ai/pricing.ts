@@ -31,12 +31,10 @@ export type TtsModelPrice = {
   perMillionChars?: number;
 };
 
+/** The models compared in docs/ai-compare.md (gemini-2.5-flash-lite is closed to new accounts). */
 export const textModels: Record<string, TextModelPrice> = {
-  "gpt-5-nano": { provider: "openai", input: 0.05, output: 0.4 },
   "gpt-6-luna": { provider: "openai", input: 0.1, output: 0.5 },
-  "gpt-5.6-luna": { provider: "openai", input: 0.2, output: 1.2 },
-  "gpt-5-mini": { provider: "openai", input: 0.25, output: 2 },
-  "gemini-2.5-flash-lite": { provider: "gemini", input: 0.1, output: 0.4 },
+  "gpt-5-nano": { provider: "openai", input: 0.05, output: 0.4 },
   "gemini-3.1-flash-lite": { provider: "gemini", input: 0.25, output: 1.5 },
   "gemini-3.5-flash-lite": { provider: "gemini", input: 0.3, output: 2.5 },
 };
@@ -45,8 +43,9 @@ export const ttsModels: Record<string, TtsModelPrice> = {
   // OpenAI estimates ~$0.015/min → 1250 audio tokens/min ≈ 21/s.
   "gpt-4o-mini-tts": { provider: "openai", input: 0.6, audioOutput: 12, audioTokensPerSecond: 21 },
   "tts-1": { provider: "openai", perMillionChars: 15 },
-  // Gemini: "25 audio tokens per second".
+  // Gemini: "25 audio tokens per second". 3.8 prices double on 2027-01-01.
   "gemini-2.5-flash-preview-tts": { provider: "gemini", input: 0.5, audioOutput: 10, audioTokensPerSecond: 25 },
+  "gemini-3.8-flash-lite-tts": { provider: "gemini", input: 0.5, audioOutput: 6, audioTokensPerSecond: 25 },
 };
 
 /** Unknown models are refused rather than billed at a guessed price. */

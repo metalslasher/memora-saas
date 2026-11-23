@@ -1,8 +1,8 @@
 // Side-by-side test of the text models for word enrichment (batch 3).
 // Run: npx tsx --env-file=.env.local scripts/ai-compare.ts [model ...]
 // Every call is reserved and billed in ai_usage (feature "compare") and the
-// run stops once it has spent MAX_RUN_USD. Writes docs/ai-compare.md (results
-// part) and the raw JSON to C:\tmp\memora-ai-compare.json.
+// run stops once it has spent MAX_RUN_USD. Writes the results table to
+// C:/tmp/memora-ai-compare.md (copied into docs/ai-compare.md) and raw JSON.
 import fs from "node:fs";
 import { createClient } from "@supabase/supabase-js";
 import { reserve, settle } from "@/lib/memora/ai/budget";
@@ -176,8 +176,8 @@ async function main() {
     ...words.map((word) => `| ${word} | ${ok.map((result) => cell(result.items[word])).join(" | ")} |`),
     "",
   ];
-  fs.writeFileSync("docs/ai-compare.results.md", lines.join("\n"));
-  console.log(`Spent $${spent.toFixed(4)}. Wrote docs/ai-compare.results.md`);
+  fs.writeFileSync("C:/tmp/memora-ai-compare.md", lines.join("\n"));
+  console.log(`Spent $${spent.toFixed(4)}. Wrote C:/tmp/memora-ai-compare.md`);
 }
 
 main().catch((error) => {
