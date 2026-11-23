@@ -10,7 +10,7 @@ import { cardKindLabels, renderCard, type RenderedCard } from "@/lib/memora/card
 import { formatInterval, previewNextDue } from "@/lib/memora/scheduler";
 import type { PracticeCard, ReviewRating } from "@/lib/memora/types";
 import { Badge, Button, Kbd } from "../shared-ui";
-import { SpeakButton, speakEnglish } from "../speech";
+import { playEnglish, SpeakButton } from "../speech";
 import type { PracticeSession } from "./use-practice-session";
 
 /** Failures after which a card counts as a leech and gets the fix-it panel. */
@@ -105,7 +105,7 @@ export function StudyCardView({ card, practice }: { card: PracticeCard; practice
 
   // Listening: dictate the word as soon as the card appears.
   useEffect(() => {
-    if (view.kind === "listening" && view.audio) speakEnglish(view.audio, { rate: 0.85 });
+    if (view.kind === "listening" && view.audio) void playEnglish(view.audio, { rate: 0.85 });
   }, [card.id, view.kind, view.audio]);
 
   // Keep the "Далі" button on screen after checking (phones).
@@ -206,7 +206,7 @@ export function StudyCardView({ card, practice }: { card: PracticeCard; practice
             <button
               aria-label="Прослухати ще раз"
               className="inline-flex h-14 items-center gap-2.5 rounded-2xl border border-accent/30 bg-accent-soft px-6 text-base font-semibold text-accent transition hover:border-accent/60 active:scale-[0.98]"
-              onClick={() => view.audio && speakEnglish(view.audio, { rate: 0.85 })}
+              onClick={() => view.audio && void playEnglish(view.audio, { rate: 0.85 })}
               type="button"
             >
               <Headphones className="size-5" />

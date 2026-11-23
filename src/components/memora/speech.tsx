@@ -2,6 +2,7 @@
 
 import { Volume2 } from "lucide-react";
 import { useSyncExternalStore } from "react";
+import { speechUrlAction } from "@/lib/memora/actions/ai";
 
 function subscribe() {
   return () => undefined;
@@ -40,17 +41,70 @@ export function speakEnglish(text: string, { rate = 0.92 }: { rate?: number } = 
   window.speechSynthesis.speak(utterance);
 }
 
+/* Natural voice: a clip generated once on the server and cached in storage. */
+const clipUrls = new Map<string, Promise<string | null>>();
+let cloudOff = false;
+let playing: HTMLAudioElement | null = null;
+
+function clipUrl(text: string) {
+  if (cloudOff) return Promise.resolve(null);
+  let pending = clipUrls.get(text);
+  if (!pending) {
+    pending = speechUrlAction(text)
+      .then((result) => (result.ok ? result.data : null))
+      .catch(() => null)
+      .then((url) => {
+        // No clip (no key, budget or limit reached): browser voice for the rest of the visit.
+        if (!url) {
+          cloudOff = true;
+          clipUrls.delete(text);
+        }
+        return url;
+      });
+    clipUrls.set(text, pending);
+  }
+  return pending;
+}
+
+/**
+ * Plays English text in the natural voice when available, otherwise with the
+ * device voice. `rate` < 0.9 means "slower" (listening exercise).
+ */
+export async function playEnglish(text: string, { rate = 0.92, cloud = true }: { rate?: number; cloud?: boolean } = {}) {
+  const clean = text.trim().replace(/\s+/g, " ");
+  if (!clean || typeof window === "undefined") return;
+  playing?.pause();
+  if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+
+  const url = cloud ? await clipUrl(clean) : null;
+  if (url) {
+    const audio = new Audio(url);
+    audio.playbackRate = rate < 0.9 ? 0.9 : 1;
+    try {
+      playing = audio;
+      await audio.play();
+      return;
+    } catch {
+      playing = null;
+    }
+  }
+  speakEnglish(clean, { rate });
+}
+
 export function SpeakButton({
   className = "",
+  cloud = true,
   label = "Прослухати вимову",
   text,
 }: {
   className?: string;
+  /** false for guests (landing): only the device voice. */
+  cloud?: boolean;
   label?: string;
   text: string;
 }) {
   const isSupported = useSpeechSupported();
-  if (!isSupported || !text.trim()) return null;
+  if ((!isSupported && !cloud) || !text.trim()) return null;
 
   return (
     <button
@@ -58,7 +112,7 @@ export function SpeakButton({
       className={`inline-grid size-9 shrink-0 place-items-center rounded-xl text-muted transition hover:bg-surface-3 hover:text-accent ${className}`}
       onClick={(event) => {
         event.stopPropagation();
-        speakEnglish(text);
+        void playEnglish(text, { cloud });
       }}
       title={label}
       type="button"

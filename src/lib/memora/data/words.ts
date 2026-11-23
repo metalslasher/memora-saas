@@ -138,10 +138,23 @@ export async function insertWordsWithCards(db: Db, words: NewWord[]) {
   );
 }
 
-export async function addWord(db: Db, draft: NormalizedWordDraft): Promise<WordListItem> {
+/**
+ * Adds a word from the form. `base` is the AI draft the form was filled from:
+ * the edited fields go on top, the rest (more examples, forms…) is kept.
+ */
+export async function addWord(
+  db: Db,
+  draft: NormalizedWordDraft,
+  base?: { content: WordContent; lexiconId: string | null },
+): Promise<WordListItem> {
   try {
     const [word] = await insertWordsWithCards(db, [
-      { lemma: draft.lemma, content: contentFromDraft(draft), source: "manual" },
+      {
+        lemma: draft.lemma,
+        content: contentFromDraft(draft, base?.content),
+        source: "manual",
+        lexiconId: base?.lexiconId ?? null,
+      },
     ]);
     return word;
   } catch (error) {

@@ -308,7 +308,7 @@ function DemoCard() {
               <p className="min-w-0 flex-1 text-2xl font-semibold leading-snug tracking-tight text-accent-strong">
                 {card.answer}
               </p>
-              {card.speak ? <SpeakButton text={card.speak} /> : null}
+              {card.speak ? <SpeakButton cloud={false} text={card.speak} /> : null}
             </div>
             {verdict ? (
               <p className={`animate-pop mt-3 inline-flex rounded-lg px-2 py-1 text-xs font-semibold ${verdict[1]}`}>

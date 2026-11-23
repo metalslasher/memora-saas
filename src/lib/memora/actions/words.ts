@@ -23,11 +23,22 @@ import {
 } from "../word-content";
 import { fail, ok, type ActionResult } from "./result";
 
-export async function addWordAction(draft: WordDraft): Promise<ActionResult<WordListItem>> {
+export type AiBase = { content: unknown; lexiconId?: string | null };
+
+function readAiBase(base: AiBase | undefined) {
+  if (!base) return undefined;
+  return {
+    content: readWordContent(base.content),
+    lexiconId: base.lexiconId ? validateId(base.lexiconId, "Слово") : null,
+  };
+}
+
+/** `base` = the AI draft the form was filled from (extra examples, forms… are kept). */
+export async function addWordAction(draft: WordDraft, base?: AiBase): Promise<ActionResult<WordListItem>> {
   try {
     const clean = validateWordDraft(draft);
     const { supabase } = await requireActionContext();
-    return ok(await addWord(supabase, clean));
+    return ok(await addWord(supabase, clean, readAiBase(base)));
   } catch (error) {
     return fail(error);
   }
