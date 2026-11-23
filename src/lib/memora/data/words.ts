@@ -92,7 +92,7 @@ export async function getWordDetail(db: Db, id: string): Promise<WordDetail | nu
   };
 }
 
-export type NewWord = { lemma: string; content: WordContent; source: WordSource };
+export type NewWord = { lemma: string; content: WordContent; source: WordSource; lexiconId?: string | null };
 
 /**
  * Inserts words with their starting card (recognition; the other exercises
@@ -104,7 +104,14 @@ export async function insertWordsWithCards(db: Db, words: NewWord[]) {
   const inserted = must(
     await db
       .from("user_words")
-      .insert(words.map((word) => ({ lemma: word.lemma, content: word.content, source: word.source })))
+      .insert(
+        words.map((word) => ({
+          lemma: word.lemma,
+          content: word.content,
+          source: word.source,
+          lexicon_id: word.lexiconId ?? null,
+        })),
+      )
       .select(wordListColumns),
   );
 

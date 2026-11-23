@@ -31,8 +31,8 @@ export type WordExample = {
  * Learning content of a word. The same shape is used by `lexicon.content`
  * (shared, AI-enriched from batch 3) and `user_words.content` (the learner's
  * own words and overrides). The manual form fills translations, part of
- * speech, the first example, accepted variants and synonyms; the rest is
- * reserved for AI enrichment.
+ * speech, the first example, accepted variants and synonyms; AI enrichment
+ * (`lib/memora/ai/enrichment.ts`) fills the rest except cloze/collocations.
  */
 export type WordContent = {
   translations: string[];
@@ -46,7 +46,19 @@ export type WordContent = {
   synonyms?: string[];
   cloze?: Array<{ text: string; answer: string }>;
   common_mistakes?: string[];
+  /** Short Ukrainian explanation of the meaning (AI). */
+  explanation?: string;
+  /** Inflected forms ("went", "gone", "going") (AI). */
+  forms?: string[];
+  cefr?: Cefr;
+  /** How common the word is in everyday American English (AI). */
+  frequency?: WordFrequency;
 };
+
+export const cefrLevels = ["A1", "A2", "B1", "B2", "C1", "C2"] as const;
+export type Cefr = (typeof cefrLevels)[number];
+export const wordFrequencies = ["high", "medium", "low"] as const;
+export type WordFrequency = (typeof wordFrequencies)[number];
 
 /** Fields of the manual "add word" form and CSV rows. */
 export type WordDraft = {
