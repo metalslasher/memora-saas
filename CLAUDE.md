@@ -47,6 +47,8 @@ Memora — веб-тренажер англійської для україно�
   Локальний dev: `pnpm dev` (у `pnpm-workspace.yaml` має бути `packages: ["."]`,
   інакше pnpm 9 падає з «packages field missing»). Тестовий акаунт:
   `pnpm test-user`; smoke: `pnpm smoke` (див. docs/architecture.md).
+  AI-скрипти (TS): `npx tsx --env-file=.env.local scripts/ai-compare.ts` (тексти),
+  `scripts/tts-compare.ts` (голоси) — платні, пишуть в `ai_usage`.
 - Секрети тільки в `.env.local` (gitignored) і Vercel env. Ніколи в git/чат.
 - AI-ключі (OpenAI, Google) — тільки на сервері. Жорсткий ліміт витрат
   $10/міс на весь проєкт.

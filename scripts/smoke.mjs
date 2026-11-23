@@ -318,9 +318,10 @@ async function assertAiWords(page) {
   await expect(textDialog.getByText("ran into", { exact: true })).toBeVisible();
   await shotBoth(page, "from-text-pick");
   await textDialog.getByRole("button", { name: /Заповнити з AI · 2/ }).click();
-  await expect(textDialog.getByText("station", { exact: true })).toBeVisible({ timeout: 60000 });
-  await shotBoth(page, "from-text-review");
   const addButton = textDialog.getByRole("button", { name: /^Додати \d/ });
+  await expect(addButton).toBeVisible({ timeout: 60000 });
+  await expect(textDialog.getByText("run into", { exact: true })).toBeVisible();
+  await shotBoth(page, "from-text-review");
   if (await addButton.isEnabled()) {
     await addButton.click();
     await expect(page.getByText(/^Додано \d/)).toBeVisible({ timeout: 20000 });
