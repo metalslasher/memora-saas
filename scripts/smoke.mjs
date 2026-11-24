@@ -161,11 +161,16 @@ async function assertPractice(page) {
   // screenshots at both sizes. Seeded by `pnpm test-user`: one card of each type is due.
   await page.setViewportSize(mobile);
   const seen = new Set();
-  for (let step = 0; step < 12 && (await visibleSoon(answerBox)); step += 1) {
+  for (let step = 0; step < 16 && (await visibleSoon(answerBox)); step += 1) {
     const kind = await exerciseKind(page);
     const typedAnswer = kind === "recognition" ? "" : "smoke";
     const first = !seen.has(kind);
     if (first) await shotBoth(page, `practice-${kind}`);
+    // A program word the test took as known: starts with recall, marked as such.
+    if (shouldMutate && !seen.has("known") && (await page.getByText("Знайоме слово", { exact: true }).isVisible())) {
+      await shotBoth(page, "practice-known-word");
+      seen.add("known");
+    }
     if (typedAnswer) await answerBox.fill(typedAnswer);
     await page.keyboard.press("Enter");
     await expect(page.getByText("Відповідь", { exact: true })).toBeVisible();
@@ -178,7 +183,8 @@ async function assertPractice(page) {
     await page.waitForTimeout(300);
   }
   await page.setViewportSize(desktop);
-  const missing = ["recognition", "recall", "cloze", "listening"].filter((kind) => !seen.has(kind));
+  const expected = ["recognition", "recall", "cloze", "listening", ...(shouldMutate ? ["known"] : [])];
+  const missing = expected.filter((kind) => !seen.has(kind));
   if (missing.length > 0) throw new Error(`Exercise types not met in the queue (run "pnpm test-user" to reseed): ${missing.join(", ")}`);
 }
 

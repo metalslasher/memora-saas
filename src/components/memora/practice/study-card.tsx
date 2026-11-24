@@ -49,9 +49,10 @@ const verdictMeta: Record<AnswerCheck["verdict"], { label: string; className: st
 
 function cardStageBadge(card: PracticeCard) {
   if (card.schedule.reps === 0) {
-    return card.kind === "recognition"
-      ? { label: "Нове слово", tone: "violet" as const }
-      : { label: "Нова вправа", tone: "violet" as const };
+    if (card.kind === "recognition") return { label: "Нове слово", tone: "violet" as const };
+    // A program word the level test credited as known starts right with recall.
+    if (card.wordReviewedAt === null) return { label: "Знайоме слово", tone: "violet" as const };
+    return { label: "Нова вправа", tone: "violet" as const };
   }
   if (card.schedule.lapses >= LEECH_LAPSES) return { label: "Складне", tone: "red" as const };
   if (card.schedule.state === "Relearning" || card.schedule.state === "Learning") {
