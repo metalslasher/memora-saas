@@ -1,6 +1,6 @@
 # Memora — архітектура (поточний стан коду)
 
-Оновлено: 2026-11-23, пачка 3 (AI-шар). Цільовий продукт описано в
+Оновлено: 2026-11-24, пачка 4 (програма й онбординг). Цільовий продукт описано в
 `product.md`, план робіт — у `roadmap.md`.
 
 ## Стек
@@ -14,6 +14,7 @@ project `whqfpktgwwctqhqvsoqm`. Preview і прод ділять одну БД.
 |---|---|---|
 | `/` | Лендінг; залогіненим замість входу показує «Відкрити Memora» | `src/app/page.tsx`, `components/memora/landing-page.tsx` |
 | `/app` | Практика (черга на сьогодні) | `src/app/app/page.tsx`, `components/memora/practice/*` |
+| `/app/onboarding` | Онбординг і повторний тест: тест рівня → перевірка значень → результат → цілі → хвилини | `src/app/app/onboarding/page.tsx`, `components/memora/onboarding-flow.tsx` |
 | `/app/words`, `/app/words/[id]` | Бібліотека слів, деталі слова | `src/app/app/words/*`, `components/memora/words/*` |
 | `/app/progress` | Прогрес | `components/memora/progress-view.tsx` |
 | `/app/settings` | Профіль і налаштування, бекап, небезпечна зона | `components/memora/settings-workspace.tsx` |
@@ -43,9 +44,10 @@ Allowlist — таблиця `allowed_emails` (без політик, читає
 
 | Таблиця | Призначення |
 |---|---|
-| `profiles` | `daily_minutes`, `goals`, `level_estimate` (тест рівня, пачка 4), `settings` jsonb (не використовується; колонку видаляє міграція `practice_engine_cleanup` після merge пачки 2), `timezone` |
-| `lexicon` | Спільний словник програми (пачка 4). Читають усі з allowlist, пише лише service role |
-| `user_words` | Слово в бібліотеці: `lemma`, `source` (program/manual/text/import), `status`, `content` jsonb, `lexicon_id` |
+| `profiles` | `daily_minutes`, `goals` (general/work/travel/talk), `level_estimate` (результат тесту рівня, jsonb), `onboarded_at` (онбординг пройдено — лише тоді працює автоподача), `known_rank`/`program_rank` (позиція програми), `calibrated_at`, `timezone` |
+| `lexicon` | Спільний словник: частотні списки (`frequency_rank` — ранг у загальній частотності NGSL 31K, `source_list` — перший список слова, `part_of_speech` = '' — ключ кешу) + AI-контент. Читають усі з allowlist, пише лише service role |
+| `lexicon_lists` | Належність слова до списку програми з рангом у ньому: `ngsl`, `ngsl_spoken`, `bsl`, `theme_work`, `theme_travel`, `theme_talk` (одне слово може бути в кількох) |
+| `user_words` | Слово в бібліотеці: `lemma`, `source` (program/manual/text/import), `status`, `content` jsonb, `lexicon_id`, `assumed_known` (тест зарахував як знайоме → стартує з recall) |
 | `cards` | Картка = слово × `kind` (recognition, recall, cloze, listening; sentence, speaking — пізніше) + FSRS-поля. Створюються ліниво: нове слово — лише recognition, решта відкривається (`exercise-unlock.ts`). Текст картки не зберігається |
 | `review_logs` | Кожна оцінка: rating, час, відповідь, `schedule_before/after` (для undo) |
 | `ai_usage` | Облік кожного платного AI-виклику: feature, provider, model, токени, символи/секунди аудіо, `cost_usd`, `status` (pending → ok/failed). Користувач читає свої рядки, пише лише service role. `user_id` при видаленні акаунта → null (витрати лишаються в місяці) |
@@ -61,6 +63,12 @@ SQL-функції (security invoker, RLS діє): `get_practice_overview` (лі
 Міграція `20261123100000_ai_layer`: `ai_usage`, функції `ai_month_spend()` і `ai_reserve(...)`
 (лише service role; advisory lock — паралельні виклики не перевищать бюджет), колонки
 `lexicon.enriched_at`/`enrich_model`, публічний бакет Storage `tts` (читання за URL, запис лише service role).
+
+Міграція `20261124100000_program_onboarding` (додавальна): колонки профілю й `assumed_known`, `lexicon_lists`,
+нове слово = слово без жодного повторення (а не «recognition з reps 0»; для старих даних те саме, а слова з recall
+першою карткою теж рахуються новими), свої слова в черзі нових — перед програмними; `get_program_candidates`
+(наступні слова списку, яких нема в бібліотеці), `get_program_calibration` (перші повторення програмних слів),
+фічі `ai_usage`: `program`, `program_build`.
 
 Типи БД генеруються: `supabase gen types typescript --linked > src/lib/supabase/database.types.ts`.
 
@@ -82,7 +90,14 @@ SQL-функції (security invoker, RLS діє): `get_practice_overview` (лі
 - `lib/memora/answer-check.ts` — перевірка введеної відповіді: варіанти, синоніми,
   словоформи, артиклі/to, підсвітка різниці.
 - `lib/memora/csv-import.ts`, `export.ts`, `backup.ts` — імпорт/експорт/бекап (лише v2-формат).
-- `lib/memora/starter-content.ts` — 10 стартових слів при першому вході (до пачки 4).
+- `lib/memora/vocab-test.ts` — тест рівня (чиста логіка): адаптивні блоки по тисячах, псевдослова, перевірка
+  значень, формула оцінки (коментар у файлі), повторне оцінювання на сервері з відповідей (`rebuildTest`).
+  `vocab-test-pool.ts` — пул слів (10 діапазонів, згенеровано `scripts/build-program.ts`, вичитано вручну).
+- `lib/memora/program.ts` — правила програми: стартова позиція, скільки слів доливати (`feedNeed`), відбір
+  (`planFeed`: ⅓ з цілей, решта NGSL), «знайоме» слово, калібрування за першими повтореннями.
+- `lib/memora/data/program.ts` — `runDailyFeed`: калібрування → кандидати (RPC) → AI-заповнення лише відсутніх
+  у `lexicon` (фіча `program`) → вставка слів; після відповіді (`after()`) готує слова на завтра.
+  Викликається на `/app` (лише після онбордингу) і в кінці онбордингу (`actions/program.ts`).
 - `components/memora/practice/use-practice-session.ts` — стан сесії: оптимістична
   оцінка, черга записів на сервер (оцінки й undo йдуть строго по черзі), undo, таймер сесії.
 - `components/memora/practice/study-card.tsx` — картка вправи, автооцінка, панель leech.
@@ -111,13 +126,18 @@ SQL-функції (security invoker, RLS діє): `get_practice_overview` (лі
 - UI: `words/add-word-form.tsx` (кнопка «Заповнити» / Enter), `words/ai-extras.tsx`,
   `words/from-text-panel.tsx`; `speech.tsx` → `playEnglish` (хмарний кліп або Web Speech).
 - Скрипти порівняння: `scripts/ai-compare.ts`, `scripts/tts-compare.ts` (`npx tsx --env-file=.env.local …`).
+- Програма: `data/lexicon/` (списки NGSL з атрибуцією, тематичні добірки), `scripts/build-program.ts`
+  (разова генерація добірок і пулу тесту, фіча `program_build`), `scripts/import-lexicon.ts` (ідемпотентний
+  імпорт у `lexicon` + `lexicon_lists`; після зміни файлів у `data/lexicon` — запустити ще раз).
 
 ## Тести й перевірки
-- `pnpm test` — Vitest, чиста логіка й AI-провайдери на моках (111 тестів).
+- `pnpm test` — Vitest, чиста логіка й AI-провайдери на моках (145 тестів).
 - `pnpm smoke` — Playwright, повний сценарій від імені тестового користувача
-  (`pnpm test-user` створює/скидає `memora.e2e@example.com` і засіває 4 слова так, що в
+  (`pnpm test-user` створює/скидає `memora.e2e@example.com`, скидає онбординг і засіває 4 слова так, що в
   черзі є по картці кожного типу вправи — smoke проходить усі 4 на телефонному екрані й
-  перевіряє, що кнопка оцінки не ховається під нижнім меню). Якщо на сервері налаштовано AI —
+  перевіряє, що кнопка оцінки не ховається під нижнім меню). Перед практикою smoke проходить онбординг
+  (пропозиція тесту → тест як учень із 4 000 слів → перевірка значень → цілі → хвилини) і перевіряє, що
+  автоподача поставила в практику 6 нових слів. Якщо на сервері налаштовано AI —
   ще «Заповнити з AI» і «З тексту» (слова беруться з кешу, повторні прогони безкоштовні). Env: `MEMORA_SMOKE_URL`,
   `MEMORA_SMOKE_MUTATE=0`, `MEMORA_SMOKE_BROWSER_PATH`, `MEMORA_SMOKE_SHOTS=<dir>`.
 - CI (`.github/workflows/ci.yml`): lint, typecheck, test, build.
@@ -142,5 +162,8 @@ Supabase CLI (залогінений, проєкт прив'язаний):
   відкалібрувати на реальних `review_logs`.
 - Кеш збагачення — за словником (lemma): перший контекст визначає порядок значень для всіх.
   Форма слова («running») не кешується окремо від словникової («run»).
+- Програма дає слова лише з NGSL (2 809), NGSL-Spoken, BSL і тематичних добірок; для рівня вище ~4–5 тис.
+  слів NGSL — уже активна практика знайомих слів (поглиблення списками 3k+ — пізніше).
+- Константи калібрування й частка ⅓ тематичних слів — експеримент (`program.ts`).
 - `lexicon.audio_url` не використовується (аудіо адресується хешем тексту) — кандидат у cleanup.
 - Gemini 3.x подорожчає вдвічі з 2027-01-01 (нас не стосується, поки за замовчуванням OpenAI).

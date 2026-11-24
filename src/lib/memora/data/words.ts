@@ -1,7 +1,6 @@
 import { exerciseOrder } from "../card-render";
-import { startingKinds } from "../exercise-unlock";
+import { knownWordKinds, startingKinds } from "../exercise-unlock";
 import { lemmaKey } from "../duplicates";
-import { starterWords } from "../starter-content";
 import type {
   WordContent,
   WordDetail,
@@ -92,11 +91,20 @@ export async function getWordDetail(db: Db, id: string): Promise<WordDetail | nu
   };
 }
 
-export type NewWord = { lemma: string; content: WordContent; source: WordSource; lexiconId?: string | null };
+export type NewWord = {
+  lemma: string;
+  content: WordContent;
+  source: WordSource;
+  lexiconId?: string | null;
+  /** Program word the test credited as known: starts with recall, not recognition. */
+  assumedKnown?: boolean;
+};
+
+const kindsFor = (word: { assumedKnown?: boolean }) => (word.assumedKnown ? knownWordKinds : startingKinds);
 
 /**
- * Inserts words with their starting card (recognition; the other exercises
- * are unlocked by practice). If the cards cannot be created the words are
+ * Inserts words with their starting card (recognition, or recall for words
+ * assumed known; the other exercises are unlocked by practice). If the cards cannot be created the words are
  * removed again, so no word is left without cards.
  */
 export async function insertWordsWithCards(db: Db, words: NewWord[]) {
@@ -110,13 +118,14 @@ export async function insertWordsWithCards(db: Db, words: NewWord[]) {
           content: word.content,
           source: word.source,
           lexicon_id: word.lexiconId ?? null,
+          assumed_known: word.assumedKnown ?? false,
         })),
       )
       .select(wordListColumns),
   );
 
-  const cards = inserted.flatMap((word) =>
-    startingKinds.map((kind) => ({ user_word_id: word.id, kind })),
+  const cards = inserted.flatMap((word, index) =>
+    kindsFor(words[index]).map((kind) => ({ user_word_id: word.id, kind })),
   );
   const { error } = await db.from("cards").insert(cards);
   if (error) {
@@ -124,10 +133,10 @@ export async function insertWordsWithCards(db: Db, words: NewWord[]) {
     throw error;
   }
 
-  return inserted.map((row) =>
+  return inserted.map((row, index) =>
     toWordListItem({
       ...row,
-      cards: startingKinds.map(() => ({
+      cards: kindsFor(words[index]).map(() => ({
         status: "active" as const,
         reps: 0,
         lapses: 0,
@@ -160,18 +169,6 @@ export async function addWord(
   } catch (error) {
     if (isUniqueViolation(error)) throw new Error(`«${draft.lemma}» уже є у твоїх словах.`);
     throw error;
-  }
-}
-
-export async function seedStarterWords(db: Db) {
-  try {
-    await insertWordsWithCards(
-      db,
-      starterWords.map((word) => ({ ...word, source: "program" as const })),
-    );
-  } catch (error) {
-    // A parallel first visit already seeded the same words.
-    if (!isUniqueViolation(error)) throw error;
   }
 }
 

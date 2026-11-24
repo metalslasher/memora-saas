@@ -17,6 +17,11 @@ import type { CardKind, ReviewRating, StoredSchedule, WordContent } from "./type
  * gets an example sentence.
  */
 export const startingKinds: CardKind[] = ["recognition"];
+/**
+ * Program words the vocabulary test credited as passively known skip step 1
+ * and start with recall; cloze/listening follow by the same rule (step 3).
+ */
+export const knownWordKinds: CardKind[] = ["recall"];
 
 export function kindsToUnlock(input: {
   kind: CardKind;

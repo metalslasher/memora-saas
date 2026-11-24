@@ -13,10 +13,12 @@ import {
   restoreBackupAction,
   updateDailyMinutesAction,
 } from "@/lib/memora/actions/account";
+import { updateGoalsAction } from "@/lib/memora/actions/program";
 import { unwrap } from "@/lib/memora/actions/result";
 import { parseBackupJson, previewBackup, type BackupDocument, type BackupPreview } from "@/lib/memora/backup";
 import { validatePassword } from "@/lib/memora/password-policy";
 import { DAILY_MINUTES_OPTIONS, newWordsPerDay } from "@/lib/memora/pace";
+import type { Goal } from "@/lib/memora/program";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { useShell } from "./app-shell";
 import {
@@ -33,17 +35,23 @@ import {
 import { useFreshSnapshot } from "./use-fresh-snapshot";
 import { dateStamp, downloadTextFile, formatDate, formatError, plural } from "./utils";
 import { hardNavigate } from "./hard-navigate";
+import { GoalPicker } from "./onboarding-flow";
 
 export function SettingsWorkspace({
   counts,
   email,
   dailyMinutes,
+  goals,
+  level,
   isRecovery,
   snapshot,
 }: {
   counts: { words: number; reviews: number };
   email: string | null;
   dailyMinutes: number;
+  goals: Goal[];
+  /** Vocabulary test result, null before the first test. */
+  level: { vocab: number; cefr: string; takenAt: string } | null;
   isRecovery: boolean;
   snapshot: string;
 }) {
@@ -83,7 +91,7 @@ export function SettingsWorkspace({
       ) : null}
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] xl:items-start">
-        <LearningPanel dailyMinutes={dailyMinutes} />
+        <LearningPanel dailyMinutes={dailyMinutes} goals={goals} level={level} />
         <PasswordPanel />
       </div>
 
@@ -92,9 +100,36 @@ export function SettingsWorkspace({
   );
 }
 
-function LearningPanel({ dailyMinutes }: { dailyMinutes: number }) {
+function LearningPanel({
+  dailyMinutes,
+  goals: initialGoals,
+  level,
+}: {
+  dailyMinutes: number;
+  goals: Goal[];
+  level: { vocab: number; cefr: string; takenAt: string } | null;
+}) {
   const { showToast } = useShell();
   const [minutes, setMinutes] = useState(dailyMinutes);
+  const [goals, setGoals] = useState(initialGoals);
+  const [isSavingGoals, setIsSavingGoals] = useState(false);
+
+  async function changeGoals(next: Goal[]) {
+    if (next.length === 0 || isSavingGoals) return;
+    const previous = goals;
+    setGoals(next);
+    setIsSavingGoals(true);
+    setError(null);
+    try {
+      setGoals(unwrap(await updateGoalsAction(next)));
+      showToast("success", "Збережено.");
+    } catch (saveError) {
+      setGoals(previous);
+      setError(formatError(saveError));
+    } finally {
+      setIsSavingGoals(false);
+    }
+  }
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -117,7 +152,26 @@ function LearningPanel({ dailyMinutes }: { dailyMinutes: number }) {
 
   return (
     <ShellPanel className="p-5 md:p-6">
-      <SectionHeader icon={GraduationCap} title="Навчання" description="Скільки часу на день готовий приділяти." />
+      <SectionHeader icon={GraduationCap} title="Навчання" description="Рівень, цілі й час на день — з них програма підбирає нові слова." />
+
+      <div className="mt-5 flex flex-wrap items-center justify-between gap-2">
+        <div className="min-w-0 text-sm">
+          <FieldLabel>Рівень</FieldLabel>
+          <p className="mt-1 text-text-2" data-testid="settings-level">
+            {level
+              ? `≈ ${level.vocab.toLocaleString("uk-UA")} слів · ≈ ${level.cefr} · тест ${formatDate(level.takenAt)}`
+              : "Тест ще не пройдено — програма не додає слів."}
+          </p>
+        </div>
+        <Link className={buttonClass(level ? "secondary" : "primary", "sm")} href="/app/onboarding">
+          {level ? "Пройти тест ще раз" : "Пройти тест"}
+        </Link>
+      </div>
+
+      <div className="mt-5">
+        <FieldLabel>Цілі</FieldLabel>
+        <GoalPicker className="mt-2" goals={goals} disabled={isSavingGoals} onChange={(next) => void changeGoals(next)} />
+      </div>
 
       <div className="mt-5">
         <FieldLabel>Хвилин на день</FieldLabel>

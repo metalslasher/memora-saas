@@ -78,7 +78,7 @@ async function cachedEntries(admin: AdminDb, keys: string[]) {
 export async function enrichWords(
   userId: string,
   requests: EnrichRequest[],
-  feature: Extract<AiFeature, "enrich_word" | "enrich_batch">,
+  feature: Extract<AiFeature, "enrich_word" | "enrich_batch" | "program">,
 ): Promise<Array<EnrichedDraft | null>> {
   const admin = requireAdmin();
   const cache = await cachedEntries(admin, [...new Set(requests.map((request) => lemmaKey(request.input)))]);
