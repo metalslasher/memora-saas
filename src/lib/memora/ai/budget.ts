@@ -1,13 +1,18 @@
 import type { AdminDb } from "@/lib/supabase/admin";
 import type { ProviderId } from "./pricing";
 
-export type AiFeature = "enrich_word" | "enrich_batch" | "tts" | "compare";
+export type AiFeature = "enrich_word" | "enrich_batch" | "tts" | "program" | "compare" | "program_build";
+
+/** One-off scripts (provider comparison, program build): no per-user limits, only the budget. */
+type ScriptFeature = "compare" | "program_build";
+const isScriptFeature = (feature: AiFeature): feature is ScriptFeature =>
+  feature === "compare" || feature === "program_build";
 
 /**
  * Per-user rate limits (rolling windows, counted in `ai_usage`, so they hold
  * across serverless instances). Calls served from cache are free and not counted.
  */
-export const rateLimits: Record<Exclude<AiFeature, "compare">, { perMinute: number; perDay: number }> = {
+export const rateLimits: Record<Exclude<AiFeature, ScriptFeature>, { perMinute: number; perDay: number }> = {
   enrich_word: { perMinute: 10, perDay: 150 },
   enrich_batch: { perMinute: 3, perDay: 40 },
   tts: { perMinute: 40, perDay: 600 },
@@ -54,7 +59,7 @@ export async function reserve(
     monthlyLimitUsd: number;
   },
 ): Promise<Reservation> {
-  const limits = args.feature === "compare" ? { perMinute: 1000, perDay: 100000 } : rateLimits[args.feature];
+  const limits = isScriptFeature(args.feature) ? { perMinute: 1000, perDay: 100000 } : rateLimits[args.feature];
   const { data, error } = await admin.rpc("ai_reserve", {
     p_user: args.userId as string,
     p_feature: args.feature,
