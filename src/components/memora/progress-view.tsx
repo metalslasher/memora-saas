@@ -23,8 +23,8 @@ export function ProgressView({
     <div className="space-y-4 md:space-y-5">
       <PageHeader title="Прогрес" />
 
-      <div className="grid grid-cols-4 gap-2 md:gap-3">
-        <Kpi icon={Flame} label={`${pluralizeDays(stats.streak.streak)} поспіль`} tone="amber" value={stats.streak.streak.toString()} />
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:gap-3">
+        <Kpi icon={Flame} label={pluralizeDays(stats.streak.streak)} tone="amber" value={stats.streak.streak.toString()} />
         <Kpi icon={Activity} label="повторень за тиждень" value={stats.reviews7d.toString()} />
         <Kpi icon={TrendingUp} label="згадано за 30 днів" value={formatPercent(recallRate(stats))} />
         <Kpi icon={Check} label="закріплених карток" tone="violet" value={stats.stages.mature.toString()} />
@@ -63,14 +63,14 @@ function Kpi({
   }[tone];
 
   return (
-    <div className="min-w-0 rounded-xl border border-line bg-surface-2/70 px-2.5 py-2.5 md:rounded-2xl md:p-4">
-      <p className="flex items-center gap-1.5 text-xl font-semibold tracking-tight md:text-[28px]">
+    <div className="flex min-w-0 items-center gap-2.5 rounded-xl border border-line bg-surface-2/70 px-3 py-2.5 md:block md:rounded-2xl md:p-4">
+      <p className="flex items-center gap-2 text-xl font-semibold tracking-tight md:text-[28px]">
         <span className={`hidden size-8 shrink-0 place-items-center rounded-lg md:grid ${toneClass}`}>
           <Icon className="size-4" />
         </span>
         {value}
       </p>
-      <p className="mt-0.5 text-[11px] leading-4 text-muted md:mt-1 md:text-sm">{label}</p>
+      <p className="min-w-0 text-xs leading-4 text-muted md:mt-1 md:text-sm">{label}</p>
     </div>
   );
 }

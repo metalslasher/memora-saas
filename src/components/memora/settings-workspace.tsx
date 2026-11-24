@@ -385,7 +385,7 @@ function DataPanel({ counts }: { counts: { words: number; reviews: number } }) {
       <div className="mt-2 flex items-center justify-between gap-3 rounded-xl border border-line bg-surface-1 px-4 py-2.5">
         <div>
           <p className="text-sm font-semibold">Відновити з копії</p>
-          <p className="mt-0.5 text-xs text-muted">Поточні слова й історія заміняться даними з файлу.</p>
+          <p className="mt-0.5 text-xs text-muted">Замінить поточні слова й історію.</p>
         </div>
         <input
           ref={fileInputRef}
@@ -446,7 +446,7 @@ function DataPanel({ counts }: { counts: { words: number; reviews: number } }) {
       <details className="group mt-4 rounded-xl border border-danger/20 bg-danger-soft/40">
         <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-4 text-sm font-semibold text-[#ffb4aa] [&::-webkit-details-marker]:hidden">
           <Trash2 className="size-4" />
-          Скинути прогрес або видалити слова
+          Скинути або видалити
         </summary>
         <div className="grid gap-2 px-4 pb-4 sm:grid-cols-2">
           <Button

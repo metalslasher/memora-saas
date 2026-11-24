@@ -313,7 +313,7 @@ export function HelpView() {
             key={section.id}
             className="group rounded-2xl border border-line bg-surface-2/60 transition open:border-line-strong open:bg-surface-2"
             id={section.id}
-            open={index < 2}
+            open={index === 0}
           >
             <summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 px-4 py-2.5 md:gap-4 md:px-5 [&::-webkit-details-marker]:hidden">
               <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent">

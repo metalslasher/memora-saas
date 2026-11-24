@@ -210,7 +210,7 @@ export function humanizeAuthError(error: unknown) {
     return "Новий пароль має відрізнятися від старого.";
   }
   if (normalized.includes("invalid login credentials")) {
-    return "Невірний email або пароль.";
+    return "Неправильний email або пароль.";
   }
   if (normalized.includes("email not confirmed")) {
     return "Підтверди email — посилання вже в пошті.";

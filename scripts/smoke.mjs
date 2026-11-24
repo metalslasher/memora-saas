@@ -453,7 +453,7 @@ async function assertSettings(page) {
   await expect(page.getByText("Нових карток на день")).toHaveCount(0);
   await expect(page.getByText("Рівень англійської")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Оновити пароль", exact: true })).toBeDisabled();
-  await expect(page.getByText("Скинути прогрес або видалити слова")).toBeVisible();
+  await expect(page.getByText("Скинути або видалити")).toBeVisible();
   if (shouldMutate) await expect(page.getByTestId("settings-level")).toContainText("слів");
   await shot(page, "settings");
 
@@ -558,9 +558,9 @@ async function assertInstallable(page, context) {
   const cdp = await context.newCDPSession(page);
   const { installabilityErrors } = await cdp.send("Page.getInstallabilityErrors");
   await cdp.detach();
-  if (installabilityErrors.length > 0) {
-    throw new Error(`Not installable: ${installabilityErrors.map((error) => error.errorId).join(", ")}`);
-  }
+  // Playwright contexts count as incognito, where Chrome never offers install.
+  const problems = installabilityErrors.map((error) => error.errorId).filter((id) => id !== "in-incognito");
+  if (problems.length > 0) throw new Error(`Not installable: ${problems.join(", ")}`);
 }
 
 /** A guest who shares a word signs in and lands on "Add word" with it. */

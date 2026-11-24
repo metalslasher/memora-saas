@@ -96,8 +96,8 @@ export function WordsWorkspace({
                 З тексту
               </Button>
             ) : null}
-            <Button className="max-sm:flex-1" icon={Plus} variant="primary" onClick={() => setPanel("add")}>
-              Додати слово
+            <Button aria-label="Додати слово" className="max-sm:flex-1" icon={Plus} variant="primary" onClick={() => setPanel("add")}>
+              Додати<span className="max-[400px]:hidden"> слово</span>
             </Button>
           </>
         }

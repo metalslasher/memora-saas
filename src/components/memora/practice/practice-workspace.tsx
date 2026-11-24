@@ -112,13 +112,15 @@ function PracticeHeader({ practice }: { practice: PracticeSession }) {
             <span className="text-muted">На сьогодні черга порожня</span>
           )}
         </p>
-        <SegmentedControl
+        {practice.queue.length === 0 ? null : (
+          <SegmentedControl
           ariaLabel="Довжина сесії, хвилин"
           className="shrink-0 [&_button]:h-9 [&_button]:min-w-10 [&_button]:px-2"
           options={options.map((minutes) => ({ value: String(minutes), label: String(minutes) }))}
           value={String(practice.sessionMinutes)}
           onChange={(value) => practice.setSessionMinutes(Number(value))}
-        />
+          />
+        )}
       </div>
     </div>
   );

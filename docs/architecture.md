@@ -1,6 +1,6 @@
 # Memora — архітектура (поточний стан коду)
 
-Оновлено: 2026-11-24, пачка 4 (програма й онбординг). Цільовий продукт описано в
+Оновлено: 2026-11-24, пачка 5 (дизайн кабінету + PWA). Цільовий продукт описано в
 `product.md`, план робіт — у `roadmap.md`.
 
 ## Стек
@@ -19,13 +19,22 @@ project `whqfpktgwwctqhqvsoqm`. Preview і прод ділять одну БД.
 | `/app/progress` | Прогрес | `components/memora/progress-view.tsx` |
 | `/app/settings` | Профіль і налаштування, бекап, небезпечна зона | `components/memora/settings-workspace.tsx` |
 | `/app/help` | Довідка | `components/memora/help-view.tsx` |
+| `/app/share` | Прийом «Поділитися → Memora» (Web Share Target, GET і POST): слово/фраза (≤ 4 слова, ≤ 60 символів, без знаків речення) → `/app/words?add=…`, довший текст → `/app/words?text=…` (до 3000 символів), лише посилання → `?shared=link`. Правила — `lib/memora/share.ts` | `src/app/app/share/route.ts` |
+| `/manifest.webmanifest` | Маніфест PWA: `start_url /app`, standalone, іконки PNG 192/512 (any + maskable), `share_target`, ярлик «Додати слово» | `src/app/manifest.ts` |
+| `/pwa/*.png` | Іконки маніфесту, рендеряться під час білду (`lib/memora/app-icon.tsx`, той самий малюнок — `apple-icon`) | `src/app/pwa/[icon]/route.tsx` |
+| `/sw.js` | Мінімальний service worker без кешу (офлайн — «пізніше»); сюди пачка 7 додасть `push`/`notificationclick` | `public/sw.js` |
 | `/beta` | «Закрита бета» для акаунтів поза allowlist | `components/memora/beta-screen.tsx` |
 
 `src/app/app/layout.tsx` + `components/memora/app-shell.tsx` — спільна оболонка
-(сайдбар на десктопі, верхня панель + нижні 4 вкладки на телефоні, тости).
+(сайдбар на десктопі ≥ 1024 px; на телефоні й планшеті — верхня панель з назвою розділу + нижні 4 вкладки, тости).
+На телефоні назва розділу лише у верхній панелі: `PageHeader` ховає h1 візуально (`max-lg:sr-only`), опис лишається.
+Серія у верхній панелі й сайдбарі показується лише з 1 дня. `components/memora/pwa.ts` — реєстрація service worker
+(лише production) і `useInstallPrompt` (подія `beforeinstallprompt`): кнопка «Встановити» у верхній панелі
+(зникає на 30 днів після «Ні») і блок «Memora на телефоні» в Профілі.
 
 ## Доступ і безпека (три рівні)
-1. `src/proxy.ts` — оновлює сесійну cookie; гостей з `/app/*` веде на `/`; акаунти
+1. `src/proxy.ts` — оновлює сесійну cookie; гостей з `/app/*` веде на `/?next=<шлях>` (лендінг одразу
+   відкриває вхід і після нього повертає на `next`, лише шляхи `/app…` — `safeNextPath`); акаунти
    поза allowlist (`is_current_user_allowed()`) — на `/beta`.
 2. `lib/memora/data/context.ts` — `getAppContext()` для сторінок,
    `requireActionContext()` для server actions (перевіряє користувача й allowlist).
@@ -131,11 +140,14 @@ SQL-функції (security invoker, RLS діє): `get_practice_overview` (лі
   імпорт у `lexicon` + `lexicon_lists`; після зміни файлів у `data/lexicon` — запустити ще раз).
 
 ## Тести й перевірки
-- `pnpm test` — Vitest, чиста логіка й AI-провайдери на моках (145 тестів).
+- `pnpm test` — Vitest, чиста логіка й AI-провайдери на моках (152 тести).
 - `pnpm smoke` — Playwright, повний сценарій від імені тестового користувача
   (`pnpm test-user` створює/скидає `memora.e2e@example.com`, скидає онбординг і засіває 4 слова так, що в
   черзі є по картці кожного типу вправи — smoke проходить усі 4 на телефонному екрані й
-  перевіряє, що кнопка оцінки не ховається під нижнім меню). Перед практикою smoke проходить онбординг
+  перевіряє, що кнопка оцінки не ховається під нижнім меню). Також: маніфест, іконки, `/sw.js`, share target
+  (GET і POST, гість → вхід → повернення на «Додати слово»), installability через DevTools
+  (`Page.getInstallabilityErrors`; `in-incognito` ігнорується — контексти Playwright анонімні).
+  Знімки (`MEMORA_SMOKE_SHOTS`) — 375, 768 і 1440. Перед практикою smoke проходить онбординг
   (пропозиція тесту → тест як учень із 4 000 слів → перевірка значень → цілі → хвилини) і перевіряє, що
   автоподача поставила в практику 6 нових слів. Якщо на сервері налаштовано AI —
   ще «Заповнити з AI» і «З тексту» (слова беруться з кешу, повторні прогони безкоштовні). Env: `MEMORA_SMOKE_URL`,
@@ -156,6 +168,10 @@ Supabase CLI (залогінений, проєкт прив'язаний):
 `MEMORA_TTS_PROVIDER`, `MEMORA_TTS_MODEL`, `MEMORA_TTS_VOICE`. Лише локально: `MEMORA_SMOKE_EMAIL/PASSWORD`.
 
 ## Відомі обмеження
+- Lighthouse mobile `/app` (локальний prod-білд, 2026-11-24): доступність 100, кращі практики 100, швидкість 73
+  (LCP 7,1 с під емуляцією повільного 4G/CPU ×4; відповідь сервера ~0,9 с — запити до Supabase; ~430 КБ
+  невикористаного JS) — оптимізація в пачці 9.
+- Share target приймає лише текст і посилання (без файлів); сторінку за посиланням Memora не завантажує.
 - Бекапи старої версії (v1) не відновлюються; історії CSV-імпортів більше немає.
 - Відновлення бекапу — до 4 МБ (ліміт тіла запиту Vercel 4.5 МБ).
 - Константи темпу (`pace.ts`: 12 с на повторення, 45 с на нове слово) — евристика,

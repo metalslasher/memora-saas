@@ -43,7 +43,7 @@ const verdictMeta: Record<AnswerCheck["verdict"], { label: string; className: st
   synonym: { label: "Синонім — а вчимо інше слово", className: "bg-amber-soft text-amber" },
   close: { label: "Майже — є описка", className: "bg-amber-soft text-amber" },
   different: { label: "Неправильно", className: "bg-danger-soft text-danger" },
-  self: { label: "Порівняй сам", className: "bg-surface-4 text-text-2" },
+  self: { label: "Перевір себе", className: "bg-surface-4 text-text-2" },
   empty: { label: "", className: "" },
 };
 
