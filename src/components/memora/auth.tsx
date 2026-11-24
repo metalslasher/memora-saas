@@ -88,7 +88,7 @@ export function AuthModal({
       else if (mode === "sign-up") await onSignUp(email.trim(), password);
       else await onResetPassword(email.trim());
     } catch (error) {
-      setLocalError(humanizeAuthError(formatError(error)));
+      setLocalError(humanizeAuthError(error));
     } finally {
       setIsSubmitting(false);
     }
@@ -202,8 +202,13 @@ export function AuthModal({
 }
 
 /** Supabase returns English errors; show the common ones in Ukrainian. */
-export function humanizeAuthError(message: string) {
+/** Supabase Auth answers in English: translate what the learner can act on. */
+export function humanizeAuthError(error: unknown) {
+  const message = error instanceof Error ? error.message : String((error as { message?: unknown })?.message ?? "");
   const normalized = message.toLowerCase();
+  if (normalized.includes("should be different from the old password")) {
+    return "Новий пароль має відрізнятися від старого.";
+  }
   if (normalized.includes("invalid login credentials")) {
     return "Невірний email або пароль.";
   }
@@ -222,8 +227,5 @@ export function humanizeAuthError(message: string) {
   if (normalized.includes("unable to validate email") || normalized.includes("invalid email")) {
     return "Схоже, email введено з помилкою.";
   }
-  if (normalized.includes("failed to fetch") || normalized.includes("network")) {
-    return "Немає з’єднання. Перевір інтернет і спробуй ще раз.";
-  }
-  return message;
+  return formatError(error);
 }

@@ -1,11 +1,22 @@
 import type { ReviewRating, WordSource, WordStatus } from "@/lib/memora/types";
 
+const genericError = "Щось пішло не так. Спробуй ще раз.";
+const networkError = "Немає зв’язку із сервером. Перевір інтернет і спробуй ще раз.";
+
+/**
+ * A message the learner can act on. Our own errors are already in Ukrainian;
+ * raw technical ones (network, library internals in English) are replaced.
+ */
 export function formatError(error: unknown) {
-  if (error instanceof Error) return error.message;
-  if (typeof error === "object" && error && "message" in error) {
-    return String((error as { message?: unknown }).message ?? "Невідома помилка.");
-  }
-  return "Щось пішло не так. Спробуй ще раз.";
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === "object" && error && "message" in error
+        ? String((error as { message?: unknown }).message ?? "")
+        : "";
+  if (/failed to fetch|networkerror|load failed|network request failed/i.test(message)) return networkError;
+  if (/[а-яіїєґ]/i.test(message)) return message;
+  return genericError;
 }
 
 export const ratingLabels: Record<ReviewRating, string> = {
@@ -22,7 +33,7 @@ export const wordStatusLabels: Record<WordStatus, string> = {
 };
 
 export const wordSourceLabels: Record<WordSource, string> = {
-  program: "стартовий набір",
+  program: "з програми",
   manual: "додано вручну",
   text: "з тексту",
   import: "з CSV",

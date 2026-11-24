@@ -6,7 +6,7 @@ import { cardKindLabels } from "@/lib/memora/card-render";
 import type { RecentReview, WeakCard } from "@/lib/memora/data/progress";
 import { buildHeatmap, HEATMAP_WEEKS, parseDay, recallRate, type ProgressStats } from "@/lib/memora/progress";
 import { pluralizeDays } from "@/lib/memora/streak";
-import { EmptyState, PageHeader, SectionHeader, ShellPanel } from "./shared-ui";
+import { PageHeader, SectionHeader, ShellPanel } from "./shared-ui";
 import type { IconType } from "./types";
 import { formatDate, formatPercent, plural, ratingLabels } from "./utils";
 
@@ -20,24 +20,24 @@ export function ProgressView({
   weakCards: WeakCard[];
 }) {
   return (
-    <div className="space-y-6">
-      <PageHeader title="Прогрес" description="Як рухається навчання і що варто підтягнути." />
+    <div className="space-y-4 md:space-y-5">
+      <PageHeader title="Прогрес" />
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Kpi icon={Flame} label={pluralizeDays(stats.streak.streak)} tone="amber" value={stats.streak.streak.toString()} />
+      <div className="grid grid-cols-4 gap-2 md:gap-3">
+        <Kpi icon={Flame} label={`${pluralizeDays(stats.streak.streak)} поспіль`} tone="amber" value={stats.streak.streak.toString()} />
         <Kpi icon={Activity} label="повторень за тиждень" value={stats.reviews7d.toString()} />
         <Kpi icon={TrendingUp} label="згадано за 30 днів" value={formatPercent(recallRate(stats))} />
         <Kpi icon={Check} label="закріплених карток" tone="violet" value={stats.stages.mature.toString()} />
       </div>
 
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-4 md:gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
         <ActivityHeatmap stats={stats} />
         <ForecastChart stats={stats} />
       </div>
 
       <MemoryStages stats={stats} />
 
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:gap-5 xl:grid-cols-2">
         <WeakCardsPanel weakCards={weakCards} />
         <RecentReviewsPanel reviews={recentReviews} />
       </div>
@@ -63,12 +63,14 @@ function Kpi({
   }[tone];
 
   return (
-    <div className="rounded-2xl border border-line bg-surface-2/70 p-4">
-      <span className={`grid size-8 place-items-center rounded-lg ${toneClass}`}>
-        <Icon className="size-4" />
-      </span>
-      <p className="mt-3 text-2xl font-semibold tracking-tight md:text-[28px]">{value}</p>
-      <p className="mt-0.5 text-xs text-muted md:text-sm">{label}</p>
+    <div className="min-w-0 rounded-xl border border-line bg-surface-2/70 px-2.5 py-2.5 md:rounded-2xl md:p-4">
+      <p className="flex items-center gap-1.5 text-xl font-semibold tracking-tight md:text-[28px]">
+        <span className={`hidden size-8 shrink-0 place-items-center rounded-lg md:grid ${toneClass}`}>
+          <Icon className="size-4" />
+        </span>
+        {value}
+      </p>
+      <p className="mt-0.5 text-[11px] leading-4 text-muted md:mt-1 md:text-sm">{label}</p>
     </div>
   );
 }
@@ -83,14 +85,14 @@ function ActivityHeatmap({ stats }: { stats: ProgressStats }) {
   const level = (count: number) => (count === 0 ? 0 : Math.min(4, Math.ceil((count / max) * 4)));
 
   return (
-    <ShellPanel className="p-5 md:p-6">
+    <ShellPanel className="p-4 md:p-6">
       <SectionHeader
         icon={CalendarDays}
         title="Активність"
         description={`${plural(total, ["повторення", "повторення", "повторень"])} за ${HEATMAP_WEEKS} тижнів · ${plural(activeDays, ["день", "дні", "днів"])} з практикою`}
       />
-      <div className="mt-5 flex gap-2">
-        <div className="grid shrink-0 grid-rows-7 gap-[3px] text-[10px] text-faint">
+      <div className="mt-4 flex gap-2 md:mt-5">
+        <div className="grid shrink-0 grid-rows-7 gap-[3px] text-[11px] text-muted">
           {["Пн", "", "Ср", "", "Пт", "", "Нд"].map((label, index) => (
             <span key={index} className="flex items-center">
               {label}
@@ -131,13 +133,13 @@ function ForecastChart({ stats }: { stats: ProgressStats }) {
   const total = days.reduce((sum, day) => sum + day.cards, 0);
 
   return (
-    <ShellPanel className="p-5 md:p-6">
+    <ShellPanel className="p-4 md:p-6">
       <SectionHeader
         icon={TrendingUp}
         title="Прогноз повторень"
         description={`${plural(total, ["картка повернеться", "картки повернуться", "карток повернеться"])} за 7 днів`}
       />
-      <div className="mt-5 flex h-40 items-end gap-2" role="list">
+      <div className="mt-4 flex h-32 items-end gap-2 md:mt-5 md:h-40" role="list">
         {days.map((day, index) => {
           const label = index === 0 ? "сьог." : weekdayFormat.format(parseDay(day.day));
           return (
@@ -178,13 +180,13 @@ function MemoryStages({ stats }: { stats: ProgressStats }) {
   const total = Math.max(1, cardTotal);
 
   return (
-    <ShellPanel className="p-5 md:p-6">
+    <ShellPanel className="p-4 md:p-6">
       <SectionHeader
         icon={Layers}
         title="Стадії запам’ятовування"
         description={`${plural(cardTotal, ["картка", "картки", "карток"])} у навчанні · ${plural(stats.words.active, ["слово", "слова", "слів"])}`}
       />
-      <div aria-hidden="true" className="mt-5 flex h-3 w-full gap-[2px] overflow-hidden rounded-full">
+      <div aria-hidden="true" className="mt-4 flex h-3 w-full gap-[2px] overflow-hidden rounded-full">
         {stageMeta.map((stage) =>
           counts[stage.key] > 0 ? (
             <span
@@ -214,21 +216,15 @@ function MemoryStages({ stats }: { stats: ProgressStats }) {
 
 function WeakCardsPanel({ weakCards }: { weakCards: WeakCard[] }) {
   return (
-    <ShellPanel className="flex flex-col p-5 md:p-6 xl:max-h-[460px]">
+    <ShellPanel className="flex flex-col p-4 md:p-6 xl:max-h-[460px]">
       <SectionHeader
         icon={AlertCircle}
         title="Слабкі місця"
-        description="Картки, які ти забуваєш найчастіше. Часто допомагає кращий приклад."
+        description="Що забувається найчастіше. Часто допомагає кращий приклад."
       />
       <div className="scrollbar-soft mt-4 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
         {weakCards.length === 0 ? (
-          <div className="py-8">
-            <EmptyState
-              icon={Check}
-              title="Слабких місць немає"
-              description="Тут з’являться картки, які часто повертаються після помилок."
-            />
-          </div>
+          <p className="text-sm text-muted">Поки немає — усе згадується добре.</p>
         ) : (
           weakCards.map((card) => (
             <div
@@ -261,13 +257,11 @@ function WeakCardsPanel({ weakCards }: { weakCards: WeakCard[] }) {
 
 function RecentReviewsPanel({ reviews }: { reviews: RecentReview[] }) {
   return (
-    <ShellPanel className="flex flex-col p-5 md:p-6 xl:max-h-[460px]">
+    <ShellPanel className="flex flex-col p-4 md:p-6 xl:max-h-[460px]">
       <SectionHeader icon={Activity} title="Останні відповіді" />
       <div className="scrollbar-soft mt-4 min-h-0 flex-1 overflow-y-auto pr-1">
         {reviews.length === 0 ? (
-          <div className="py-8">
-            <EmptyState icon={Activity} title="Ще немає відповідей" description="Пройди першу практику — історія з’явиться тут." />
-          </div>
+          <p className="text-sm text-muted">Пройди першу практику — відповіді з’являться тут.</p>
         ) : (
           <ul className="divide-y divide-line">
             {reviews.map((review) => (

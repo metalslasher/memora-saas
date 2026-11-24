@@ -37,7 +37,11 @@ export async function proxy(request: NextRequest) {
   const isBetaRoute = pathname === "/beta";
   if (!isAppRoute && !isBetaRoute) return response;
 
-  if (!user) return redirectWithCookies(request, response, "/");
+  if (!user) {
+    // Remember where the guest was going (e.g. a share from Android) to return after sign-in.
+    const next = request.method === "GET" && isAppRoute ? pathname + request.nextUrl.search : null;
+    return redirectWithCookies(request, response, "/", next);
+  }
   if (request.headers.has("next-action")) return response;
 
   const { data: allowed, error } = await supabase.rpc("is_current_user_allowed");
@@ -48,17 +52,19 @@ export async function proxy(request: NextRequest) {
   return response;
 }
 
-function redirectWithCookies(request: NextRequest, response: NextResponse, pathname: string) {
+function redirectWithCookies(request: NextRequest, response: NextResponse, pathname: string, next?: string | null) {
   const url = request.nextUrl.clone();
   url.pathname = pathname;
   url.search = "";
-  const redirect = NextResponse.redirect(url);
+  if (next) url.searchParams.set("next", next);
+  // 303: a shared POST to /app/share continues as a GET.
+  const redirect = NextResponse.redirect(url, 303);
   response.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie));
   return redirect;
 }
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|icon.svg|apple-icon|manifest.webmanifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    "/((?!_next/static|_next/image|icon.svg|apple-icon|manifest.webmanifest|sw.js|pwa/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };

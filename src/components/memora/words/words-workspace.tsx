@@ -2,7 +2,7 @@
 
 import { FileText, Plus, ScanText, Search, Upload, X } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { AiStatus } from "@/lib/memora/ai/service";
 import type { WordListItem } from "@/lib/memora/types";
 import { Badge, Button, Dialog, DialogHeader, EmptyState, PageHeader } from "../shared-ui";
@@ -28,20 +28,35 @@ function matchesFilter(word: WordListItem, filter: Filter) {
   return true;
 }
 
+type Shared = { add: string | null; text: string | null; linkOnly: boolean };
+
+function initialPanel(shared: Shared, ai: AiStatus) {
+  if (shared.add !== null) return "add";
+  if ((shared.text !== null || shared.linkOnly) && ai.enabled) return "text";
+  return null;
+}
+
 export function WordsWorkspace({
   ai,
   initialWords,
+  shared,
   snapshot,
 }: {
   ai: AiStatus;
   initialWords: WordListItem[];
+  shared: Shared;
   snapshot: string;
 }) {
   useFreshSnapshot(snapshot);
   const [words, setWords] = useState(initialWords);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
-  const [panel, setPanel] = useState<"add" | "import" | "text" | null>(null);
+  const [panel, setPanel] = useState<"add" | "import" | "text" | null>(() => initialPanel(shared, ai));
+
+  // A shared word opens once: drop it from the address so Back/refresh do not reopen it.
+  useEffect(() => {
+    if (window.location.search) window.history.replaceState(window.history.state, "", "/app/words");
+  }, []);
 
   const normalizedQuery = query.trim().toLowerCase();
   const visibleWords = useMemo(
@@ -56,6 +71,10 @@ export function WordsWorkspace({
     [filter, normalizedQuery, words],
   );
   const activeCount = words.filter((word) => word.status === "active").length;
+  // A filter is offered only when it narrows the list: no empty or "same as all" chips.
+  const filterOptions = filters
+    .map(([value, label]) => ({ value, label, count: words.filter((word) => matchesFilter(word, value)).length }))
+    .filter((option) => option.value === "all" || option.value === filter || (option.count > 0 && option.count < words.length));
 
   function addWords(added: WordListItem[]) {
     setWords((current) => [...added, ...current]);
@@ -68,7 +87,7 @@ export function WordsWorkspace({
         description={`${plural(words.length, ["слово", "слова", "слів"])} · ${activeCount} у навчанні`}
         action={
           <>
-            <Button icon={Upload} onClick={() => setPanel("import")}>
+            <Button className="max-sm:w-11 max-sm:px-0" icon={Upload} onClick={() => setPanel("import")}>
               <span className="hidden sm:inline">Імпорт</span>
               <span className="sr-only sm:hidden">Імпорт CSV</span>
             </Button>
@@ -77,7 +96,7 @@ export function WordsWorkspace({
                 З тексту
               </Button>
             ) : null}
-            <Button icon={Plus} variant="primary" onClick={() => setPanel("add")}>
+            <Button className="max-sm:flex-1" icon={Plus} variant="primary" onClick={() => setPanel("add")}>
               Додати слово
             </Button>
           </>
@@ -102,23 +121,24 @@ export function WordsWorkspace({
               </button>
             ) : null}
           </label>
-          <div className="scrollbar-hidden -mx-4 flex gap-1.5 overflow-x-auto px-4 md:mx-0 md:px-0">
-            {filters.map(([value, label]) => (
-              <button
-                key={value}
-                className={`flex h-9 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition ${
-                  filter === value ? "border-accent/40 bg-accent-soft text-accent" : "border-line text-muted hover:text-text"
-                }`}
-                onClick={() => setFilter(value)}
-                type="button"
-              >
-                {label}
-                <span className="font-mono text-[11px] opacity-70">
-                  {words.filter((word) => matchesFilter(word, value)).length}
-                </span>
-              </button>
-            ))}
-          </div>
+          {filterOptions.length > 1 ? (
+            <div className="scrollbar-hidden -mx-4 flex gap-1.5 overflow-x-auto px-4 md:mx-0 md:px-0">
+              {filterOptions.map(({ value, label, count }) => (
+                <button
+                  aria-pressed={filter === value}
+                  key={value}
+                  className={`flex h-11 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-sm font-medium transition ${
+                    filter === value ? "border-accent/40 bg-accent-soft text-accent" : "border-line text-muted hover:text-text"
+                  }`}
+                  onClick={() => setFilter(value)}
+                  type="button"
+                >
+                  {label}
+                  {value === "all" ? null : <span className="font-mono text-[11px] opacity-70">{count}</span>}
+                </button>
+              ))}
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -145,10 +165,11 @@ export function WordsWorkspace({
           <EmptyState icon={Search} title="Нічого не знайдено" description="Спробуй інший запит або зміни фільтр." />
         </div>
       ) : (
-        <ul className="overflow-hidden rounded-2xl border border-line bg-surface-2/50">
-          {visibleWords.map((word, index) => (
-            <WordRow key={word.id} isFirst={index === 0} word={word} />
+        <ul className="grid grid-cols-1 gap-px overflow-hidden rounded-2xl border border-line bg-line lg:grid-cols-2">
+          {visibleWords.map((word) => (
+            <WordRow key={word.id} word={word} />
           ))}
+          {visibleWords.length % 2 === 1 ? <li aria-hidden="true" className="hidden bg-surface-2 lg:block" /> : null}
         </ul>
       )}
 
@@ -160,7 +181,12 @@ export function WordsWorkspace({
             onClose={() => setPanel(null)}
           />
           <div className="overflow-y-auto">
-            <AddWordForm ai={ai} words={words} onAdded={(word) => addWords([word])} />
+            <AddWordForm
+              ai={ai}
+              initialLemma={shared.add ?? ""}
+              words={words}
+              onAdded={(word) => addWords([word])}
+            />
           </div>
         </Dialog>
       ) : null}
@@ -172,7 +198,13 @@ export function WordsWorkspace({
             subtitle="Встав текст і тапни незнайомі слова — AI заповнить картки."
             onClose={() => setPanel(null)}
           />
-          <FromTextPanel ai={ai} words={words} onAdded={addWords} />
+          <FromTextPanel
+            ai={ai}
+            initialText={shared.text ?? ""}
+            linkOnly={shared.linkOnly}
+            words={words}
+            onAdded={addWords}
+          />
         </Dialog>
       ) : null}
 
@@ -192,13 +224,13 @@ export function WordsWorkspace({
   );
 }
 
-function WordRow({ isFirst, word }: { isFirst: boolean; word: WordListItem }) {
+function WordRow({ word }: { word: WordListItem }) {
   const isPaused = word.status !== "active";
 
   return (
-    <li className={isFirst ? "" : "border-t border-line"}>
+    <li className="min-w-0 bg-surface-2">
       <Link
-        className="flex w-full items-center gap-4 px-4 py-3.5 text-left transition hover:bg-surface-3/50 md:px-5"
+        className="flex w-full items-center gap-4 px-4 py-3 text-left transition hover:bg-surface-3 md:px-5"
         href={`/app/words/${word.id}`}
       >
         <div className="min-w-0 flex-1">
@@ -211,11 +243,11 @@ function WordRow({ isFirst, word }: { isFirst: boolean; word: WordListItem }) {
           {isPaused ? <Badge tone="neutral">пауза</Badge> : null}
           {word.maxLapses >= 2 && !isPaused ? <Badge tone="red">складне</Badge> : null}
           <span
-            className="hidden w-24 items-center justify-end gap-2 text-xs text-faint sm:flex"
+            className="flex items-center justify-end gap-2 text-xs text-muted"
             title={`Прогрес: ${word.progress.label}`}
           >
-            {word.progress.label}
-            <span className="flex gap-0.5">
+            <span className="max-sm:sr-only">{word.progress.label}</span>
+            <span aria-hidden="true" className="flex gap-0.5">
               {[1, 2, 3].map((step) => (
                 <span
                   key={step}

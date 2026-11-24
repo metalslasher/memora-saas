@@ -139,7 +139,7 @@ const sections: HelpSection[] = [
           </li>
         </ol>
         <p>
-          Помилився кнопкою? Тисни ↶ над карткою або клавішу Z. Картку, яка
+          Натиснув не ту кнопку? Тисни ↶ над карткою або клавішу Z. Картку, яка
           заважає, можна поставити на паузу (⏸) — вона зникне з черги, поки ти
           не повернеш її на сторінці слова.
         </p>
@@ -281,26 +281,33 @@ const sections: HelpSection[] = [
     id: "help-mobile",
     icon: Smartphone,
     title: "На телефоні",
-    summary: "Додай Memora на головний екран.",
+    summary: "Встанови як застосунок і додавай слова через «Поділитися».",
     body: (
-      <p>
-        iPhone: Safari → «Поділитися» → «На екран “Додому”». Android: Chrome → меню
-        ⋮ → «Додати на головний екран». Memora відкриватиметься як окремий
-        застосунок, без адресного рядка.
-      </p>
+      <>
+        <p>
+          <b>Встановити на Android</b>: у Chrome натисни «Встановити» вгорі екрана або в
+          Профілі (блок «Memora на телефоні»). Якщо кнопки немає — меню ⋮ → «Додати на
+          головний екран» → «Встановити». Memora відкриватиметься окремо від браузера, з
+          власною іконкою. На iPhone: Safari → «Поділитися» → «На екран “Додому”».
+        </p>
+        <p>
+          <b>Поділитися → Memora</b> (Android, після встановлення): виділи слово чи абзац у
+          будь-якій програмі — браузері, читалці, месенджері — натисни «Поділитися» й обери
+          Memora. Одне слово чи коротка фраза відкриє «Додати слово» з уже вписаним словом,
+          довший текст — «З тексту», де лишиться тапнути незнайомі слова. Якщо ділишся
+          сторінкою без виділення, прийде лише посилання — тоді виділи потрібний абзац.
+        </p>
+      </>
     ),
   },
 ];
 
 export function HelpView() {
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <PageHeader
-        title="Довідка"
-        description="Коротко про те, як отримати максимум від Memora."
-      />
+    <div className="mx-auto max-w-3xl space-y-4 lg:space-y-6">
+      <PageHeader title="Довідка" />
 
-      <div className="space-y-3">
+      <div className="space-y-2">
         {sections.map((section, index) => (
           <details
             key={section.id}
@@ -308,8 +315,8 @@ export function HelpView() {
             id={section.id}
             open={index < 2}
           >
-            <summary className="flex cursor-pointer list-none items-center gap-4 px-5 py-4 [&::-webkit-details-marker]:hidden">
-              <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent">
+            <summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 px-4 py-2.5 md:gap-4 md:px-5 [&::-webkit-details-marker]:hidden">
+              <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent">
                 <section.icon className="size-5" />
               </span>
               <span className="min-w-0 flex-1">
@@ -318,7 +325,7 @@ export function HelpView() {
               </span>
               <ChevronDown className="size-5 shrink-0 text-faint transition group-open:rotate-180" />
             </summary>
-            <div className="space-y-3 px-5 pb-5 text-[15px] leading-7 text-text-2 md:pl-[76px] [&_b]:font-semibold [&_b]:text-text">
+            <div className="space-y-2.5 px-4 pb-4 text-[15px] leading-6 text-text-2 md:pb-5 md:pl-[72px] md:pr-5 [&_b]:font-semibold [&_b]:text-text">
               {section.body}
             </div>
           </details>

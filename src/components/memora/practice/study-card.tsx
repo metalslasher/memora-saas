@@ -168,7 +168,7 @@ export function StudyCardView({ card, practice }: { card: PracticeCard; practice
   return (
     <article
       key={card.id}
-      className="animate-card relative flex flex-col overflow-hidden rounded-3xl border border-line-strong bg-gradient-to-b from-surface-3/80 to-surface-2 shadow-[0_30px_80px_-40px_rgba(0,0,0,0.9)] max-lg:min-h-[calc(100dvh-13.5rem)]"
+      className="animate-card relative flex flex-col overflow-hidden rounded-3xl border border-line-strong bg-gradient-to-b from-surface-3/80 to-surface-2 shadow-[0_30px_80px_-40px_rgba(0,0,0,0.9)] max-lg:min-h-[calc(100dvh-17rem)]"
     >
       <div
         aria-hidden="true"
@@ -183,7 +183,7 @@ export function StudyCardView({ card, practice }: { card: PracticeCard; practice
         <div className="flex shrink-0 items-center">
           <Link
             aria-label="Редагувати слово"
-            className="grid size-9 place-items-center rounded-xl text-faint transition hover:bg-surface-4 hover:text-text"
+            className="grid size-10 place-items-center rounded-xl text-faint transition hover:bg-surface-4 hover:text-text"
             href={`/app/words/${card.userWordId}`}
             title="Редагувати слово"
           >
@@ -191,7 +191,7 @@ export function StudyCardView({ card, practice }: { card: PracticeCard; practice
           </Link>
           <button
             aria-label="Поставити картку на паузу"
-            className="grid size-9 place-items-center rounded-xl text-faint transition hover:bg-surface-4 hover:text-text"
+            className="grid size-10 place-items-center rounded-xl text-faint transition hover:bg-surface-4 hover:text-text"
             onClick={() => pause(card.id)}
             title="Пауза: картка зникне з черги"
             type="button"

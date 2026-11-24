@@ -16,10 +16,12 @@ import { hardNavigate } from "./hard-navigate";
 
 type AuthMode = "sign-in" | "sign-up";
 
-export function LandingPage({ isSignedIn }: { isSignedIn: boolean }) {
+export function LandingPage({ isSignedIn, next = null }: { isSignedIn: boolean; next?: string | null }) {
   const [supabase] = useState(() => createSupabaseBrowserClient());
-  const [authMode, setAuthMode] = useState<AuthMode>("sign-up");
-  const [isAuthOpen, setIsAuthOpen] = useState(false);
+  // A guest sent here from an app page (e.g. a share) signs in and goes back there.
+  const [authMode, setAuthMode] = useState<AuthMode>(next ? "sign-in" : "sign-up");
+  const [isAuthOpen, setIsAuthOpen] = useState(Boolean(next));
+  const home = next ?? "/app";
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   // Email links (sign-up confirmation, password reset) land here with a
@@ -29,14 +31,14 @@ export function LandingPage({ isSignedIn }: { isSignedIn: boolean }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "PASSWORD_RECOVERY") hardNavigate("/app/settings?recovery=1");
-      else if (event === "SIGNED_IN" && session && !isSignedIn) hardNavigate("/app");
+      else if (event === "SIGNED_IN" && session && !isSignedIn) hardNavigate(home);
     });
     return () => subscription.unsubscribe();
-  }, [isSignedIn, supabase]);
+  }, [home, isSignedIn, supabase]);
 
   function openAuth(mode: AuthMode) {
     if (isSignedIn) {
-      hardNavigate("/app");
+      hardNavigate(home);
       return;
     }
     setAuthMode(mode);
@@ -47,7 +49,7 @@ export function LandingPage({ isSignedIn }: { isSignedIn: boolean }) {
     setStatusMessage(null);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
-    hardNavigate("/app");
+    hardNavigate(home);
   }
 
   async function signUp(email: string, password: string) {
