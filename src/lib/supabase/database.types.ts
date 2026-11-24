@@ -209,31 +209,69 @@ export type Database = {
         }
         Relationships: []
       }
+      lexicon_lists: {
+        Row: {
+          lexicon_id: string
+          list: string
+          rank: number
+        }
+        Insert: {
+          lexicon_id: string
+          list: string
+          rank: number
+        }
+        Update: {
+          lexicon_id?: string
+          list?: string
+          rank?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lexicon_lists_lexicon_id_fkey"
+            columns: ["lexicon_id"]
+            isOneToOne: false
+            referencedRelation: "lexicon"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
+          calibrated_at: string | null
           created_at: string
           daily_minutes: number
           goals: string[]
           id: string
+          known_rank: number | null
           level_estimate: Json | null
+          onboarded_at: string | null
+          program_rank: number | null
           timezone: string
           updated_at: string
         }
         Insert: {
+          calibrated_at?: string | null
           created_at?: string
           daily_minutes?: number
           goals?: string[]
           id?: string
+          known_rank?: number | null
           level_estimate?: Json | null
+          onboarded_at?: string | null
+          program_rank?: number | null
           timezone?: string
           updated_at?: string
         }
         Update: {
+          calibrated_at?: string | null
           created_at?: string
           daily_minutes?: number
           goals?: string[]
           id?: string
+          known_rank?: number | null
           level_estimate?: Json | null
+          onboarded_at?: string | null
+          program_rank?: number | null
           timezone?: string
           updated_at?: string
         }
@@ -298,6 +336,7 @@ export type Database = {
       }
       user_words: {
         Row: {
+          assumed_known: boolean
           content: Json
           created_at: string
           id: string
@@ -309,6 +348,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          assumed_known?: boolean
           content?: Json
           created_at?: string
           id?: string
@@ -320,6 +360,7 @@ export type Database = {
           user_id?: string
         }
         Update: {
+          assumed_known?: boolean
           content?: Json
           created_at?: string
           id?: string
@@ -393,6 +434,25 @@ export type Database = {
           new_today: number
           next_due_at: string
           reviews_today: number
+        }[]
+      }
+      get_program_calibration: {
+        Args: { p_since: string }
+        Returns: {
+          assumed_known: boolean
+          rating: Database["public"]["Enums"]["review_rating"]
+          reviewed_at: string
+        }[]
+      }
+      get_program_candidates: {
+        Args: { p_limit: number; p_list: string; p_min_rank: number }
+        Returns: {
+          content: Json
+          enriched: boolean
+          frequency_rank: number
+          lemma: string
+          lexicon_id: string
+          list_rank: number
         }[]
       }
       get_progress_stats: { Args: { p_tz: string }; Returns: Json }
