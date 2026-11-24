@@ -92,7 +92,7 @@ export async function getWordDetail(db: Db, id: string): Promise<WordDetail | nu
   };
 }
 
-export type NewWord = { lemma: string; content: WordContent; source: WordSource };
+export type NewWord = { lemma: string; content: WordContent; source: WordSource; lexiconId?: string | null };
 
 /**
  * Inserts words with their starting card (recognition; the other exercises
@@ -104,7 +104,14 @@ export async function insertWordsWithCards(db: Db, words: NewWord[]) {
   const inserted = must(
     await db
       .from("user_words")
-      .insert(words.map((word) => ({ lemma: word.lemma, content: word.content, source: word.source })))
+      .insert(
+        words.map((word) => ({
+          lemma: word.lemma,
+          content: word.content,
+          source: word.source,
+          lexicon_id: word.lexiconId ?? null,
+        })),
+      )
       .select(wordListColumns),
   );
 
@@ -131,10 +138,23 @@ export async function insertWordsWithCards(db: Db, words: NewWord[]) {
   );
 }
 
-export async function addWord(db: Db, draft: NormalizedWordDraft): Promise<WordListItem> {
+/**
+ * Adds a word from the form. `base` is the AI draft the form was filled from:
+ * the edited fields go on top, the rest (more examples, forms…) is kept.
+ */
+export async function addWord(
+  db: Db,
+  draft: NormalizedWordDraft,
+  base?: { content: WordContent; lexiconId: string | null },
+): Promise<WordListItem> {
   try {
     const [word] = await insertWordsWithCards(db, [
-      { lemma: draft.lemma, content: contentFromDraft(draft), source: "manual" },
+      {
+        lemma: draft.lemma,
+        content: contentFromDraft(draft, base?.content),
+        source: "manual",
+        lexiconId: base?.lexiconId ?? null,
+      },
     ]);
     return word;
   } catch (error) {

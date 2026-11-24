@@ -1,5 +1,6 @@
 "use server";
 
+import { MAX_BATCH as MAX_PICKED } from "../ai/enrichment";
 import { MAX_IMPORT_ROWS } from "../csv-import";
 import { requireActionContext } from "../data/context";
 import {
@@ -13,14 +14,31 @@ import {
 import { lemmaKey } from "../duplicates";
 import type { WordContent, WordDraft, WordListItem, WordStatus } from "../types";
 import { validateId, validateWordStatus } from "../validation";
-import { contentFromDraft, validateWordDraft, wordDraftErrors, normalizeWordDraft } from "../word-content";
+import {
+  contentFromDraft,
+  normalizeWordDraft,
+  readWordContent,
+  validateWordDraft,
+  wordDraftErrors,
+} from "../word-content";
 import { fail, ok, type ActionResult } from "./result";
 
-export async function addWordAction(draft: WordDraft): Promise<ActionResult<WordListItem>> {
+export type AiBase = { content: unknown; lexiconId?: string | null };
+
+function readAiBase(base: AiBase | undefined) {
+  if (!base) return undefined;
+  return {
+    content: readWordContent(base.content),
+    lexiconId: base.lexiconId ? validateId(base.lexiconId, "Слово") : null,
+  };
+}
+
+/** `base` = the AI draft the form was filled from (extra examples, forms… are kept). */
+export async function addWordAction(draft: WordDraft, base?: AiBase): Promise<ActionResult<WordListItem>> {
   try {
     const clean = validateWordDraft(draft);
     const { supabase } = await requireActionContext();
-    return ok(await addWord(supabase, clean));
+    return ok(await addWord(supabase, clean, readAiBase(base)));
   } catch (error) {
     return fail(error);
   }
@@ -99,6 +117,51 @@ export async function importWordsAction(rows: WordDraft[]): Promise<ActionResult
       }
       existing.add(key);
       words.push({ lemma: draft.lemma, content: contentFromDraft(draft), source: "import" as const });
+    }
+
+    const imported = await insertWordsWithCards(supabase, words);
+    return ok({ imported, skippedDuplicates, invalidRows });
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+export type PickedWord = { lemma: string; content: unknown; lexiconId?: string | null };
+
+/**
+ * Adds the AI-filled words picked in a text. Words already in the library
+ * (or repeated) are skipped.
+ */
+export async function addPickedWordsAction(items: PickedWord[]): Promise<ActionResult<ImportResult>> {
+  try {
+    if (!Array.isArray(items) || items.length === 0) throw new Error("Немає слів для додавання.");
+    if (items.length > MAX_PICKED) throw new Error(`За раз можна додати до ${MAX_PICKED} слів.`);
+
+    const { supabase } = await requireActionContext();
+    const existing = await listLemmaKeys(supabase);
+    let skippedDuplicates = 0;
+    let invalidRows = 0;
+    const words = [];
+
+    for (const item of items) {
+      const content = readWordContent(item?.content);
+      const lemma = normalizeWordDraft({ lemma: String(item?.lemma ?? ""), translation: "" }).lemma;
+      if (!lemma || lemma.length > 200 || content.translations.length === 0) {
+        invalidRows += 1;
+        continue;
+      }
+      const key = lemmaKey(lemma);
+      if (existing.has(key)) {
+        skippedDuplicates += 1;
+        continue;
+      }
+      existing.add(key);
+      words.push({
+        lemma,
+        content,
+        source: "text" as const,
+        lexiconId: item.lexiconId ? validateId(item.lexiconId, "Слово") : null,
+      });
     }
 
     const imported = await insertWordsWithCards(supabase, words);

@@ -1,14 +1,16 @@
 "use client";
 
-import { FileText, Plus, Search, Upload, X } from "lucide-react";
+import { FileText, Plus, ScanText, Search, Upload, X } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import type { AiStatus } from "@/lib/memora/ai/service";
 import type { WordListItem } from "@/lib/memora/types";
 import { Badge, Button, Dialog, DialogHeader, EmptyState, PageHeader } from "../shared-ui";
 import { useFreshSnapshot } from "../use-fresh-snapshot";
 import { plural } from "../utils";
 import { AddWordForm } from "./add-word-form";
 import { CsvImportPanel } from "./csv-import-panel";
+import { FromTextPanel } from "./from-text-panel";
 
 type Filter = "all" | "active" | "paused" | "weak";
 
@@ -26,12 +28,20 @@ function matchesFilter(word: WordListItem, filter: Filter) {
   return true;
 }
 
-export function WordsWorkspace({ initialWords, snapshot }: { initialWords: WordListItem[]; snapshot: string }) {
+export function WordsWorkspace({
+  ai,
+  initialWords,
+  snapshot,
+}: {
+  ai: AiStatus;
+  initialWords: WordListItem[];
+  snapshot: string;
+}) {
   useFreshSnapshot(snapshot);
   const [words, setWords] = useState(initialWords);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
-  const [panel, setPanel] = useState<"add" | "import" | null>(null);
+  const [panel, setPanel] = useState<"add" | "import" | "text" | null>(null);
 
   const normalizedQuery = query.trim().toLowerCase();
   const visibleWords = useMemo(
@@ -62,6 +72,11 @@ export function WordsWorkspace({ initialWords, snapshot }: { initialWords: WordL
               <span className="hidden sm:inline">Імпорт</span>
               <span className="sr-only sm:hidden">Імпорт CSV</span>
             </Button>
+            {ai.enabled ? (
+              <Button icon={ScanText} onClick={() => setPanel("text")}>
+                З тексту
+              </Button>
+            ) : null}
             <Button icon={Plus} variant="primary" onClick={() => setPanel("add")}>
               Додати слово
             </Button>
@@ -145,8 +160,19 @@ export function WordsWorkspace({ initialWords, snapshot }: { initialWords: WordL
             onClose={() => setPanel(null)}
           />
           <div className="overflow-y-auto">
-            <AddWordForm words={words} onAdded={(word) => addWords([word])} />
+            <AddWordForm ai={ai} words={words} onAdded={(word) => addWords([word])} />
           </div>
+        </Dialog>
+      ) : null}
+
+      {panel === "text" ? (
+        <Dialog label="Слова з тексту" size="lg" onClose={() => setPanel(null)}>
+          <DialogHeader
+            title="Слова з тексту"
+            subtitle="Встав текст і тапни незнайомі слова — AI заповнить картки."
+            onClose={() => setPanel(null)}
+          />
+          <FromTextPanel ai={ai} words={words} onAdded={addWords} />
         </Dialog>
       ) : null}
 

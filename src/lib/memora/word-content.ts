@@ -1,5 +1,5 @@
 import type { Json } from "@/lib/supabase/database.types";
-import type { WordContent, WordDraft, WordExample } from "./types";
+import { cefrLevels, wordFrequencies, type WordContent, type WordDraft, type WordExample } from "./types";
 
 const MAX_LEMMA = 200;
 const MAX_TEXT = 1000;
@@ -128,7 +128,14 @@ export function readWordContent(value: Json | unknown): WordContent {
   const ipa = cleanText(record.ipa);
   if (ipa) content.ipa = ipa;
 
-  for (const key of ["accepted", "collocations", "synonyms", "common_mistakes"] as const) {
+  const explanation = cleanText(record.explanation).slice(0, MAX_TEXT);
+  if (explanation) content.explanation = explanation;
+  const cefr = cefrLevels.find((level) => level === record.cefr);
+  if (cefr) content.cefr = cefr;
+  const frequency = wordFrequencies.find((value) => value === record.frequency);
+  if (frequency) content.frequency = frequency;
+
+  for (const key of ["accepted", "collocations", "synonyms", "common_mistakes", "forms"] as const) {
     const list = readStringList(record[key]);
     if (list.length > 0) content[key] = list;
   }

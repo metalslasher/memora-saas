@@ -276,6 +276,57 @@ async function assertWords(page) {
   await expect(page).toHaveURL(`${baseUrl}/app/words`, { timeout: 20000 });
   await page.getByRole("searchbox", { name: "Пошук" }).fill(lemma);
   await expect(page.getByText("Нічого не знайдено")).toBeVisible();
+  await page.getByRole("searchbox", { name: "Пошук" }).fill("");
+
+  await assertAiWords(page);
+}
+
+/**
+ * AI fill and "from a text" — only when the server has AI configured (the
+ * "З тексту" button is shown). Words come from the shared lexicon cache after
+ * the first run, so repeated smoke runs cost nothing.
+ */
+async function assertAiWords(page) {
+  const fromText = page.getByRole("button", { name: "З тексту" });
+  if ((await fromText.count()) === 0) {
+    console.log("AI checks skipped: AI is not configured on this server.");
+    return;
+  }
+
+  await page.getByRole("button", { name: "Додати слово" }).first().click();
+  const addDialog = page.getByRole("dialog", { name: "Додати слово" });
+  await addDialog.getByLabel("Англійською").fill("grumpy");
+  await addDialog.getByRole("button", { name: "Заповнити" }).click();
+  await expect(addDialog.getByLabel(/^Переклад/)).not.toHaveValue("", { timeout: 60000 });
+  await expect(addDialog.getByLabel(/^Приклад речення/)).not.toHaveValue("");
+  await shotBoth(page, "add-word-ai");
+  if ((await addDialog.getByText("Це слово вже є:").count()) === 0) {
+    await addDialog.getByRole("button", { name: "Додати", exact: true }).click();
+    await expect(addDialog.getByText("Додано. Можна вводити наступне.")).toBeVisible({ timeout: 20000 });
+  }
+  await page.keyboard.press("Escape");
+
+  await fromText.click();
+  const textDialog = page.getByRole("dialog", { name: "Слова з тексту" });
+  await textDialog.getByLabel(/^Текст англійською/).fill(
+    "We ran into an old friend at the station. She looked grumpy, but it was no big deal.",
+  );
+  await textDialog.getByRole("button", { name: /Далі/ }).click();
+  await textDialog.getByRole("button", { name: "station", exact: true }).click();
+  await textDialog.getByRole("button", { name: "ran", exact: true }).click();
+  await textDialog.getByRole("button", { name: "into", exact: true }).click();
+  await expect(textDialog.getByText("ran into", { exact: true })).toBeVisible();
+  await shotBoth(page, "from-text-pick");
+  await textDialog.getByRole("button", { name: /Заповнити з AI · 2/ }).click();
+  const addButton = textDialog.getByRole("button", { name: /^Додати \d/ });
+  await expect(addButton).toBeVisible({ timeout: 60000 });
+  await expect(textDialog.getByText("run into", { exact: true })).toBeVisible();
+  await shotBoth(page, "from-text-review");
+  if (await addButton.isEnabled()) {
+    await addButton.click();
+    await expect(page.getByText(/^Додано \d/)).toBeVisible({ timeout: 20000 });
+  }
+  await page.keyboard.press("Escape");
 }
 
 async function assertProgress(page) {
