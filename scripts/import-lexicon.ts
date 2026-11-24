@@ -22,6 +22,9 @@ const sources: Array<{ list: ProgramList; file: string; rankColumn: number | nul
   { list: "theme_talk", file: "themes_talk.csv", rankColumn: null },
 ];
 
+// Not words to learn: prefixes split off by the corpus tokenizer and a transcript artifact.
+const skip = new Set(["mister", "non", "anti", "mid", "pre", "multi", "semi", "co"]);
+
 function rows(file: string) {
   return fs.readFileSync(`${dir}/${file}`, "utf8").replace(/^﻿/, "").trim().split(/\r?\n/).slice(1);
 }
@@ -47,7 +50,7 @@ async function main() {
       const text = source.rankColumn === null ? line : line.split(",")[0];
       const lemma = lemmaKey(text);
       const rank = source.rankColumn === null ? index + 1 : Number(line.split(",")[source.rankColumn]);
-      if (!lemma || !(rank > 0) || entries.has(lemma)) return;
+      if (!lemma || !(rank > 0) || entries.has(lemma) || skip.has(lemma)) return;
       entries.set(lemma, rank);
       if (!primary.has(lemma)) primary.set(lemma, source.list);
     });

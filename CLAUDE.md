@@ -49,6 +49,9 @@ Memora — веб-тренажер англійської для україно�
   `pnpm test-user`; smoke: `pnpm smoke` (див. docs/architecture.md).
   AI-скрипти (TS): `npx tsx --env-file=.env.local scripts/ai-compare.ts` (тексти),
   `scripts/tts-compare.ts` (голоси) — платні, пишуть в `ai_usage`.
+  Програма: `npx tsx --env-file=.env.local scripts/import-lexicon.ts` — ідемпотентний імпорт
+  `data/lexicon/*` у `lexicon` (запускати після змін списків); `scripts/build-program.ts` —
+  разова платна генерація тематичних добірок і пулу тесту (результат вичитати вручну).
 - Секрети тільки в `.env.local` (gitignored) і Vercel env. Ніколи в git/чат.
 - AI-ключі (OpenAI, Google) — тільки на сервері. Жорсткий ліміт витрат
   $10/міс на весь проєкт.

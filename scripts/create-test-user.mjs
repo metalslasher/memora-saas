@@ -147,6 +147,20 @@ async function seedPractice(id) {
 
   const { error: wipeError } = await admin.from("user_words").delete().eq("user_id", id);
   if (wipeError) throw wipeError;
+  // Back to "existing learner who never took the test": smoke walks onboarding.
+  const { error: profileError } = await admin
+    .from("profiles")
+    .update({
+      onboarded_at: null,
+      program_rank: null,
+      known_rank: null,
+      calibrated_at: null,
+      level_estimate: null,
+      goals: [],
+      daily_minutes: 15,
+    })
+    .eq("id", id);
+  if (profileError) throw profileError;
   for (const word of words) {
     const { data, error } = await admin
       .from("user_words")

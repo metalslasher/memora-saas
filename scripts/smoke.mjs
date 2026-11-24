@@ -38,6 +38,7 @@ async function main() {
     }
 
     await signIn(page);
+    if (shouldMutate) await assertOnboarding(page);
     await assertPractice(page);
     await assertWords(page);
     await assertProgress(page);
@@ -47,8 +48,11 @@ async function main() {
     await assertNoConsoleErrors();
     console.log(`Smoke OK: authenticated flow${shouldMutate ? " with mutations" : " (read-only)"}.`);
   } finally {
-    await context.close();
-    await browser.close();
+    // Closing system Chrome sometimes never resolves on Windows: give it 10 s.
+    await Promise.race([
+      context.close().then(() => browser.close()),
+      new Promise((resolve) => setTimeout(resolve, 10_000)),
+    ]);
   }
 }
 
@@ -176,6 +180,60 @@ async function assertPractice(page) {
   await page.setViewportSize(desktop);
   const missing = ["recognition", "recall", "cloze", "listening"].filter((kind) => !seen.has(kind));
   if (missing.length > 0) throw new Error(`Exercise types not met in the queue (run "pnpm test-user" to reseed): ${missing.join(", ")}`);
+}
+
+/** The vocabulary test pool (bands with meanings, pseudowords) from its TS module. */
+function readTestPool() {
+  const source = fs.readFileSync("src/lib/memora/vocab-test-pool.ts", "utf8");
+  return JSON.parse(source.slice(source.indexOf("= {") + 2, source.lastIndexOf("}") + 1));
+}
+
+/**
+ * Onboarding as a learner who knows the first 4,000 words: the soft offer on
+ * practice, the test (yes/no + meaning check), result, goals, minutes; then
+ * the daily feed must put program words into today's practice.
+ */
+async function assertOnboarding(page) {
+  const pool = readTestPool();
+  const real = new Map(pool.bands.flatMap((band) => band.words.map((word) => [word.word, { ...word, band: band.band }])));
+  await expect(page.getByText("Тест на 5 хвилин")).toBeVisible();
+  await page.getByRole("link", { name: "Пройти", exact: true }).click();
+  await expect(page).toHaveURL(`${baseUrl}/app/onboarding`);
+  await heading(page, "Спершу визначимо твій рівень");
+  await shotBoth(page, "onboarding-intro");
+  await page.getByRole("button", { name: "Почати тест" }).click();
+
+  const word = page.getByTestId("test-word");
+  for (let step = 0; step < 80 && (await visibleSoon(word, 3000)); step += 1) {
+    if (step === 2) await shotBoth(page, "onboarding-test");
+    const text = (await word.innerText()).trim();
+    const known = (real.get(text)?.band ?? 99) <= 4;
+    await page.getByRole("button", { name: known ? "Знаю" : "Не знаю", exact: true }).click();
+  }
+
+  const checkLabel = page.getByText(/^Перевірка \d+ з \d+/);
+  for (let step = 0; step < 12 && (await visibleSoon(checkLabel, 3000)); step += 1) {
+    if (step === 0) await shotBoth(page, "onboarding-check");
+    const text = (await page.locator("main [lang=en]").first().innerText()).trim();
+    await page.getByRole("button", { name: real.get(text).uk, exact: true }).click();
+  }
+
+  await expect(page.getByTestId("test-vocab")).toContainText(/4\s000/);
+  await shotBoth(page, "onboarding-result");
+  await page.getByRole("button", { name: "Далі", exact: true }).click();
+  await heading(page, "Для чого тобі англійська?");
+  await page.getByRole("button", { name: /Робота \/ IT/ }).click();
+  await shotBoth(page, "onboarding-goals");
+  await page.getByRole("button", { name: "Далі", exact: true }).click();
+  await heading(page, "Скільки часу на день?");
+  await page.getByRole("tab", { name: "15 хв" }).click();
+  await shotBoth(page, "onboarding-minutes");
+  await page.getByRole("button", { name: "Почати", exact: true }).click();
+  await expect(page).toHaveURL(`${baseUrl}/app`, { timeout: 90000 });
+  await expect(page.getByText("Тест на 5 хвилин")).toHaveCount(0);
+  // 15 minutes ≈ 6 new words today: the seeded new word + program words.
+  await expect(page.locator("main h1 + p")).toContainText("6 нових слів", { timeout: 20000 });
+  await shotBoth(page, "practice-feed");
 }
 
 /** Which exercise the current card is, from its instruction and input. */
@@ -346,6 +404,7 @@ async function assertSettings(page) {
   await expect(page.getByText("Рівень англійської")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Оновити пароль", exact: true })).toBeDisabled();
   await expect(page.getByText("Небезпечна зона")).toBeVisible();
+  if (shouldMutate) await expect(page.getByTestId("settings-level")).toContainText("слів");
   await shot(page, "settings");
 
   const downloadPromise = page.waitForEvent("download");
@@ -415,10 +474,13 @@ async function assertNoConsoleErrors() {
   if (meaningful.length > 0) throw new Error(`Browser console errors:\n${meaningful.join("\n")}`);
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+main().then(
+  () => process.exit(0),
+  (error) => {
+    console.error(error);
+    process.exit(1);
+  },
+);
 
 /** After the answer is shown on a phone, the rating button is on screen, not under the tab bar. */
 async function assertAboveTabBar(page, button) {
