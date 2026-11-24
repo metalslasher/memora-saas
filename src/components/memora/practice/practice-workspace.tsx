@@ -1,8 +1,8 @@
 "use client";
 
-import { ArrowRight, Check, Clock3, Flame, Plus, Sparkles, Target, Timer, Undo2 } from "lucide-react";
+import { ArrowRight, Check, Clock3, Flame, Gauge, Plus, Sparkles, Target, Timer, Undo2, X } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { estimateMinutes, sessionOptions } from "@/lib/memora/pace";
 import { isNewWordCard } from "@/lib/memora/queue";
 import { pluralizeDays } from "@/lib/memora/streak";
@@ -19,10 +19,13 @@ export function PracticeWorkspace({
   initialCards,
   snapshot,
   summary,
+  offerTest = false,
 }: {
   initialCards: PracticeCard[];
   snapshot: string;
   summary: PracticeSummary;
+  /** Learner without onboarding (has own words): a soft offer to take the test. */
+  offerTest?: boolean;
 }) {
   useFreshSnapshot(snapshot);
   const canPlayAudio = useSpeechSupported();
@@ -32,6 +35,7 @@ export function PracticeWorkspace({
   return (
     <div className="mx-auto w-full max-w-3xl">
       <PracticeHeader practice={practice} />
+      {offerTest ? <TestOffer /> : null}
       <div className="mt-3 md:mt-5">
         {activeCard ? (
           <>
@@ -44,6 +48,41 @@ export function PracticeWorkspace({
           <NothingDue practice={practice} />
         )}
       </div>
+    </div>
+  );
+}
+
+const testOfferKey = "memora.test-offer-dismissed";
+
+function TestOffer() {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    // Read after mount: localStorage is not available on the server.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setVisible(window.localStorage.getItem(testOfferKey) !== "1");
+  }, []);
+  if (!visible) return null;
+
+  return (
+    <div className="mt-3 flex items-center gap-3 rounded-xl border border-accent/25 bg-accent-soft/60 py-2 pl-3 pr-1 text-sm">
+      <Gauge className="size-4 shrink-0 text-accent" />
+      <p className="min-w-0 flex-1 leading-5 text-text-2">
+        Тест на 5 хвилин — і Memora щодня сама додаватиме слова твого рівня.
+      </p>
+      <Link className={buttonClass("primary", "sm", "shrink-0")} href="/app/onboarding">
+        Пройти
+      </Link>
+      <button
+        aria-label="Сховати пропозицію"
+        className="grid size-8 shrink-0 place-items-center rounded-lg text-muted transition hover:bg-surface-3 hover:text-text"
+        onClick={() => {
+          window.localStorage.setItem(testOfferKey, "1");
+          setVisible(false);
+        }}
+        type="button"
+      >
+        <X className="size-4" />
+      </button>
     </div>
   );
 }

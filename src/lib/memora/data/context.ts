@@ -7,7 +7,7 @@ import { ensureProfile } from "./profile";
 
 /**
  * Per-request context for /app server components: the signed-in user and
- * their profile (created, with starter words, on the first visit). Cached so
+ * their profile (created on the first visit). Cached so
  * the layout and the page share one lookup and seeding finishes before any
  * page query runs. The proxy already redirects guests and non-invited users;
  * this is the second line of defence (RLS is the third).

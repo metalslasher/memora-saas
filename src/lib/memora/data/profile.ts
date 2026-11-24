@@ -1,13 +1,23 @@
-import type { Database } from "@/lib/supabase/database.types";
+import type { Database, Json } from "@/lib/supabase/database.types";
+import type { Goal } from "../program";
 import type { Profile } from "../types";
+import type { TestResult } from "../vocab-test";
 import { check, isUniqueViolation, maybe, must, type Db } from "./db";
-import { seedStarterWords } from "./words";
 
-const profileColumns = "id,timezone,daily_minutes,goals";
+const profileColumns =
+  "id,timezone,daily_minutes,goals,onboarded_at,program_rank,known_rank,calibrated_at,level_estimate";
 
 type ProfileRow = Pick<
   Database["public"]["Tables"]["profiles"]["Row"],
-  "id" | "timezone" | "daily_minutes" | "goals"
+  | "id"
+  | "timezone"
+  | "daily_minutes"
+  | "goals"
+  | "onboarded_at"
+  | "program_rank"
+  | "known_rank"
+  | "calibrated_at"
+  | "level_estimate"
 >;
 
 export function mapProfile(row: ProfileRow): Profile {
@@ -16,6 +26,11 @@ export function mapProfile(row: ProfileRow): Profile {
     timezone: row.timezone,
     dailyMinutes: row.daily_minutes,
     goals: row.goals,
+    onboardedAt: row.onboarded_at,
+    programRank: row.program_rank,
+    knownRank: row.known_rank,
+    calibratedAt: row.calibrated_at,
+    levelEstimate: row.level_estimate,
   };
 }
 
@@ -26,10 +41,7 @@ export async function getProfile(db: Db, userId: string): Promise<Profile | null
   return row ? mapProfile(row) : null;
 }
 
-/**
- * Returns the learner's profile, creating it on the first visit. A brand-new
- * profile also gets the starter words so practice is not empty.
- */
+/** Returns the learner's profile, creating it on the first visit (onboarding follows). */
 export async function ensureProfile(db: Db, userId: string): Promise<Profile> {
   const existing = await getProfile(db, userId);
   if (existing) return existing;
@@ -49,7 +61,6 @@ export async function ensureProfile(db: Db, userId: string): Promise<Profile> {
     throw error;
   }
 
-  await seedStarterWords(db);
   return mapProfile(data);
 }
 
@@ -60,6 +71,58 @@ export async function updateDailyMinutes(db: Db, userId: string, minutes: number
   return row.daily_minutes;
 }
 
+export async function updateGoals(db: Db, userId: string, goals: Goal[]) {
+  const row = must(await db.from("profiles").update({ goals }).eq("id", userId).select("goals").single());
+  return row.goals;
+}
+
 export async function updateTimezone(db: Db, userId: string, timezone: string) {
   check(await db.from("profiles").update({ timezone }).eq("id", userId));
+}
+
+/**
+ * Finishes onboarding: the test result (null = test skipped) sets the program
+ * position, plus goals and minutes. A retake moves the position again.
+ */
+export async function saveOnboarding(
+  db: Db,
+  userId: string,
+  input: {
+    result: TestResult | null;
+    position: { knownRank: number; programRank: number };
+    goals: Goal[];
+    dailyMinutes: number;
+  },
+) {
+  const now = new Date().toISOString();
+  const row = must(
+    await db
+      .from("profiles")
+      .update({
+        ...(input.result ? { level_estimate: input.result as unknown as Json } : {}),
+        known_rank: input.position.knownRank,
+        program_rank: input.position.programRank,
+        goals: input.goals,
+        daily_minutes: input.dailyMinutes,
+        onboarded_at: now,
+        calibrated_at: now,
+      })
+      .eq("id", userId)
+      .select(profileColumns)
+      .single(),
+  );
+  return mapProfile(row);
+}
+
+export async function savePosition(db: Db, userId: string, position: { knownRank: number; programRank: number }) {
+  check(
+    await db
+      .from("profiles")
+      .update({
+        known_rank: position.knownRank,
+        program_rank: position.programRank,
+        calibrated_at: new Date().toISOString(),
+      })
+      .eq("id", userId),
+  );
 }

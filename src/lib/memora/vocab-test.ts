@@ -277,6 +277,45 @@ export function testProgress(state: TestState) {
   return Math.min(0.95, answered / expected);
 }
 
+/**
+ * Server side: rebuilds a finished test from the client's answers, taking band
+ * and rank from the pool (unknown words are dropped), and keeps only checks
+ * of real words answered "yes".
+ */
+export function rebuildTest(
+  pool: TestPool,
+  answers: Array<{ word: string; yes: boolean }>,
+  checks: Array<{ word: string; correct: boolean }>,
+) {
+  const real = new Map(
+    pool.bands.flatMap((band) => band.words.map((word) => [word.word, { band: band.band, rank: word.rank }] as const)),
+  );
+  const pseudo = new Set(pool.pseudowords);
+  const seen = new Set<string>();
+  const state: TestState = { bands: [], items: [], answers: [], done: true };
+  for (const entry of answers.slice(0, BANDS * (REAL_PER_BLOCK + PSEUDO_PER_BLOCK))) {
+    if (typeof entry?.word !== "string" || typeof entry.yes !== "boolean" || seen.has(entry.word)) continue;
+    const info = real.get(entry.word);
+    if (info) {
+      state.items.push({ kind: "real", word: entry.word, band: info.band, rank: info.rank });
+      if (!state.bands.includes(info.band)) state.bands.push(info.band);
+    } else if (pseudo.has(entry.word)) {
+      state.items.push({ kind: "pseudo", word: entry.word });
+    } else {
+      continue;
+    }
+    seen.add(entry.word);
+    state.answers.push(entry.yes);
+  }
+  const yesReal = new Set(
+    state.items.filter((item, index) => item.kind === "real" && state.answers[index]).map((item) => item.word),
+  );
+  const cleanChecks = checks
+    .filter((check) => typeof check?.word === "string" && typeof check.correct === "boolean" && yesReal.has(check.word))
+    .slice(0, MAX_CHECKS);
+  return { state, checks: cleanChecks };
+}
+
 export function readTestResult(value: unknown): TestResult | null {
   if (!value || typeof value !== "object") return null;
   const raw = value as Partial<TestResult>;

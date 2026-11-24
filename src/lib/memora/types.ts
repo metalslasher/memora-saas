@@ -78,6 +78,13 @@ export type Profile = {
   timezone: string;
   dailyMinutes: number;
   goals: string[];
+  /** Set when onboarding (test → goals → minutes) is done; the daily feed runs only then. */
+  onboardedAt: string | null;
+  programRank: number | null;
+  knownRank: number | null;
+  calibratedAt: string | null;
+  /** Vocabulary test result (vocab-test.ts), raw jsonb. */
+  levelEstimate: unknown;
 };
 
 export type PracticeCard = {

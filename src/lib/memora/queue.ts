@@ -28,8 +28,12 @@ export type QueueOptions = {
   skipped?: ReadonlySet<string>;
 };
 
+/**
+ * First card of a word never reviewed: recognition, or recall for a program
+ * word the vocabulary test credited as known.
+ */
 export function isNewWordCard(card: PracticeCard) {
-  return card.kind === "recognition" && card.schedule.reps === 0;
+  return card.schedule.reps === 0 && card.wordReviewedAt === null;
 }
 
 function isLearningStep(card: PracticeCard) {

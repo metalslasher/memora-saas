@@ -16,6 +16,8 @@ export const rateLimits: Record<Exclude<AiFeature, ScriptFeature>, { perMinute: 
   enrich_word: { perMinute: 10, perDay: 150 },
   enrich_batch: { perMinute: 3, perDay: 40 },
   tts: { perMinute: 40, perDay: 600 },
+  // Daily feed: one batch request a visit at most, plus the prefetch for tomorrow.
+  program: { perMinute: 4, perDay: 30 },
 };
 
 export type BlockReason = "budget" | "minute" | "day";

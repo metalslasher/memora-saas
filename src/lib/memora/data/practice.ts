@@ -170,6 +170,19 @@ export async function undoReview(
 export async function resetProgress(db: Db, userId: string) {
   check(await db.from("review_logs").delete().eq("user_id", userId));
   check(await db.from("cards").delete().eq("user_id", userId).neq("kind", "recognition"));
+  // Words the test took as known started with recall: they start over from recognition too.
+  const known = must(await db.from("user_words").select("id").eq("user_id", userId).eq("assumed_known", true));
+  if (known.length > 0) {
+    check(
+      await db
+        .from("cards")
+        .upsert(
+          known.map((word) => ({ user_word_id: word.id, kind: "recognition" as const })),
+          { onConflict: "user_word_id,kind", ignoreDuplicates: true },
+        ),
+    );
+    check(await db.from("user_words").update({ assumed_known: false }).eq("user_id", userId).eq("assumed_known", true));
+  }
   check(
     await db
       .from("cards")

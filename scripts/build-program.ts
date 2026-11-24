@@ -24,7 +24,7 @@ const provider = textProviderFromEnv();
 if (!provider) throw new Error("No text provider configured");
 let spent = 0;
 
-async function ask<T>(system: string, user: string, schema: object, outputTokens: number): Promise<T> {
+async function ask<T>(system: string, user: string, schema: Record<string, unknown>, outputTokens: number): Promise<T> {
   const estimateUsd = textCost(provider!.model, Math.ceil((system.length + user.length) / 3), outputTokens);
   if (spent + estimateUsd > MAX_RUN_USD) throw new Error(`Run limit $${MAX_RUN_USD} reached`);
   const reservation = await reserve(admin, {

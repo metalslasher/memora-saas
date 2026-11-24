@@ -7,6 +7,7 @@ import {
   confirmationRate,
   correctedShare,
   readTestResult,
+  rebuildTest,
   scoreTest,
   startTest,
   type TestPool,
@@ -175,5 +176,19 @@ describe("the real pool", () => {
     }
     expect(bandShares(state).map((share) => share.band)).toEqual([1, 3, 5, 7, 9, 10]);
     expect(scoreTest(state, []).vocab).toBe(10000);
+  });
+});
+
+describe("server re-scoring", () => {
+  it("rebuilds the test from answers, ignoring unknown and repeated words", () => {
+    const state = run(4);
+    const answers = state.items.map((item, index) => ({ word: item.word, yes: state.answers[index] }));
+    const rebuilt = rebuildTest(pool, [...answers, { word: "hacked", yes: true }, answers[0]], [
+      { word: answers.find((entry) => entry.yes && entry.word.startsWith("w"))!.word, correct: true },
+      { word: "pseudo0", correct: true },
+    ]);
+    expect(rebuilt.state.items).toHaveLength(state.items.length);
+    expect(scoreTest(rebuilt.state, []).vocab).toBe(scoreTest(state, []).vocab);
+    expect(rebuilt.checks).toHaveLength(1);
   });
 });
