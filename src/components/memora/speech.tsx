@@ -1,7 +1,7 @@
 "use client";
 
 import { Volume2 } from "lucide-react";
-import { useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { speechUrlAction } from "@/lib/memora/actions/ai";
 
 function subscribe() {
@@ -42,28 +42,43 @@ export function speakEnglish(text: string, { rate = 0.92 }: { rate?: number } = 
 }
 
 /* Natural voice: a clip generated once on the server and cached in storage. */
-const clipUrls = new Map<string, Promise<string | null>>();
+const clips = new Map<string, Promise<HTMLAudioElement | null>>();
 let cloudOff = false;
 let playing: HTMLAudioElement | null = null;
 
-function clipUrl(text: string) {
+function normalize(text: string) {
+  return text.trim().replace(/\s+/g, " ");
+}
+
+/** The clip for this text, loaded and ready to play (shared by prefetch and play). */
+function clip(text: string) {
   if (cloudOff) return Promise.resolve(null);
-  let pending = clipUrls.get(text);
+  let pending = clips.get(text);
   if (!pending) {
     pending = speechUrlAction(text)
       .then((result) => (result.ok ? result.data : null))
       .catch(() => null)
       .then((url) => {
-        // No clip (no key, budget or limit reached): browser voice for the rest of the visit.
+        // No clip (no key, budget or limit reached): device voice for the rest of the visit.
         if (!url) {
           cloudOff = true;
-          clipUrls.delete(text);
+          clips.delete(text);
+          return null;
         }
-        return url;
+        const audio = new Audio(url);
+        audio.preload = "auto";
+        audio.load();
+        return audio;
       });
-    clipUrls.set(text, pending);
+    clips.set(text, pending);
   }
   return pending;
+}
+
+/** Prepares the clip in the background so a later tap plays at once. */
+export function prefetchEnglish(text: string) {
+  const clean = normalize(text);
+  if (clean && typeof window !== "undefined") void clip(clean);
 }
 
 /**
@@ -71,14 +86,14 @@ function clipUrl(text: string) {
  * device voice. `rate` < 0.9 means "slower" (listening exercise).
  */
 export async function playEnglish(text: string, { rate = 0.92, cloud = true }: { rate?: number; cloud?: boolean } = {}) {
-  const clean = text.trim().replace(/\s+/g, " ");
+  const clean = normalize(text);
   if (!clean || typeof window === "undefined") return;
   playing?.pause();
   if ("speechSynthesis" in window) window.speechSynthesis.cancel();
 
-  const url = cloud ? await clipUrl(clean) : null;
-  if (url) {
-    const audio = new Audio(url);
+  const audio = cloud ? await clip(clean) : null;
+  if (audio) {
+    audio.currentTime = 0;
     audio.playbackRate = rate < 0.9 ? 0.9 : 1;
     try {
       playing = audio;
@@ -104,6 +119,10 @@ export function SpeakButton({
   text: string;
 }) {
   const isSupported = useSpeechSupported();
+  // Short texts (a word or phrase) are prepared up front; longer examples load on tap.
+  useEffect(() => {
+    if (cloud && text.length <= 60) prefetchEnglish(text);
+  }, [cloud, text]);
   if ((!isSupported && !cloud) || !text.trim()) return null;
 
   return (

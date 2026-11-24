@@ -10,7 +10,7 @@ import { cardKindLabels, renderCard, type RenderedCard } from "@/lib/memora/card
 import { formatInterval, previewNextDue } from "@/lib/memora/scheduler";
 import type { PracticeCard, ReviewRating } from "@/lib/memora/types";
 import { Badge, Button, Kbd } from "../shared-ui";
-import { playEnglish, SpeakButton } from "../speech";
+import { playEnglish, prefetchEnglish, SpeakButton } from "../speech";
 import type { PracticeSession } from "./use-practice-session";
 
 /** Failures after which a card counts as a leech and gets the fix-it panel. */
@@ -102,6 +102,11 @@ export function StudyCardView({ card, practice }: { card: PracticeCard; practice
     if (isRevealed) return;
     if (window.matchMedia("(pointer: fine)").matches) inputRef.current?.focus({ preventScroll: true });
   }, [card.id, isRevealed]);
+
+  // Prepare the word's natural-voice clip so the speaker button plays at once.
+  useEffect(() => {
+    prefetchEnglish(card.lemma);
+  }, [card.lemma]);
 
   // Listening: dictate the word as soon as the card appears.
   useEffect(() => {

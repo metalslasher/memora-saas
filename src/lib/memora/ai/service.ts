@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { after } from "next/server";
 import { createSupabaseAdminClient, type AdminDb } from "@/lib/supabase/admin";
 import type { Json } from "@/lib/supabase/database.types";
 import { lemmaKey } from "../duplicates";
@@ -177,9 +178,11 @@ export function speechPath(provider: string, model: string, voice: string, text:
 }
 
 /**
- * Public URL of the clip for this text, generating and storing it on the
- * first request. Null when cloud TTS is not available (no key, budget or rate
- * limit) — the client then falls back to the browser voice.
+ * URL of the clip for this text. A stored clip → its public (CDN) URL. On the
+ * first request the clip is generated and returned at once as a data URL;
+ * billing and the upload to storage run after the response, so the learner
+ * does not wait for them. Null when cloud TTS is not available (no key,
+ * budget or rate limit) — the client then falls back to the browser voice.
  */
 export async function speechUrl(userId: string, rawText: string): Promise<string | null> {
   const text = rawText.trim().replace(/\s+/g, " ");
@@ -211,7 +214,6 @@ export async function speechUrl(userId: string, rawText: string): Promise<string
     throw error;
   }
 
-  let settled = false;
   try {
     const { audio, mime, usage } = await provider.synthesize(text);
     // Without reported usage, bill the conservative estimate.
@@ -221,32 +223,33 @@ export async function speechUrl(userId: string, rawText: string): Promise<string
         : estimateTtsCost(provider.model, text);
     const audioSeconds =
       mime === "audio/wav" ? Math.max(0, audio.length - 44) / 48_000 : estimateSpeechSeconds(text);
-    await settle(admin, reservation, {
-      status: "ok",
-      costUsd,
-      inputTokens: usage.inputTokens,
-      outputTokens: usage.outputTokens,
-      characters: usage.characters,
-      audioSeconds: Math.round(audioSeconds * 100) / 100,
-    });
-    settled = true;
-    const upload = await storage.upload(path, audio, {
-      contentType: mime,
-      cacheControl: "31536000",
-      upsert: false,
-    });
-    // A parallel request may have stored the same clip first — that is fine.
-    if (upload.error && !/exists|duplicate/i.test(upload.error.message)) throw upload.error;
-    return publicUrl;
-  } catch (error) {
-    if (!settled) {
-      // Billed tokens on a failed call are charged at the estimate.
-      const billed = error instanceof ProviderError && error.usage;
+    after(async () => {
       await settle(admin, reservation, {
-        status: "failed",
-        costUsd: billed ? estimateTtsCost(provider.model, text) : 0,
+        status: "ok",
+        costUsd,
+        inputTokens: usage.inputTokens,
+        outputTokens: usage.outputTokens,
+        characters: usage.characters,
+        audioSeconds: Math.round(audioSeconds * 100) / 100,
       });
-    }
+      const upload = await storage.upload(path, audio, {
+        contentType: mime,
+        cacheControl: "31536000",
+        upsert: false,
+      });
+      // A parallel request may have stored the same clip first — that is fine.
+      if (upload.error && !/exists|duplicate/i.test(upload.error.message)) {
+        console.error("tts upload failed", upload.error);
+      }
+    });
+    return `data:${mime};base64,${Buffer.from(audio).toString("base64")}`;
+  } catch (error) {
+    // Billed tokens on a failed call are charged at the estimate.
+    const billed = error instanceof ProviderError && error.usage;
+    await settle(admin, reservation, {
+      status: "failed",
+      costUsd: billed ? estimateTtsCost(provider.model, text) : 0,
+    });
     console.error("tts failed", error);
     return null;
   }
