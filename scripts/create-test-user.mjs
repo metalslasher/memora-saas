@@ -90,8 +90,9 @@ writeFileSync(
 console.log("Saved MEMORA_SMOKE_EMAIL / MEMORA_SMOKE_PASSWORD to .env.local.");
 
 /**
- * Replaces the user's words with four that put one card of each exercise
- * type in today's queue (one card per word a day, so each type needs a word).
+ * Replaces the user's words with six that put one card of each exercise
+ * type in today's queue (one card per word a day, so each type needs a word),
+ * including the AI exercises (own sentence, speak aloud).
  */
 async function seedPractice(id) {
   const day = 86_400_000;
@@ -143,6 +144,24 @@ async function seedPractice(id) {
       },
       cards: [review("recognition", 5), review("recall", 3), review("listening", -1)],
     },
+    {
+      lemma: "deadline",
+      content: {
+        translations: ["дедлайн", "крайній термін"],
+        part_of_speech: "noun",
+        examples: [{ en: "We missed the deadline by two days.", uk: "Ми пропустили дедлайн на два дні." }],
+      },
+      cards: [review("recognition", 5), review("recall", 4), review("sentence", -1)],
+    },
+    {
+      lemma: "eventually",
+      content: {
+        translations: ["зрештою", "врешті-решт"],
+        part_of_speech: "adverb",
+        examples: [{ en: "He eventually found a better job.", uk: "Зрештою він знайшов кращу роботу." }],
+      },
+      cards: [review("recognition", 5), review("recall", 4), review("sentence", 3), review("speaking", -1)],
+    },
   ];
 
   const { error: wipeError } = await admin.from("user_words").delete().eq("user_id", id);
@@ -158,9 +177,18 @@ async function seedPractice(id) {
       level_estimate: null,
       goals: [],
       daily_minutes: 15,
+      speaking_enabled: true,
     })
     .eq("id", id);
   if (profileError) throw profileError;
+  // Free the daily quota of the AI exercises for the next smoke run. The rows
+  // stay (the money stays in the month), detached like a deleted account's.
+  const { error: usageError } = await admin
+    .from("ai_usage")
+    .update({ user_id: null })
+    .eq("user_id", id)
+    .in("feature", ["sentence", "speak", "transcribe"]);
+  if (usageError) throw usageError;
   for (const word of words) {
     const { data, error } = await admin
       .from("user_words")

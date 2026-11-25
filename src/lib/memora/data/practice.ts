@@ -1,5 +1,6 @@
 import { kindsToUnlock } from "../exercise-unlock";
 import { MAX_NEW_WORDS, newWordAllowance } from "../pace";
+import { limitProductionCards } from "../production";
 import { isNewWordCard } from "../queue";
 import { readStoredSchedule, scheduleReview } from "../scheduler";
 import type {
@@ -12,6 +13,7 @@ import type {
 } from "../types";
 import { readWordContent } from "../word-content";
 import { check, must, scheduleColumns, scheduleFromRow, scheduleToRow, type Db } from "./db";
+import { getProductionAllowance } from "./production";
 
 export async function getPracticeSummary(db: Db, timezone: string): Promise<PracticeSummary> {
   const rows = must(await db.rpc("get_practice_overview", { p_tz: timezone }));
@@ -30,18 +32,20 @@ export async function getPracticeSummary(db: Db, timezone: string): Promise<Prac
 
 /**
  * Cards for one practice session: reviews available today plus as many new
- * words as today's pace allows (+ `extraNew` the learner asked for).
+ * words as today's pace allows (+ `extraNew` the learner asked for), and
+ * writing/speaking exercises within their daily quota (production.ts).
  */
 export async function getPracticeSession(
   db: Db,
-  timezone: string,
+  profile: { id: string; timezone: string; dailyMinutes: number; speakingEnabled: boolean },
   extraNew = 0,
   /** An already running summary request (the /app layout loads one). */
   summaryRequest?: Promise<PracticeSummary>,
 ): Promise<{ cards: PracticeCard[]; summary: PracticeSummary }> {
-  const [summary, rows] = await Promise.all([
-    summaryRequest ?? getPracticeSummary(db, timezone),
-    db.rpc("get_practice_cards", { p_tz: timezone, p_new_words: MAX_NEW_WORDS + extraNew }).then(must),
+  const [summary, rows, allowance] = await Promise.all([
+    summaryRequest ?? getPracticeSummary(db, profile.timezone),
+    db.rpc("get_practice_cards", { p_tz: profile.timezone, p_new_words: MAX_NEW_WORDS + extraNew }).then(must),
+    getProductionAllowance(db, profile),
   ]);
   const cards: PracticeCard[] = rows.map((row) => ({
     id: row.id,
@@ -53,11 +57,11 @@ export async function getPracticeSession(
     wordReviewedAt: row.word_reviewed_at ?? null,
   }));
 
-  let allowance = newWordAllowance(summary, extraNew);
-  const kept = cards.filter((card) => {
+  let newAllowance = newWordAllowance(summary, extraNew);
+  const kept = limitProductionCards(cards, allowance).filter((card) => {
     if (!isNewWordCard(card)) return true;
-    if (allowance <= 0) return false;
-    allowance -= 1;
+    if (newAllowance <= 0) return false;
+    newAllowance -= 1;
     return true;
   });
   return { cards: kept, summary };

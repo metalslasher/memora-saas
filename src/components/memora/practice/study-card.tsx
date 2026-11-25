@@ -47,7 +47,10 @@ const verdictMeta: Record<AnswerCheck["verdict"], { label: string; className: st
   empty: { label: "", className: "" },
 };
 
-function cardStageBadge(card: PracticeCard) {
+export const cardShellClass =
+  "animate-card relative flex flex-col overflow-hidden rounded-3xl border border-line-strong bg-gradient-to-b from-surface-3/80 to-surface-2 shadow-[0_30px_80px_-40px_rgba(0,0,0,0.9)] max-lg:min-h-[calc(100dvh-17rem)]";
+
+export function cardStageBadge(card: PracticeCard) {
   if (card.schedule.reps === 0) {
     if (card.kind === "recognition") return { label: "Нове слово", tone: "violet" as const };
     // A program word the level test credited as known starts right with recall.
@@ -59,6 +62,18 @@ function cardStageBadge(card: PracticeCard) {
     return { label: "Закріплення", tone: "amber" as const };
   }
   return { label: "Повторення", tone: "neutral" as const };
+}
+
+/** "1 д", "4 д"… — the next interval for each rating, for the rating buttons. */
+export function ratingIntervals(card: PracticeCard, now: Date) {
+  try {
+    const preview = previewNextDue(card.id, card.schedule, now);
+    return Object.fromEntries(
+      ratingOrder.map((rating) => [rating, formatInterval(now, preview[rating])]),
+    ) as Record<ReviewRating, string>;
+  } catch {
+    return null;
+  }
 }
 
 export function StudyCardView({ card, practice }: { card: PracticeCard; practice: PracticeSession }) {
@@ -82,19 +97,9 @@ export function StudyCardView({ card, practice }: { card: PracticeCard; practice
       : null;
   // Self-rated: a typed exact match still hints "Згадав".
   const suggested: ReviewRating | null = autoRating ?? (check?.verdict === "exact" ? "good" : null);
-  const intervals = useMemo(() => {
-    try {
-      const preview = previewNextDue(card.id, card.schedule, now);
-      return Object.fromEntries(
-        ratingOrder.map((rating) => [rating, formatInterval(now, preview[rating])]),
-      ) as Record<ReviewRating, string>;
-    } catch {
-      return null;
-    }
-  }, [card.id, card.schedule, now]);
+  const intervals = useMemo(() => ratingIntervals(card, now), [card, now]);
   const willFail = (autoRating ?? suggested) === "again" || check?.verdict === "different";
   const isLeech = card.schedule.lapses >= LEECH_LAPSES || (card.schedule.lapses === LEECH_LAPSES - 1 && willFail);
-  const stage = cardStageBadge(card);
   const isShortCue = view.cue.length <= 90;
   const isListening = view.kind === "listening";
 
@@ -168,38 +173,14 @@ export function StudyCardView({ card, practice }: { card: PracticeCard; practice
   return (
     <article
       key={card.id}
-      className="animate-card relative flex flex-col overflow-hidden rounded-3xl border border-line-strong bg-gradient-to-b from-surface-3/80 to-surface-2 shadow-[0_30px_80px_-40px_rgba(0,0,0,0.9)] max-lg:min-h-[calc(100dvh-17rem)]"
+      className={cardShellClass}
     >
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/60 to-transparent"
       />
 
-      <div className="flex items-center justify-between gap-3 px-4 pt-3 md:px-6 md:pt-4">
-        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-          <Badge tone={stage.tone}>{stage.label}</Badge>
-          <span className="text-xs text-faint">{cardKindLabels[view.kind]}</span>
-        </div>
-        <div className="flex shrink-0 items-center">
-          <Link
-            aria-label="Редагувати слово"
-            className="grid size-10 place-items-center rounded-xl text-faint transition hover:bg-surface-4 hover:text-text"
-            href={`/app/words/${card.userWordId}`}
-            title="Редагувати слово"
-          >
-            <PencilLine className="size-4" />
-          </Link>
-          <button
-            aria-label="Поставити картку на паузу"
-            className="grid size-10 place-items-center rounded-xl text-faint transition hover:bg-surface-4 hover:text-text"
-            onClick={() => pause(card.id)}
-            title="Пауза: картка зникне з черги"
-            type="button"
-          >
-            <PauseCircle className="size-4" />
-          </button>
-        </div>
-      </div>
+      <CardTopBar card={card} kindLabel={cardKindLabels[view.kind]} onPause={() => pause(card.id)} />
 
       <div
         className={`flex flex-1 flex-col justify-center px-5 pb-5 pt-3 md:px-10 md:pb-7 md:pt-4 ${
@@ -299,6 +280,38 @@ export function StudyCardView({ card, practice }: { card: PracticeCard; practice
         </div>
       )}
     </article>
+  );
+}
+
+/** Stage badge, exercise name, edit and pause — the top row of every practice card. */
+export function CardTopBar({ card, kindLabel, onPause }: { card: PracticeCard; kindLabel: string; onPause: () => void }) {
+  const stage = cardStageBadge(card);
+  return (
+  <div className="flex items-center justify-between gap-3 px-4 pt-3 md:px-6 md:pt-4">
+    <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+      <Badge tone={stage.tone}>{stage.label}</Badge>
+      <span className="text-xs text-faint">{kindLabel}</span>
+    </div>
+    <div className="flex shrink-0 items-center">
+      <Link
+        aria-label="Редагувати слово"
+        className="grid size-10 place-items-center rounded-xl text-faint transition hover:bg-surface-4 hover:text-text"
+        href={`/app/words/${card.userWordId}`}
+        title="Редагувати слово"
+      >
+        <PencilLine className="size-4" />
+      </Link>
+      <button
+        aria-label="Поставити картку на паузу"
+        className="grid size-10 place-items-center rounded-xl text-faint transition hover:bg-surface-4 hover:text-text"
+        onClick={onPause}
+        title="Пауза: картка зникне з черги"
+        type="button"
+      >
+        <PauseCircle className="size-4" />
+      </button>
+    </div>
+  </div>
   );
 }
 
@@ -448,7 +461,7 @@ function SelfRating({
   );
 }
 
-function AutoRating({
+export function AutoRating({
   intervals,
   rating,
   showOverride,

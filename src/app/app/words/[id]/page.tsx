@@ -22,12 +22,20 @@ export default async function WordPage({
     notFound();
   }
 
-  const { supabase } = await getAppContext();
+  const { supabase, profile } = await getAppContext();
   const word = await getWordDetail(supabase, wordId);
   if (!word) notFound();
   const snapshot = crypto.randomUUID();
 
   const focusField = edit === "translation" || edit === "example" ? edit : null;
 
-  return <WordDetailView key={snapshot} focusField={focusField} initialWord={word} snapshot={snapshot} />;
+  return (
+    <WordDetailView
+      key={snapshot}
+      focusField={focusField}
+      initialWord={word}
+      snapshot={snapshot}
+      speakingEnabled={profile.speakingEnabled}
+    />
+  );
 }

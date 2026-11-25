@@ -12,6 +12,7 @@ import {
   resetProgressAction,
   restoreBackupAction,
   updateDailyMinutesAction,
+  updateSpeakingAction,
 } from "@/lib/memora/actions/account";
 import { updateGoalsAction } from "@/lib/memora/actions/program";
 import { unwrap } from "@/lib/memora/actions/result";
@@ -47,6 +48,7 @@ export function SettingsWorkspace({
   level,
   isRecovery,
   snapshot,
+  speakingEnabled,
 }: {
   counts: { words: number; reviews: number };
   email: string | null;
@@ -56,6 +58,7 @@ export function SettingsWorkspace({
   level: { vocab: number; cefr: string; takenAt: string } | null;
   isRecovery: boolean;
   snapshot: string;
+  speakingEnabled: boolean;
 }) {
   useFreshSnapshot(snapshot);
   const { showError } = useShell();
@@ -85,7 +88,7 @@ export function SettingsWorkspace({
       ) : null}
 
       <div className="grid grid-cols-1 gap-4 md:gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] xl:items-start">
-        <LearningPanel dailyMinutes={dailyMinutes} goals={goals} level={level} />
+        <LearningPanel dailyMinutes={dailyMinutes} goals={goals} level={level} speakingEnabled={speakingEnabled} />
         <div className="space-y-4 md:space-y-5">
           <AppPanel />
           <PasswordPanel />
@@ -101,10 +104,12 @@ function LearningPanel({
   dailyMinutes,
   goals: initialGoals,
   level,
+  speakingEnabled,
 }: {
   dailyMinutes: number;
   goals: Goal[];
   level: { vocab: number; cefr: string; takenAt: string } | null;
+  speakingEnabled: boolean;
 }) {
   const { showToast } = useShell();
   const [minutes, setMinutes] = useState(dailyMinutes);
@@ -186,8 +191,62 @@ function LearningPanel({
         </p>
       </div>
 
+      <SpeakingSwitch initial={speakingEnabled} onError={setError} />
+
       {error ? <StatusBanner className="mt-4" tone="error" message={error} /> : null}
     </ShellPanel>
+  );
+}
+
+/** "Говоріння": serve the speak-aloud exercise or not (the only practice switch). */
+function SpeakingSwitch({ initial, onError }: { initial: boolean; onError: (message: string | null) => void }) {
+  const { showToast } = useShell();
+  const [enabled, setEnabled] = useState(initial);
+  const [isSaving, setIsSaving] = useState(false);
+
+  async function toggle() {
+    if (isSaving) return;
+    const next = !enabled;
+    setEnabled(next);
+    setIsSaving(true);
+    onError(null);
+    try {
+      setEnabled(unwrap(await updateSpeakingAction(next)));
+      showToast("success", next ? "Говоріння ввімкнено." : "Говоріння вимкнено.");
+    } catch (saveError) {
+      setEnabled(!next);
+      onError(formatError(saveError));
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  return (
+    <div className="mt-4 flex items-center justify-between gap-3 border-t border-line/70 pt-4">
+      <div className="min-w-0">
+        <FieldLabel>Говоріння</FieldLabel>
+        <p className="mt-1 text-xs leading-5 text-faint">
+          Вправа «Скажи вголос»: говориш речення в мікрофон, AI перевіряє. Вимкни, якщо зазвичай займаєшся там, де
+          говорити незручно.
+        </p>
+      </div>
+      <button
+        aria-checked={enabled}
+        aria-label="Говоріння"
+        className={`relative h-7 w-12 shrink-0 rounded-full border transition disabled:opacity-60 ${
+          enabled ? "border-accent bg-accent" : "border-line-strong bg-surface-4"
+        }`}
+        data-testid="speaking-switch"
+        disabled={isSaving}
+        onClick={() => void toggle()}
+        role="switch"
+        type="button"
+      >
+        <span
+          className={`absolute top-0.5 size-[22px] rounded-full bg-white shadow transition-[left] ${enabled ? "left-[22px]" : "left-0.5"}`}
+        />
+      </button>
+    </div>
   );
 }
 

@@ -85,6 +85,8 @@ export type Profile = {
   calibratedAt: string | null;
   /** Vocabulary test result (vocab-test.ts), raw jsonb. */
   levelEstimate: unknown;
+  /** "Говоріння": the speak-aloud exercise is served. */
+  speakingEnabled: boolean;
 };
 
 export type PracticeCard = {

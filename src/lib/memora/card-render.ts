@@ -51,7 +51,7 @@ export const cardKindLabels: Record<CardKind, string> = {
 };
 
 /** Order of exercises on a word, from passive to active. */
-export const exerciseOrder: CardKind[] = ["recognition", "recall", "cloze", "listening"];
+export const exerciseOrder: CardKind[] = ["recognition", "recall", "cloze", "listening", "sentence", "speaking"];
 
 /** Phrases longer than this are not dictated in the listening exercise. */
 const MAX_LISTENING_WORDS = 4;
@@ -147,8 +147,28 @@ export function renderCard(kind: CardKind, lemma: string, content: WordContent):
     };
   }
 
-  // "recall" — and the fallback for a cloze card whose word lost its example
-  // and for exercises that are not built yet (sentence, speaking).
+  // Production: the word is given, the learner writes or says a sentence with
+  // it (the practice shows these with their own card, production-card.tsx).
+  if (kind === "sentence" || kind === "speaking") {
+    return {
+      kind,
+      instruction: kind === "sentence" ? "Напиши своє речення з цим словом" : "Скажи вголос речення з цим словом",
+      cue: lemma,
+      cueLanguage: "en",
+      context: translations ? { text: translations, language: "uk" } : null,
+      hint: partOfSpeech,
+      audio: lemma,
+      answer: lemma,
+      answerLanguage: "en",
+      check: englishCheck,
+      selfGraded: false,
+      example,
+      meaning: translations,
+      partOfSpeech,
+    };
+  }
+
+  // "recall" — and the fallback for a cloze card whose word lost its example.
   return {
     kind: "recall",
     instruction: "Як це англійською?",

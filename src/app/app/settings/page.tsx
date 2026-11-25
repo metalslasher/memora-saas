@@ -24,6 +24,7 @@ export default async function SettingsPage({
       email={user.email ?? null}
       isRecovery={params.recovery === "1"}
       dailyMinutes={profile.dailyMinutes}
+      speakingEnabled={profile.speakingEnabled}
       goals={cleanGoals(profile.goals)}
       level={test ? { vocab: test.vocab, cefr: cefrFromVocab(test.vocab), takenAt: test.takenAt } : null}
       snapshot={snapshot}
