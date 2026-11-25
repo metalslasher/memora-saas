@@ -1,6 +1,6 @@
 # Memora — архітектура (поточний стан коду)
 
-Оновлено: 2026-11-25, пачка 6 (своє речення й говоріння). Цільовий продукт описано в
+Оновлено: 2026-11-26, пачка 7 (звичка: ціль, серія, web push). Цільовий продукт описано в
 `product.md`, план робіт — у `roadmap.md`.
 
 ## Стек
@@ -22,13 +22,14 @@ project `whqfpktgwwctqhqvsoqm`. Preview і прод ділять одну БД.
 | `/app/share` | Прийом «Поділитися → Memora» (Web Share Target, GET і POST): слово/фраза (≤ 4 слова, ≤ 60 символів, без знаків речення) → `/app/words?add=…`, довший текст → `/app/words?text=…` (до 3000 символів), лише посилання → `?shared=link`. Правила — `lib/memora/share.ts` | `src/app/app/share/route.ts` |
 | `/manifest.webmanifest` | Маніфест PWA: `start_url /app`, standalone, іконки PNG 192/512 (any + maskable), `share_target`, ярлик «Додати слово» | `src/app/manifest.ts` |
 | `/pwa/*.png` | Іконки маніфесту, рендеряться під час білду (`lib/memora/app-icon.tsx`, той самий малюнок — `apple-icon`) | `src/app/pwa/[icon]/route.tsx` |
-| `/sw.js` | Мінімальний service worker без кешу (офлайн — «пізніше»); сюди пачка 7 додасть `push`/`notificationclick` | `public/sw.js` |
+| `/sw.js` | Мінімальний service worker без кешу (офлайн — «пізніше») + `push` (показує нагадування, `tag` не дає їм накопичуватись) і `notificationclick` (відкриває/фокусує `/app`) | `public/sw.js` |
+| `POST /api/cron/reminders` | Щогодинний тік нагадувань: `Authorization: Bearer $CRON_SECRET` (інакше 401), service role, web-push. Ідемпотентний | `src/app/api/cron/reminders/route.ts` |
 | `/beta` | «Закрита бета» для акаунтів поза allowlist | `components/memora/beta-screen.tsx` |
 
 `src/app/app/layout.tsx` + `components/memora/app-shell.tsx` — спільна оболонка
 (сайдбар на десктопі ≥ 1024 px; на телефоні й планшеті — верхня панель з назвою розділу + нижні 4 вкладки, тости).
 На телефоні назва розділу лише у верхній панелі: `PageHeader` ховає h1 візуально (`max-lg:sr-only`), опис лишається.
-Серія у верхній панелі й сайдбарі показується лише з 1 дня. `components/memora/pwa.ts` — реєстрація service worker
+Серія у верхній панелі й сайдбарі показується лише з 1 дня; «вогник» світиться, коли ціль дня виконано (`goalMet`). `components/memora/pwa.ts` — реєстрація service worker
 (лише production) і `useInstallPrompt` (подія `beforeinstallprompt`): кнопка «Встановити» у верхній панелі
 (зникає на 30 днів після «Ні») і блок «Memora на телефоні» в Профілі.
 
@@ -59,6 +60,8 @@ Allowlist — таблиця `allowed_emails` (без політик, читає
 | `user_words` | Слово в бібліотеці: `lemma`, `source` (program/manual/text/import), `status`, `content` jsonb, `lexicon_id`, `assumed_known` (тест зарахував як знайоме → стартує з recall) |
 | `cards` | Картка = слово × `kind` (recognition, recall, cloze, listening, sentence, speaking) + FSRS-поля. Створюються ліниво: нове слово — лише recognition, решта відкривається (`exercise-unlock.ts`). Текст картки не зберігається |
 | `review_logs` | Кожна оцінка: rating, час, відповідь, `schedule_before/after` (для undo) |
+| `goal_days` | Дні, коли виконано денну ціль (локальна дата на момент запису; `reason`: minutes / queue / history). Звідси рахується серія. |
+| `push_subscriptions` | Пристрої з підпискою на push (унікальний `endpoint`, кілька на користувача); протухлі (404/410) видаляє маршрут |
 | `ai_usage` | Облік кожного платного AI-виклику: feature, provider, model, токени, символи/секунди аудіо, `cost_usd`, `status` (pending → ok/failed). Користувач читає свої рядки, пише лише service role. `user_id` при видаленні акаунта → null (витрати лишаються в місяці) |
 | `allowed_emails` | Allowlist закритої бети |
 
@@ -83,6 +86,12 @@ SQL-функції (security invoker, RLS діє): `get_practice_overview` (лі
 фічі `ai_usage`: `sentence`, `speak`, `transcribe`. Види карток `sentence`/`speaking` були в enum з baseline;
 код `main` до пачки 6 показує їх як «згадати», тож нові картки його не ламають.
 
+Міграція `20261126100000_habit` (додавальна): `goal_days`, `push_subscriptions` (RLS + allowlist), `review_logs.counted_ms`,
+`profiles.reminders_enabled/reminder_start/reminder_end/last_reminder_day`, функції `get_day_activity(p_tz)`, `save_push_subscription`
+(security definer: переносить пристрій на поточний акаунт), `get_reminder_candidates` (лише service role), розширення `pg_cron` і
+`pg_net`, завдання `memora-reminders` (щогодини, `net.http_post` на `/api/cron/reminders`, секрет — у Vault `cron_secret`).
+Старі `get_streak` і `get_progress_stats.streak` більше не використовуються кодом (cleanup-міграція після merge).
+
 Типи БД генеруються: `supabase gen types typescript --linked > src/lib/supabase/database.types.ts`.
 
 ## Шар коду
@@ -106,6 +115,16 @@ SQL-функції (security invoker, RLS діє): `get_practice_overview` (лі
 - `lib/memora/word-content.ts` — форма `content` слова, нормалізація.
 - `lib/memora/scheduler.ts` — адаптер `ts-fsrs` 6 (FSRS-6, fuzz із сідом на картку;
   оцінка рахується на сервері, клієнт — оптимістично тим самим кодом).
+- `lib/memora/goal.ts` — денна ціль (чиста логіка): `evaluateGoal` (виконано, коли був хоч один повтор і набрано хвилини АБО черга порожня),
+  `localDay`/`localHour` (локальна доба в поясі користувача через Intl).
+- `lib/memora/streak.ts` — серія: `computeStreak` (прямий прохід по днях із ціллю; 1 заморозка на календарний тиждень пн–нд, день
+  заморозки не зараховується, сьогодні ще нічого не ламає), `buildStreakSummary`, `addGoalTime` (оптимістичне оновлення в сесії).
+- `lib/memora/reminders.ts` — хто отримує пуш на цьому тіку: вікно в локальних годинах (початок включно, кінець ні), ще не слали
+  сьогодні, ціль не виконано, є що практикувати; текст пуша.
+- `lib/memora/data/goal.ts` — `getStreak` (goal_days + `get_day_activity`), `syncGoalDay` (після кожної оцінки/undo: хвилини з
+  `review_logs` + порожня черга → upsert/delete у `goal_days`; повну серію повертає, лише коли стан відрізняється від того, що знає клієнт).
+  `actions/practice.ts` викликає її в `gradeCardAction`/`undoReviewAction` (збій не втрачає оцінку).
+- `lib/memora/actions/reminders.ts`, `data/push.ts`, `components/memora/push.ts` — перемикач і вікно в налаштуваннях, підписка пристрою.
 - `lib/memora/queue.ts` (порядок за retrievability FSRS-6, sibling burying), `progress.ts`, `streak.ts`, `word-progress.ts` — чиста логіка.
 - `lib/memora/answer-check.ts` — перевірка введеної відповіді: варіанти, синоніми,
   словоформи, артиклі/to, підсвітка різниці.
@@ -159,13 +178,18 @@ SQL-функції (security invoker, RLS діє): `get_practice_overview` (лі
   імпорт у `lexicon` + `lexicon_lists`; після зміни файлів у `data/lexicon` — запустити ще раз).
 
 ## Тести й перевірки
-- `pnpm test` — Vitest, чиста логіка й AI-провайдери на моках (168 тестів).
+- `pnpm test` — Vitest, чиста логіка й AI-провайдери на моках (202 тести).
+- `node --env-file=.env.local scripts/push-check.mjs` — справжній пуш: Chrome із постійним профілем (у «одноразових» контекстах Playwright
+  Chrome відмовляє в підписці), тестовий акаунт підписується в Профілі, маршрут із `CRON_SECRET` шле пуш, перевіряється сповіщення й
+  ідемпотентність. Після `pnpm test-user`, на production-збірці (SW реєструється лише там).
 - `pnpm smoke` — Playwright, повний сценарій від імені тестового користувача
   (`pnpm test-user` створює/скидає `memora.e2e@example.com`, скидає онбординг і засіває 6 слів так, що в
   черзі є по картці кожного типу вправи — smoke проходить усі 6 на телефонному екрані (своє речення й «вголос» —
   з реальним AI, ≈ $0.0007 за прогін; мікрофон — фейковий пристрій Chromium, на Windows він «говорить» речення
   системним голосом SAPI; відмова мікрофона — підміною `getUserMedia`; `MEMORA_SMOKE_AI=0` — сервер без AI) і
-  перевіряє, що кнопка оцінки не ховається під нижнім меню). Також: маніфест, іконки, `/sw.js`, share target
+  перевіряє, що кнопка оцінки не ховається під нижнім меню; ціль дня «0 з N хв» на початку і «виконано» + серія 1 після всієї черги;
+  Профіль → «Нагадування» (перемикач; у headless-Chrome підписка неможлива — це лише логується); `/api/cron/reminders`: 401 без секрету
+  й з чужим, 405 на GET, 200 із секретом). Також: маніфест, іконки, `/sw.js`, share target
   (GET і POST, гість → вхід → повернення на «Додати слово»), installability через DevTools
   (`Page.getInstallabilityErrors`; `in-incognito` ігнорується — контексти Playwright анонімні).
   Знімки (`MEMORA_SMOKE_SHOTS`) — 375, 768 і 1440. Перед практикою smoke проходить онбординг
@@ -186,7 +210,8 @@ Supabase CLI (залогінений, проєкт прив'язаний):
 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (Vercel + `.env.local`);
 `SUPABASE_SERVICE_ROLE_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY` — сервер (Vercel + `.env.local`);
 необов'язкові: `MEMORA_AI_MONTHLY_LIMIT_USD` (10), `MEMORA_AI_PROVIDER`, `MEMORA_AI_TEXT_MODEL`,
-`MEMORA_TTS_PROVIDER`, `MEMORA_TTS_MODEL`, `MEMORA_TTS_VOICE`, `MEMORA_TRANSCRIBE_MODEL` (`gpt-transcribe`). Лише локально: `MEMORA_SMOKE_EMAIL/PASSWORD`.
+`MEMORA_TTS_PROVIDER`, `MEMORA_TTS_MODEL`, `MEMORA_TTS_VOICE`, `MEMORA_TRANSCRIBE_MODEL` (`gpt-transcribe`). Нагадування (Vercel Production + Preview, і `.env.local`): `NEXT_PUBLIC_VAPID_PUBLIC_KEY`,
+`VAPID_PRIVATE_KEY`, `CRON_SECRET` (той самий, що в Supabase Vault `cron_secret`), необов'язково `VAPID_SUBJECT` (за замовчуванням адреса прод-сайту). Лише локально: `MEMORA_SMOKE_EMAIL/PASSWORD`.
 
 ## Відомі обмеження
 - Lighthouse mobile `/app` (локальний prod-білд, 2026-11-24): доступність 100, кращі практики 100, швидкість 73
@@ -207,4 +232,9 @@ Supabase CLI (залогінений, проєкт прив'язаний):
   лише проксі вимови (експеримент), не оцінка вимови.
 - `pnpm test-user` відв'язує (`user_id → null`) записи `ai_usage` тестового акаунта для письма/говоріння,
   щоб звільнити денну квоту; гроші лишаються в місяці.
+- Нагадування: надходять на початку вікна (перша година вікна, коли ціль не виконано), не в «найкращу» годину; Vercel Hobby cron раз на
+  добу замало для вікон — тому `pg_cron` у Supabase. Cron викликає лише прод-URL; preview нагадувань не шле.
+- «Черга порожня» для цілі враховує всі картки в черзі, зокрема «Своє речення»/«вголос»: без AI чи мікрофона такі картки лишаються
+  в черзі, і ціль тоді виконується хвилинами.
+- Серія: дні до пачки 7 зараховано за старим правилом (будь-яке повторення) — міграцією (`reason = 'history'`).
 - Gemini 3.x подорожчає вдвічі з 2027-01-01 (нас не стосується, поки за замовчуванням OpenAI).

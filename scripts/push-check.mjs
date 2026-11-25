@@ -43,6 +43,16 @@ try {
   await toggle.click();
   await expect(page.getByText("Нагадування ввімкнено.")).toBeVisible({ timeout: 20000 });
   console.log("Subscribed this browser.");
+  const shotsDir = process.env.MEMORA_SMOKE_SHOTS;
+  if (shotsDir) {
+    fs.mkdirSync(shotsDir, { recursive: true });
+    for (const [name, size] of [["1440", { width: 1440, height: 900 }], ["375", { width: 375, height: 812 }]]) {
+      await page.setViewportSize(size);
+      await page.waitForTimeout(300);
+      await page.screenshot({ path: path.join(shotsDir, `settings-reminders-${name}.png`), fullPage: true });
+    }
+    await page.setViewportSize({ width: 1440, height: 900 });
+  }
 
   // Cover the current local hour of the test user and forget any push sent today.
   const { data: profile, error } = await admin
