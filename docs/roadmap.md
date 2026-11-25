@@ -10,18 +10,18 @@
 (правила — у `CLAUDE.md`).
 
 ## Поточний стан
-- **Етап:** пачки 0–8 — у main (пачка 7, звичка — 2026-11-26; cleanup `20261126110000_habit_cleanup`
-  застосовано). **Чекає власника:** змінні Vercel для нагадувань (`NEXT_PUBLIC_VAPID_PUBLIC_KEY`,
-  `VAPID_PRIVATE_KEY`, `CRON_SECRET`, Production + Preview), потім redeploy. **Пачка 8** (лендінг) — у main
-  (2026-11-26), разом із фіксом `20261126120000_progress_stats_fix` («Прогрес» падав після cleanup пачки 7).
-  **Пачка 9** (хардненінг: CI, `pnpm db-check`, моніторинг помилок, nonce-CSP, ревізія безпеки §2.5) — у гілці `batch-9-hardening`, чекає рев'ю й merge; міграції `20261127100000_error_reports` і `20261127110000_privilege_hardening` уже застосовані (сумісні з кодом `main`). Кожна пачка — вкладений чат під головним;
-  ТЗ — `docs/batches/batch-N.md`. Merge після рев'ю головним чатом — без питань власнику.
-- **Прод:** https://memora-saas.vercel.app — схема v2, тільки англійська, маршрути `/app/*`,
-  закрита бета, 4 типи вправ, темп «хвилин на день», автооцінка, AI-заповнення слова, «З тексту», голос OpenAI, тест рівня, цілі, щоденна програма.
+- **Етап:** план пачок 0–9 виконано, усе в main (пачка 9, хардненінг — 2026-11-25). **Пауза:** нових
+  пачок без рішення власника не починаємо; далі — розділ «Пізніше» в §5. Змінні Vercel для нагадувань
+  (`NEXT_PUBLIC_VAPID_PUBLIC_KEY` — Config, `VAPID_PRIVATE_KEY`, `CRON_SECRET` — Secret) власник додав 2026-11-25.
+  Порядок роботи: після кожної пачки — повний звіт у головному чаті, наступна — тільки після «ок» власника.
+  Гілка + preview на пачку лишається (Claude вирішує сам), merge — без питань. Тести/Lighthouse — тільки headless.
+- **Прод:** https://memora-saas.vercel.app — закрита бета, 6 типів вправ (впізнати, згадати, речення з пропуском,
+  на слух, своє речення, скажи вголос), автооцінка, AI-заповнення слова, «З тексту», голос OpenAI, тест рівня,
+  цілі, щоденна програма, PWA + «Поділитися», денна ціль, серія, нагадування, новий лендінг, nonce-CSP, моніторинг помилок, CI.
 - **Supabase:** схема v2 + `20261120090000_practice_engine` + `20261120100000_practice_engine_cleanup`
-  + `20261123100000_ai_layer` + `20261124100000_program_onboarding` + `20261125100000_writing_speaking` + `20261126100000_habit` + `20261126110000_habit_cleanup` + `20261126120000_progress_stats_fix` + `20261127100000_error_reports` + `20261127110000_privilege_hardening` (застосовано; pg_cron-завдання `memora-reminders` активне, до merge маршрут у проді дає 404 без побічних ефектів).
+  + `20261123100000_ai_layer` + `20261124100000_program_onboarding` + `20261125100000_writing_speaking` + `20261126100000_habit` + `20261126110000_habit_cleanup` + `20261126120000_progress_stats_fix` + `20261127100000_error_reports` + `20261127110000_privilege_hardening` (застосовано; pg_cron-завдання `memora-reminders` щогодини).
   Списки програми імпортовано в `lexicon` (4 998 записів). Дані тестові.
-- **Vercel env для AI:** `OPENAI_API_KEY`, `GEMINI_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY` (Production + Preview).
+- **Vercel env:** `OPENAI_API_KEY`, `GEMINI_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `CRON_SECRET` (Production + Preview).
 
 ---
 
