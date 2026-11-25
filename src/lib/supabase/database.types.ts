@@ -246,6 +246,7 @@ export type Database = {
           level_estimate: Json | null
           onboarded_at: string | null
           program_rank: number | null
+          speaking_enabled: boolean
           timezone: string
           updated_at: string
         }
@@ -259,6 +260,7 @@ export type Database = {
           level_estimate?: Json | null
           onboarded_at?: string | null
           program_rank?: number | null
+          speaking_enabled?: boolean
           timezone?: string
           updated_at?: string
         }
@@ -272,6 +274,7 @@ export type Database = {
           level_estimate?: Json | null
           onboarded_at?: string | null
           program_rank?: number | null
+          speaking_enabled?: boolean
           timezone?: string
           updated_at?: string
         }
