@@ -3,9 +3,9 @@
 // Usage: pnpm db-check   (needs the Supabase CLI, logged in and linked)
 import { spawnSync } from "node:child_process";
 
-const run = spawnSync("supabase", ["db", "query", "--linked", "-f", "scripts/db-check.sql"], {
+const run = spawnSync("supabase db query --linked -f scripts/db-check.sql", {
   encoding: "utf8",
-  shell: process.platform === "win32",
+  shell: true,
 });
 if (run.status !== 0) {
   console.error(run.stderr || run.stdout || "supabase db query failed");
