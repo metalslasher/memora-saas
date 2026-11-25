@@ -551,15 +551,6 @@ export type Database = {
           user_id: string
         }[]
       }
-      get_streak: {
-        Args: { p_tz: string }
-        Returns: {
-          reviewed_today: boolean
-          streak: number
-          today: string
-          week_days: string[]
-        }[]
-      }
       is_current_user_allowed: { Args: never; Returns: boolean }
       restore_words_backup: { Args: { p_words: Json }; Returns: number }
       save_push_subscription: {
