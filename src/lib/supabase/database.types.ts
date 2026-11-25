@@ -164,6 +164,48 @@ export type Database = {
           },
         ]
       }
+      error_reports: {
+        Row: {
+          digest: string
+          fingerprint: string
+          first_seen: string
+          id: number
+          last_seen: string
+          message: string
+          occurrences: number
+          release: string
+          route: string
+          source: string
+          stack: string
+        }
+        Insert: {
+          digest?: string
+          fingerprint: string
+          first_seen?: string
+          id?: never
+          last_seen?: string
+          message: string
+          occurrences?: number
+          release?: string
+          route?: string
+          source: string
+          stack?: string
+        }
+        Update: {
+          digest?: string
+          fingerprint?: string
+          first_seen?: string
+          id?: never
+          last_seen?: string
+          message?: string
+          occurrences?: number
+          release?: string
+          route?: string
+          source?: string
+          stack?: string
+        }
+        Relationships: []
+      }
       goal_days: {
         Row: {
           active_ms: number
@@ -552,6 +594,18 @@ export type Database = {
         }[]
       }
       is_current_user_allowed: { Args: never; Returns: boolean }
+      record_error: {
+        Args: {
+          p_digest: string
+          p_fingerprint: string
+          p_message: string
+          p_release: string
+          p_route: string
+          p_source: string
+          p_stack: string
+        }
+        Returns: undefined
+      }
       restore_words_backup: { Args: { p_words: Json }; Returns: number }
       save_push_subscription: {
         Args: {

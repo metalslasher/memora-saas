@@ -55,10 +55,6 @@ export const ACTIVE_SHARE = 0.5;
 export const THEME_SHARE = 1 / 3;
 export const SPARE_NEW_WORDS = 5;
 
-export function isGoal(value: unknown): value is Goal {
-  return GOALS.includes(value as Goal);
-}
-
 export function cleanGoals(values: unknown): Goal[] {
   if (!Array.isArray(values)) return [];
   return GOALS.filter((goal) => values.includes(goal));

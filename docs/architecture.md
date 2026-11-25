@@ -1,6 +1,6 @@
 # Memora — архітектура (поточний стан коду)
 
-Оновлено: 2026-11-26, пачка 7 (звичка: ціль, серія, web push). Цільовий продукт описано в
+Оновлено: 2026-11-25, пачка 9 (хардненінг: CI, db-check, моніторинг помилок, nonce-CSP). Цільовий продукт описано в
 `product.md`, план робіт — у `roadmap.md`.
 
 ## Стек
@@ -61,8 +61,27 @@ Allowlist — таблиця `allowed_emails` (без політик, читає
 Додати людину: `insert into public.allowed_emails (email) values ('...')`.
 Публічний запуск = змусити `is_current_user_allowed()` повертати `true` + свій SMTP.
 
-Також: security headers у `next.config.ts`, парольна політика
-`lib/memora/password-policy.ts` (8+ символів, літера й цифра).
+Також: парольна політика `lib/memora/password-policy.ts` (8+ символів, літера й цифра).
+
+**Заголовки й CSP.** Статичні заголовки (HSTS, nosniff, Referrer-Policy, Permissions-Policy, X-Frame-Options і базовий CSP) —
+`next.config.ts`. Повна політика ставиться в `src/proxy.ts` (`lib/memora/csp.ts`): для `/app/*` і `/beta` — `script-src`
+з nonce на кожен запит + `'strict-dynamic'` (Next сам кладе nonce на свої скрипти, беручи його із заголовка запиту), `style-src`
+з nonce, `style-src-attr 'unsafe-inline'` (атрибути `style={{…}}`); для статичного лендінгу й 404 (пререндерені на білді, nonce
+неможливий) — `'unsafe-inline'` для скриптів і стилів, решта директив та сама. `connect-src`/`media-src` — лише `self` + origin
+Supabase (з `NEXT_PUBLIC_SUPABASE_URL`); `media-src` ще `data:`/`blob:` (розблокування аудіо). У dev додається `'unsafe-eval'`.
+Порушення CSP видно в smoke: він падає на будь-якій помилці консолі.
+
+**Моніторинг помилок** (власна таблиця, без сторонніх сервісів): `error_reports` (RLS без політик — лише service role) +
+`record_error()` (дедуплікація за відбитком = хеш джерела, маршруту, повідомлення й перших кадрів стека; лічильник
+`occurrences`; не більше 100 нових відбитків на годину; рядки старші 30 днів видаляються). Без user id, IP і cookie;
+`scrub()` вирізає email, токени, UUID і query-рядки. Джерела: сервер — `src/instrumentation.ts` (`onRequestError`: помилки
+рендеру, route handlers, server actions); браузер — `error.tsx` (кабінет і корінь), `global-error.tsx`, `ErrorListener`
+(`window.onerror`/`unhandledrejection`, у `/app`) → `POST /api/report-error` (лише same-origin, тіло ≤ 8 КБ, до 5 звітів
+на завантаження сторінки). Переглянути: `pnpm errors [днів]` (service role з `.env.local`) або `select * from error_reports order by last_seen desc`.
+Помилки, які server actions повертають як `{ok:false}` (валідація, ліміти), не пишуться — це не збої.
+
+**Права в БД.** Окрім RLS: `anon` не має прав на жодну таблицю `public`; `authenticated` не має TRUNCATE/REFERENCES/TRIGGER
+і є лише читачем `lexicon`, `lexicon_lists`, `ai_usage`; `allowed_emails` недоступна напряму (міграція `privilege_hardening`).
 
 ## Дані: схема v2
 Міграція `supabase/migrations/20261119180000_memora_v2_baseline.sql` (baseline,
@@ -194,7 +213,9 @@ SQL-функції (security invoker, RLS діє): `get_practice_overview` (лі
   імпорт у `lexicon` + `lexicon_lists`; після зміни файлів у `data/lexicon` — запустити ще раз).
 
 ## Тести й перевірки
-- `pnpm test` — Vitest, чиста логіка й AI-провайдери на моках (202 тести).
+- `pnpm test` — Vitest, чиста логіка й AI-провайдери на моках (209 тестів).
+- `pnpm db-check` — перевірка залежностей у спільній БД після кожної міграції (див. нижче). `pnpm errors` — останні помилки з `error_reports`.
+- `pnpm lighthouse` — Lighthouse mobile для лендінгу (гість) і екранів кабінету (cookie з тестового акаунта); потрібен Chrome і мережа (`npx lighthouse@12`).
 - `node --env-file=.env.local scripts/push-check.mjs` — справжній пуш: Chrome із постійним профілем (у «одноразових» контекстах Playwright
   Chrome відмовляє в підписці), тестовий акаунт підписується в Профілі, маршрут із `CRON_SECRET` шле пуш, перевіряється сповіщення й
   ідемпотентність. Після `pnpm test-user`, на production-збірці (SW реєструється лише там).
@@ -214,7 +235,10 @@ SQL-функції (security invoker, RLS діє): `get_practice_overview` (лі
   автоподача поставила в практику 6 нових слів. Якщо на сервері налаштовано AI —
   ще «Заповнити з AI» і «З тексту» (слова беруться з кешу, повторні прогони безкоштовні). Env: `MEMORA_SMOKE_URL`,
   `MEMORA_SMOKE_MUTATE=0`, `MEMORA_SMOKE_BROWSER_PATH`, `MEMORA_SMOKE_SHOTS=<dir>`.
-- CI (`.github/workflows/ci.yml`): lint, typecheck, test, build.
+- CI (`.github/workflows/ci.yml`): на кожен push і PR (повторні запуски скасовуються) — `pnpm audit --audit-level=high`,
+  lint, typecheck, test, build (без секретів: плейсхолдери Supabase). Authenticated smoke — крок, що виконується лише на push і лише
+  якщо в GitHub secrets є `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `MEMORA_SMOKE_EMAIL`, `MEMORA_SMOKE_PASSWORD`
+  (без AI: `MEMORA_SMOKE_AI=0`); без них крок пропускається.
 
 ## Міграції БД — як застосовувати
 MCP `apply_migration` у цьому клієнті зависає на невидимому підтвердженні. Робочий шлях —
@@ -222,6 +246,11 @@ Supabase CLI (залогінений, проєкт прив'язаний):
 `supabase db query --linked -f <file.sql>` + запис у
 `supabase_migrations.schema_migrations (version, name)`; файл зберегти як
 `supabase/migrations/<version>_<name>.sql`.
+
+**Після кожної міграції:** `pnpm db-check` (`scripts/db-check.sql`, в одній транзакції з rollback): SQL-функції
+перестворюються зі свого визначення (Postgres заново перевіряє виклики таблиць/функцій/колонок), plpgsql — через `plpgsql_check`
+(розширення ставиться лише всередині транзакції й відкочується), cron-завдання — що `public.<функція>(` існує. Будь-яка знахідка =
+провал (код виходу 1). Далі — advisors і `supabase gen types`. Вʼю, політики, тригери й дефолти Postgres захищає сам (drop без CASCADE відмовить).
 
 ## Env
 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (Vercel + `.env.local`);
@@ -231,9 +260,12 @@ Supabase CLI (залогінений, проєкт прив'язаний):
 `VAPID_PRIVATE_KEY`, `CRON_SECRET` (той самий, що в Supabase Vault `cron_secret`), необов'язково `VAPID_SUBJECT` (за замовчуванням адреса прод-сайту). Лише локально: `MEMORA_SMOKE_EMAIL/PASSWORD`.
 
 ## Відомі обмеження
-- Lighthouse mobile `/app` (локальний prod-білд, 2026-11-24): доступність 100, кращі практики 100, швидкість 73
-  (LCP 7,1 с під емуляцією повільного 4G/CPU ×4; відповідь сервера ~0,9 с — запити до Supabase; ~430 КБ
-  невикористаного JS) — оптимізація в пачці 9.
+- Lighthouse mobile (локальний prod-білд, 2026-11-25, пачка 9): лендінг — швидкість 76–77, доступність 100, кращі практики 100
+  (LCP 5,6 с — симуляція Lantern на повільному 4G/CPU ×4; відповідь сервера ~20 мс; ~166 КБ невикористаного JS — чанки фреймворку).
+  Екрани кабінету (`/app`, `/app/words`…) у цій пачці не заміряно: передача сесії в Lighthouse не спрацювала (скрипт
+  `pnpm lighthouse` відкривав лендінг після редіректу; прогін 2026-11-24 для `/app`: доступність 100, швидкість 73, LCP 7,1 с).
+  Очевидних виправлень швидкості без переписування немає.
+- Лендінг статичний і тому з CSP `'unsafe-inline'` для скриптів (див. «Доступ і безпека»).
 - Share target приймає лише текст і посилання (без файлів); сторінку за посиланням Memora не завантажує.
 - Бекапи старої версії (v1) не відновлюються; історії CSV-імпортів більше немає.
 - Відновлення бекапу — до 4 МБ (ліміт тіла запиту Vercel 4.5 МБ).

@@ -12,3 +12,5 @@ minimumReleaseAgeExclude:
   - '@supabase/realtime-js@2.119.2'
   - '@supabase/storage-js@2.119.2'
   - '@supabase/supabase-js@2.119.2'
+overrides:
+  vite: "8.1.7"

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { AppShell } from "@/components/memora/app-shell";
+import { ErrorListener } from "@/components/memora/error-listener";
 import { getAppContext, loadPracticeSummary } from "@/lib/memora/data/context";
 import { getStreak } from "@/lib/memora/data/goal";
 import { heldBackNew } from "@/lib/memora/pace";
@@ -19,6 +20,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const dueCount = summary.dueWords + summary.newReady - heldBackNew(summary, 0);
 
   return (
+    <>
+    <ErrorListener />
     <AppShell
       dueCount={dueCount}
       email={user.email ?? null}
@@ -28,5 +31,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     >
       {children}
     </AppShell>
+    </>
   );
 }

@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { buildCsp, isStrictPath } from "@/lib/memora/csp";
 import { safeNextPath } from "@/lib/memora/share";
 import type { Database } from "@/lib/supabase/database.types";
 
@@ -7,10 +8,28 @@ import type { Database } from "@/lib/supabase/database.types";
  * Refreshes the Supabase session cookie on every request and guards routes:
  * guests on /app/* go to the landing page, signed-in accounts outside the
  * closed-beta allowlist go to /beta. Server actions skip the allowlist
- * round trip here because every action checks it itself.
+ * round trip here because every action checks it itself. Also sets the
+ * Content-Security-Policy (per-request nonce for /app and /beta, see lib/memora/csp.ts).
  */
 export async function proxy(request: NextRequest) {
-  let response = NextResponse.next({ request });
+  const { pathname } = request.nextUrl;
+  const nonce = isStrictPath(pathname) ? btoa(crypto.randomUUID()) : null;
+  const csp = buildCsp({
+    nonce,
+    isDev: process.env.NODE_ENV === "development",
+    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+  });
+  // Next.js reads the nonce from the CSP header of the *request* and puts it on its scripts.
+  const forwarded = new Headers(request.headers);
+  forwarded.set("Content-Security-Policy", csp);
+
+  const response = await guard(request, forwarded);
+  response.headers.set("Content-Security-Policy", csp);
+  return response;
+}
+
+async function guard(request: NextRequest, forwarded: Headers) {
+  let response = NextResponse.next({ request: { headers: forwarded } });
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   if (!supabaseUrl || !supabaseKey) return response;
@@ -22,7 +41,7 @@ export async function proxy(request: NextRequest) {
       },
       setAll(cookiesToSet) {
         cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-        response = NextResponse.next({ request });
+        response = NextResponse.next({ request: { headers: forwarded } });
         cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
       },
     },
