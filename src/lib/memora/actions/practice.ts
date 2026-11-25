@@ -69,8 +69,9 @@ export async function loadPracticeAction(
   try {
     const extra = Number.isInteger(extraNew) ? Math.min(Math.max(extraNew, 0), 100) : 0;
     const { supabase, user } = await requireActionContext();
-    const timezone = (await getProfile(supabase, user.id))?.timezone ?? "UTC";
-    return ok(await getPracticeSession(supabase, timezone, extra));
+    const profile = await getProfile(supabase, user.id);
+    if (!profile) throw new Error("Профіль не знайдено. Онови сторінку.");
+    return ok(await getPracticeSession(supabase, profile, extra));
   } catch (error) {
     return fail(error);
   }

@@ -4,6 +4,7 @@ import { ArrowRight, Check, Clock3, Flame, Gauge, Plus, Sparkles, Target, Timer,
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { estimateMinutes, sessionOptions } from "@/lib/memora/pace";
+import { isProductionKind } from "@/lib/memora/production";
 import { isNewWordCard } from "@/lib/memora/queue";
 import { pluralizeDays } from "@/lib/memora/streak";
 import type { PracticeCard, PracticeSummary } from "@/lib/memora/types";
@@ -12,6 +13,7 @@ import { Button, buttonClass, SegmentedControl } from "../shared-ui";
 import { useSpeechSupported } from "../speech";
 import { useFreshSnapshot } from "../use-fresh-snapshot";
 import { plural } from "../utils";
+import { ProductionCardView, useRecordingSupported } from "./production-card";
 import { StudyCardView } from "./study-card";
 import { usePracticeSession, type PracticeSession } from "./use-practice-session";
 
@@ -29,7 +31,8 @@ export function PracticeWorkspace({
 }) {
   useFreshSnapshot(snapshot);
   const canPlayAudio = useSpeechSupported();
-  const practice = usePracticeSession(initialCards, summary, { canPlayAudio });
+  const canRecord = useRecordingSupported();
+  const practice = usePracticeSession(initialCards, summary, { canPlayAudio, canRecord });
   const { activeCard, session } = practice;
 
   return (
@@ -40,7 +43,11 @@ export function PracticeWorkspace({
         {activeCard ? (
           <>
             <SessionProgress practice={practice} />
-            <StudyCardView key={activeCard.id} card={activeCard} practice={practice} />
+            {isProductionKind(activeCard.kind) ? (
+              <ProductionCardView key={activeCard.id} card={activeCard} practice={practice} />
+            ) : (
+              <StudyCardView key={activeCard.id} card={activeCard} practice={practice} />
+            )}
           </>
         ) : session.reviewed > 0 || practice.isTimeUp ? (
           <SessionComplete practice={practice} />

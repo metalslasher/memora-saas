@@ -7,7 +7,7 @@
  *   double on 2027-01-01 — re-check then)
  * Re-check before changing the default model and at least monthly.
  */
-export const PRICES_CHECKED_AT = "2026-11-23";
+export const PRICES_CHECKED_AT = "2026-11-25";
 
 export type ProviderId = "openai" | "gemini";
 
@@ -47,6 +47,45 @@ export const ttsModels: Record<string, TtsModelPrice> = {
   "gemini-2.5-flash-preview-tts": { provider: "gemini", input: 0.5, audioOutput: 10, audioTokensPerSecond: 25 },
   "gemini-3.8-flash-lite-tts": { provider: "gemini", input: 0.5, audioOutput: 6, audioTokensPerSecond: 25 },
 };
+
+export type TranscribeModelPrice = {
+  provider: ProviderId;
+  /** OpenAI's per-minute price (the only one published for gpt-transcribe). */
+  perMinute: number;
+  /** USD per 1M input (audio) / output (text) tokens, when the model is token-billed. */
+  input?: number;
+  output?: number;
+};
+
+/**
+ * Speech to text (checked 2026-11-25). gpt-transcribe is OpenAI's recommended
+ * model; the gpt-4o-*-transcribe family and whisper-1 shut down on 2027-02-26.
+ */
+export const transcribeModels: Record<string, TranscribeModelPrice> = {
+  "gpt-transcribe": { provider: "openai", perMinute: 0.0045 },
+  "gpt-4o-mini-transcribe": { provider: "openai", perMinute: 0.003, input: 1.25, output: 5 },
+};
+
+export function transcribePrice(model: string) {
+  const price = transcribeModels[model];
+  if (!price) throw new Error(`No price for transcription model ${model}.`);
+  return price;
+}
+
+export type TranscribeUsage = { seconds?: number; inputTokens?: number; outputTokens?: number };
+
+/**
+ * Bills tokens when the response reports them and the model has token
+ * prices; otherwise the per-minute price of the reported (or measured) length.
+ */
+export function transcribeCost(model: string, usage: TranscribeUsage, measuredSeconds: number) {
+  const price = transcribePrice(model);
+  if (usage.inputTokens !== undefined && price.input !== undefined && price.output !== undefined) {
+    return roundUsd((usage.inputTokens * price.input + (usage.outputTokens ?? 0) * price.output) / 1_000_000);
+  }
+  const seconds = usage.seconds ?? measuredSeconds;
+  return roundUsd((Math.max(1, seconds) / 60) * price.perMinute);
+}
 
 /** Unknown models are refused rather than billed at a guessed price. */
 export function textPrice(model: string) {

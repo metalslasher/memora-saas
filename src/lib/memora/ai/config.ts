@@ -1,10 +1,12 @@
-import { textModels, ttsModels, type ProviderId } from "./pricing";
+import { textModels, transcribeModels, ttsModels, type ProviderId } from "./pricing";
 import {
   geminiTextProvider,
   geminiTtsProvider,
   openAiTextProvider,
+  openAiTranscribeProvider,
   openAiTtsProvider,
   type TextProvider,
+  type TranscribeProvider,
   type TtsProvider,
 } from "./providers";
 
@@ -12,7 +14,7 @@ import {
  * Which provider/model does what. Defaults are the comparison winners
  * (docs/ai-compare.md); env overrides them without a deploy of new code:
  * MEMORA_AI_PROVIDER, MEMORA_AI_TEXT_MODEL, MEMORA_TTS_PROVIDER,
- * MEMORA_TTS_MODEL, MEMORA_TTS_VOICE, MEMORA_AI_MONTHLY_LIMIT_USD.
+ * MEMORA_TTS_MODEL, MEMORA_TTS_VOICE, MEMORA_TRANSCRIBE_MODEL, MEMORA_AI_MONTHLY_LIMIT_USD.
  */
 export const defaults = {
   textProvider: "openai" as ProviderId,
@@ -20,6 +22,7 @@ export const defaults = {
   ttsProvider: "openai" as ProviderId,
   ttsModel: { openai: "gpt-4o-mini-tts", gemini: "gemini-2.5-flash-preview-tts" } satisfies Record<ProviderId, string>,
   ttsVoice: { openai: "alloy", gemini: "Kore" } satisfies Record<ProviderId, string>,
+  transcribeModel: "gpt-transcribe",
   monthlyLimitUsd: 10,
 };
 
@@ -46,6 +49,15 @@ export function textProviderFromEnv(env: Env = process.env): TextProvider | null
   const override = env.MEMORA_AI_TEXT_MODEL?.trim();
   const model = override && textModels[override]?.provider === provider ? override : defaults.textModel[provider];
   return provider === "openai" ? openAiTextProvider(key, model) : geminiTextProvider(key, model);
+}
+
+/** Speech to text: OpenAI only (MEMORA_TRANSCRIBE_MODEL overrides the model). */
+export function transcribeProviderFromEnv(env: Env = process.env): TranscribeProvider | null {
+  const key = apiKey(env, "openai");
+  if (!key) return null;
+  const override = env.MEMORA_TRANSCRIBE_MODEL?.trim();
+  const model = override && transcribeModels[override] ? override : defaults.transcribeModel;
+  return openAiTranscribeProvider(key, model);
 }
 
 export function ttsProviderFromEnv(env: Env = process.env): TtsProvider | null {

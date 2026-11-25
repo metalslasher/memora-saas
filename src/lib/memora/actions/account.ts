@@ -4,7 +4,7 @@ import { normalizeBackupDocument, type BackupDocument } from "../backup";
 import { exportBackup, exportWordsCsv, restoreBackup } from "../data/backup";
 import { requireActionContext } from "../data/context";
 import { resetProgress } from "../data/practice";
-import { updateDailyMinutes, updateTimezone } from "../data/profile";
+import { updateDailyMinutes, updateSpeakingEnabled, updateTimezone } from "../data/profile";
 import { deleteAllWords } from "../data/words";
 import { isValidTimezone, validateDailyMinutes } from "../validation";
 import { fail, ok, type ActionResult } from "./result";
@@ -15,6 +15,17 @@ export async function updateDailyMinutesAction(minutes: number): Promise<ActionR
     const clean = validateDailyMinutes(minutes);
     const { supabase, user } = await requireActionContext();
     return ok(await updateDailyMinutes(supabase, user.id, clean));
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+/** "Говоріння": serve the speak-aloud exercise or not. */
+export async function updateSpeakingAction(enabled: boolean): Promise<ActionResult<boolean>> {
+  try {
+    if (typeof enabled !== "boolean") throw new Error("Невідоме значення налаштування.");
+    const { supabase, user } = await requireActionContext();
+    return ok(await updateSpeakingEnabled(supabase, user.id, enabled));
   } catch (error) {
     return fail(error);
   }

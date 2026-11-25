@@ -10,7 +10,7 @@ import {
 import { heldBackNew, MAX_COUNTED_CARD_MS, sessionOptions } from "@/lib/memora/pace";
 import { buildPracticeQueue, nextDueAt } from "@/lib/memora/queue";
 import { scheduleReview } from "@/lib/memora/scheduler";
-import type { PracticeCard, PracticeSummary, ReviewRating, StoredSchedule } from "@/lib/memora/types";
+import type { CardKind, PracticeCard, PracticeSummary, ReviewRating, StoredSchedule } from "@/lib/memora/types";
 import { useShell } from "../app-shell";
 import { formatError } from "../utils";
 
@@ -46,12 +46,12 @@ function defaultSessionMinutes(dailyMinutes: number) {
  * grading (the next card appears instantly, server writes run in an ordered
  * background chain), undo, pause, skip, the session timer and "more new
  * words". `canPlayAudio` = false hides listening exercises (no speech on
- * this device).
+ * this device), `canRecord` = false hides speak-aloud (no microphone API).
  */
 export function usePracticeSession(
   initialCards: PracticeCard[],
   initialSummary: PracticeSummary,
-  { canPlayAudio }: { canPlayAudio: boolean },
+  { canPlayAudio, canRecord }: { canPlayAudio: boolean; canRecord: boolean },
 ) {
   const { showToast, setDueCount, markReviewed } = useShell();
   const [cards, setCards] = useState(initialCards);
@@ -86,8 +86,11 @@ export function usePracticeSession(
   const now = useMemo(() => new Date(clock), [clock]);
   const dayStart = useMemo(() => new Date(summary.dayStart), [summary.dayStart]);
   const playable = useMemo(
-    () => (canPlayAudio ? cards : cards.filter((card) => card.kind !== "listening")),
-    [canPlayAudio, cards],
+    () =>
+      cards.filter(
+        (card) => (canPlayAudio || card.kind !== "listening") && (canRecord || card.kind !== "speaking"),
+      ),
+    [canPlayAudio, canRecord, cards],
   );
   const queue = useMemo(
     () => buildPracticeQueue(playable, now, { dayStart, newOrder, skipped }),
@@ -134,14 +137,15 @@ export function usePracticeSession(
     setRevealedAfterMs(Date.now() - shownAt);
   }
 
-  function grade(rating: ReviewRating) {
+  /** `response` replaces the typed text (speaking: the transcript). */
+  function grade(rating: ReviewRating, responseOverride?: string) {
     const card = activeCard;
     if (!card) return;
 
     const reviewedAt = new Date();
     const elapsedMs = Math.min(revealedAfterMs ?? reviewedAt.getTime() - shownAt, 30 * 60_000);
     const countedMs = Math.min(reviewedAt.getTime() - shownAt, MAX_COUNTED_CARD_MS);
-    const response = responseText.trim();
+    const response = (responseOverride ?? responseText).trim();
     const { schedule } = scheduleReview(card.id, card.schedule, rating, reviewedAt);
     const wasCorrect = rating !== "again";
 
@@ -213,6 +217,12 @@ export function usePracticeSession(
   /** Hides a card for the rest of this session without rating it. */
   function skip(cardId: string) {
     setSkipped((current) => new Set([...current, cardId]));
+    resetCardUi();
+  }
+
+  /** Hides every card of these exercises for the rest of the session (AI limit, no microphone). */
+  function skipKinds(kinds: CardKind[]) {
+    setSkipped((current) => new Set([...current, ...cards.filter((card) => kinds.includes(card.kind)).map((card) => card.id)]));
     resetCardUi();
   }
 
@@ -290,6 +300,7 @@ export function usePracticeSession(
     reveal,
     grade,
     skip,
+    skipKinds,
     undo: () => void undo(),
     pause: (cardId: string) => void pause(cardId),
     learnMore: (count: number) => void learnMore(count),

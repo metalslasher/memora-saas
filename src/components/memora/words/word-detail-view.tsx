@@ -21,11 +21,13 @@ export function WordDetailView({
   focusField,
   initialWord,
   snapshot,
+  speakingEnabled,
 }: {
   /** Field to focus when opened from the practice "hard word" panel. */
   focusField: "translation" | "example" | null;
   initialWord: WordDetail;
   snapshot: string;
+  speakingEnabled: boolean;
 }) {
   useFreshSnapshot(snapshot);
   const router = useRouter();
@@ -146,18 +148,19 @@ export function WordDetailView({
               />
             ))}
           </div>
-          <LockedExercises word={word} />
+          <LockedExercises speakingEnabled={speakingEnabled} word={word} />
         </section>
       </div>
     </div>
   );
 }
 
-function LockedExercises({ word }: { word: WordDetail }) {
+function LockedExercises({ speakingEnabled, word }: { speakingEnabled: boolean; word: WordDetail }) {
   const locked = lockedKinds(
     word.cards.map((card) => card.kind),
     word.lemma,
     word.content,
+    { sentence: true, speaking: speakingEnabled },
   );
   if (locked.length === 0) return null;
   return (

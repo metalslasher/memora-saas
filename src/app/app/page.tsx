@@ -19,7 +19,7 @@ export default async function PracticePage() {
     if (added > 0) summary = await getPracticeSummary(supabase, profile.timezone);
   }
 
-  const { cards } = await getPracticeSession(supabase, profile.timezone, 0, Promise.resolve(summary));
+  const { cards } = await getPracticeSession(supabase, profile, 0, Promise.resolve(summary));
   const snapshot = crypto.randomUUID();
 
   return (

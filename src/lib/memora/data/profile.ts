@@ -5,7 +5,7 @@ import type { TestResult } from "../vocab-test";
 import { check, isUniqueViolation, maybe, must, type Db } from "./db";
 
 const profileColumns =
-  "id,timezone,daily_minutes,goals,onboarded_at,program_rank,known_rank,calibrated_at,level_estimate";
+  "id,timezone,daily_minutes,goals,onboarded_at,program_rank,known_rank,calibrated_at,level_estimate,speaking_enabled";
 
 type ProfileRow = Pick<
   Database["public"]["Tables"]["profiles"]["Row"],
@@ -18,6 +18,7 @@ type ProfileRow = Pick<
   | "known_rank"
   | "calibrated_at"
   | "level_estimate"
+  | "speaking_enabled"
 >;
 
 export function mapProfile(row: ProfileRow): Profile {
@@ -31,6 +32,7 @@ export function mapProfile(row: ProfileRow): Profile {
     knownRank: row.known_rank,
     calibratedAt: row.calibrated_at,
     levelEstimate: row.level_estimate,
+    speakingEnabled: row.speaking_enabled,
   };
 }
 
@@ -74,6 +76,13 @@ export async function updateDailyMinutes(db: Db, userId: string, minutes: number
 export async function updateGoals(db: Db, userId: string, goals: Goal[]) {
   const row = must(await db.from("profiles").update({ goals }).eq("id", userId).select("goals").single());
   return row.goals;
+}
+
+export async function updateSpeakingEnabled(db: Db, userId: string, enabled: boolean) {
+  const row = must(
+    await db.from("profiles").update({ speaking_enabled: enabled }).eq("id", userId).select("speaking_enabled").single(),
+  );
+  return row.speaking_enabled;
 }
 
 export async function updateTimezone(db: Db, userId: string, timezone: string) {

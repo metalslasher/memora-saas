@@ -167,6 +167,60 @@ export function openAiTtsProvider(
   };
 }
 
+export type TranscribeResult = {
+  text: string;
+  usage: { seconds?: number; inputTokens?: number; outputTokens?: number };
+};
+
+export type TranscribeProvider = {
+  provider: ProviderId;
+  model: string;
+  transcribe(audio: Blob, options: { fileName: string; prompt: string }): Promise<TranscribeResult>;
+};
+
+const TRANSCRIBE_TIMEOUT_MS = 30_000;
+
+/** OpenAI speech to text (English, plain JSON with usage). */
+export function openAiTranscribeProvider(
+  apiKey: string,
+  model: string,
+  fetchImpl: FetchLike = fetch,
+): TranscribeProvider {
+  return {
+    provider: "openai",
+    model,
+    async transcribe(audio, { fileName, prompt }) {
+      const form = new FormData();
+      form.append("file", audio, fileName);
+      form.append("model", model);
+      form.append("language", "en");
+      form.append("response_format", "json");
+      form.append("prompt", prompt);
+      const response = await fetchImpl("https://api.openai.com/v1/audio/transcriptions", {
+        method: "POST",
+        headers: { authorization: `Bearer ${apiKey}` },
+        signal: AbortSignal.timeout(TRANSCRIBE_TIMEOUT_MS),
+        body: form,
+      });
+      if (!response.ok) throw new ProviderError(`OpenAI transcription ${await readError(response)}`);
+      const body = (await response.json()) as {
+        text?: string;
+        usage?: { type?: string; seconds?: number; input_tokens?: number; output_tokens?: number };
+      };
+      const usage = body.usage;
+      return {
+        text: typeof body.text === "string" ? body.text.trim() : "",
+        usage:
+          usage?.type === "duration" || (usage?.seconds !== undefined && usage.input_tokens === undefined)
+            ? { seconds: usage?.seconds }
+            : usage
+              ? { inputTokens: usage.input_tokens, outputTokens: usage.output_tokens }
+              : {},
+      };
+    },
+  };
+}
+
 type SpeechUsage = { input_tokens?: number; output_tokens?: number };
 
 /** Parses the SSE body of a streamed speech response. */

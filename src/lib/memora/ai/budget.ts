@@ -1,7 +1,16 @@
 import type { AdminDb } from "@/lib/supabase/admin";
 import type { ProviderId } from "./pricing";
 
-export type AiFeature = "enrich_word" | "enrich_batch" | "tts" | "program" | "compare" | "program_build";
+export type AiFeature =
+  | "enrich_word"
+  | "enrich_batch"
+  | "tts"
+  | "program"
+  | "sentence"
+  | "speak"
+  | "transcribe"
+  | "compare"
+  | "program_build";
 
 /** One-off scripts (provider comparison, program build): no per-user limits, only the budget. */
 type ScriptFeature = "compare" | "program_build";
@@ -18,6 +27,11 @@ export const rateLimits: Record<Exclude<AiFeature, ScriptFeature>, { perMinute: 
   tts: { perMinute: 40, perDay: 600 },
   // Daily feed: one batch request a visit at most, plus the prefetch for tomorrow.
   program: { perMinute: 4, perDay: 30 },
+  // Production exercises: the practice queue serves at most 10 a day of each
+  // kind (production.ts); the margin covers retries after a failed call.
+  sentence: { perMinute: 6, perDay: 14 },
+  speak: { perMinute: 6, perDay: 14 },
+  transcribe: { perMinute: 6, perDay: 16 },
 };
 
 export type BlockReason = "budget" | "minute" | "day";
@@ -110,4 +124,13 @@ export async function monthSpendUsd(admin: AdminDb) {
   const { data, error } = await admin.rpc("ai_month_spend");
   if (error) throw error;
   return Number(data ?? 0);
+}
+
+/** Messages for the writing/speaking exercises (the rest of the practice keeps working). */
+export function productionBlockMessage(reason: BlockReason, now = new Date()) {
+  if (reason === "budget") {
+    return `Перевірка речень вимкнена до ${budgetResetLabel(now)}: місячний ліміт AI вичерпано. Решта вправ працює.`;
+  }
+  if (reason === "minute") return "Забагато перевірок за хвилину. Зачекай хвилинку й спробуй ще раз.";
+  return "На сьогодні перевірки речень закінчились — завтра знову. Решта вправ працює.";
 }
