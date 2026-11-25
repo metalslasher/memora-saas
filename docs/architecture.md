@@ -1,6 +1,6 @@
 # Memora — архітектура (поточний стан коду)
 
-Оновлено: 2026-11-24, пачка 5 (дизайн кабінету + PWA). Цільовий продукт описано в
+Оновлено: 2026-11-25, пачка 6 (своє речення й говоріння). Цільовий продукт описано в
 `product.md`, план робіт — у `roadmap.md`.
 
 ## Стек
@@ -53,11 +53,11 @@ Allowlist — таблиця `allowed_emails` (без політик, читає
 
 | Таблиця | Призначення |
 |---|---|
-| `profiles` | `daily_minutes`, `goals` (general/work/travel/talk), `level_estimate` (результат тесту рівня, jsonb), `onboarded_at` (онбординг пройдено — лише тоді працює автоподача), `known_rank`/`program_rank` (позиція програми), `calibrated_at`, `timezone` |
+| `profiles` | `daily_minutes`, `speaking_enabled` (перемикач «Говоріння»), `goals` (general/work/travel/talk), `level_estimate` (результат тесту рівня, jsonb), `onboarded_at` (онбординг пройдено — лише тоді працює автоподача), `known_rank`/`program_rank` (позиція програми), `calibrated_at`, `timezone` |
 | `lexicon` | Спільний словник: частотні списки (`frequency_rank` — ранг у загальній частотності NGSL 31K, `source_list` — перший список слова, `part_of_speech` = '' — ключ кешу) + AI-контент. Читають усі з allowlist, пише лише service role |
 | `lexicon_lists` | Належність слова до списку програми з рангом у ньому: `ngsl`, `ngsl_spoken`, `bsl`, `theme_work`, `theme_travel`, `theme_talk` (одне слово може бути в кількох) |
 | `user_words` | Слово в бібліотеці: `lemma`, `source` (program/manual/text/import), `status`, `content` jsonb, `lexicon_id`, `assumed_known` (тест зарахував як знайоме → стартує з recall) |
-| `cards` | Картка = слово × `kind` (recognition, recall, cloze, listening; sentence, speaking — пізніше) + FSRS-поля. Створюються ліниво: нове слово — лише recognition, решта відкривається (`exercise-unlock.ts`). Текст картки не зберігається |
+| `cards` | Картка = слово × `kind` (recognition, recall, cloze, listening, sentence, speaking) + FSRS-поля. Створюються ліниво: нове слово — лише recognition, решта відкривається (`exercise-unlock.ts`). Текст картки не зберігається |
 | `review_logs` | Кожна оцінка: rating, час, відповідь, `schedule_before/after` (для undo) |
 | `ai_usage` | Облік кожного платного AI-виклику: feature, provider, model, токени, символи/секунди аудіо, `cost_usd`, `status` (pending → ok/failed). Користувач читає свої рядки, пише лише service role. `user_id` при видаленні акаунта → null (витрати лишаються в місяці) |
 | `allowed_emails` | Allowlist закритої бети |
@@ -79,6 +79,10 @@ SQL-функції (security invoker, RLS діє): `get_practice_overview` (лі
 (наступні слова списку, яких нема в бібліотеці), `get_program_calibration` (перші повторення програмних слів),
 фічі `ai_usage`: `program`, `program_build`.
 
+Міграція `20261125100000_writing_speaking` (додавальна): `profiles.speaking_enabled` (за замовчуванням true),
+фічі `ai_usage`: `sentence`, `speak`, `transcribe`. Види карток `sentence`/`speaking` були в enum з baseline;
+код `main` до пачки 6 показує їх як «згадати», тож нові картки його не ламають.
+
 Типи БД генеруються: `supabase gen types typescript --linked > src/lib/supabase/database.types.ts`.
 
 ## Шар коду
@@ -88,7 +92,14 @@ SQL-функції (security invoker, RLS діє): `get_practice_overview` (лі
 - `lib/memora/card-render.ts` — текст картки (питання/відповідь) з `content` + `kind`;
   `cloze.ts` — речення з пропуском із прикладу слова.
 - `lib/memora/exercise-unlock.ts` — поступове відкриття вправ (recognition → recall →
-  cloze/listening).
+  cloze/listening → sentence, коли recall у Review з інтервалом ≥ 7 днів → speaking після sentence у Review).
+- `lib/memora/production.ts` — «Своє речення» / «Скажи вголос» (чиста логіка): денна квота з хвилин на день,
+  відбір карток у межах квоти, оцінка з фідбеку (wrong → Again, помилки → Hard, інакше Good; Easy — ніколи),
+  «слово розпізнано» в транскрипті (словоформи), ідеї для речення (без AI).
+- `lib/memora/data/production.ts` — скільки таких вправ ще можна сьогодні (квота мінус `ai_usage` за 24 год;
+  0, якщо AI вимкнений чи бюджет вичерпано; говоріння — 0, якщо вимкнене). Викликається з `getPracticeSession`.
+- `lib/memora/actions/production.ts` — `checkSentenceAction`, `checkSpeechAction` (FormData з аудіо, ≤ 900 КБ):
+  слово береться з БД за карткою, ліміт/бюджет повертається як `status: "blocked"` з повідомленням.
 - `lib/memora/pace.ts` — хвилини на день → кількість нових слів (формула в коментарі).
 - `lib/memora/auto-grade.ts` — автооцінка введеної відповіді (Again/Hard/Good/Easy).
 - `lib/memora/word-forms.ts` — словоформи (s/ed/ing, неправильні дієслова) для перевірки.
@@ -110,6 +121,9 @@ SQL-функції (security invoker, RLS діє): `get_practice_overview` (лі
 - `components/memora/practice/use-practice-session.ts` — стан сесії: оптимістична
   оцінка, черга записів на сервер (оцінки й undo йдуть строго по черзі), undo, таймер сесії.
 - `components/memora/practice/study-card.tsx` — картка вправи, автооцінка, панель leech.
+- `components/memora/practice/production-card.tsx` — картка «Своє речення» / «Скажи вголос»: поле або запис
+  (MediaRecorder, Opus 32 кбіт/с, ≤ 15 с), фідбек, оцінка з можливістю змінити; без мікрофона/AI — пояснення й
+  «Далі без цієї вправи» (ховає такі картки до кінця сесії). Без MediaRecorder «вголос» не подається.
 - `components/memora/use-fresh-snapshot.ts` — після Back/Forward форсує свіжі дані.
 
 ## AI-шар (`lib/memora/ai/*`, лише сервер)
@@ -128,6 +142,11 @@ SQL-функції (security invoker, RLS діє): `get_practice_overview` (лі
   `tts`, генерується раз; перший раз віддається одразу (data URL), облік і завантаження в Storage —
   після відповіді (`after()`). Клієнт заздалегідь готує кліп слова (картка практики, кнопка вимови),
   тож натискання грає миттєво. Без ключа/бюджету — голос пристрою (Web Speech).
+- `feedback.ts` — схема й промпт фідбеку на речення (носій-американець, без чіпляння до стилю, пояснення
+  живою українською без родових форм; для транскрипту — ігнорувати пунктуацію й слова-паразити), валідація;
+  промпт транскрипції («записуй дослівно з помилками», цільове слово навмисно не передається).
+- `production-service.ts` — фідбек (`sentence`/`speak`) і транскрипція (`transcribe`, OpenAI `gpt-transcribe`,
+  оплата похвилинно або токенами, якщо модель їх повертає) через бюджет/облік; аудіо не зберігається.
 - `lib/supabase/admin.ts` — service-role клієнт (потрібен `SUPABASE_SERVICE_ROLE_KEY` і на Vercel).
 - `actions/ai.ts` — `enrichWordAction`, `enrichPickedWordsAction` (до 20 слів одним запитом),
   `speechUrlAction`. `lib/memora/text-pick.ts` — токенізація тексту, сусідні тапи → фраза,
@@ -140,10 +159,12 @@ SQL-функції (security invoker, RLS діє): `get_practice_overview` (лі
   імпорт у `lexicon` + `lexicon_lists`; після зміни файлів у `data/lexicon` — запустити ще раз).
 
 ## Тести й перевірки
-- `pnpm test` — Vitest, чиста логіка й AI-провайдери на моках (152 тести).
+- `pnpm test` — Vitest, чиста логіка й AI-провайдери на моках (168 тестів).
 - `pnpm smoke` — Playwright, повний сценарій від імені тестового користувача
-  (`pnpm test-user` створює/скидає `memora.e2e@example.com`, скидає онбординг і засіває 4 слова так, що в
-  черзі є по картці кожного типу вправи — smoke проходить усі 4 на телефонному екрані й
+  (`pnpm test-user` створює/скидає `memora.e2e@example.com`, скидає онбординг і засіває 6 слів так, що в
+  черзі є по картці кожного типу вправи — smoke проходить усі 6 на телефонному екрані (своє речення й «вголос» —
+  з реальним AI, ≈ $0.0007 за прогін; мікрофон — фейковий пристрій Chromium, на Windows він «говорить» речення
+  системним голосом SAPI; відмова мікрофона — підміною `getUserMedia`; `MEMORA_SMOKE_AI=0` — сервер без AI) і
   перевіряє, що кнопка оцінки не ховається під нижнім меню). Також: маніфест, іконки, `/sw.js`, share target
   (GET і POST, гість → вхід → повернення на «Додати слово»), installability через DevTools
   (`Page.getInstallabilityErrors`; `in-incognito` ігнорується — контексти Playwright анонімні).
@@ -165,7 +186,7 @@ Supabase CLI (залогінений, проєкт прив'язаний):
 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (Vercel + `.env.local`);
 `SUPABASE_SERVICE_ROLE_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY` — сервер (Vercel + `.env.local`);
 необов'язкові: `MEMORA_AI_MONTHLY_LIMIT_USD` (10), `MEMORA_AI_PROVIDER`, `MEMORA_AI_TEXT_MODEL`,
-`MEMORA_TTS_PROVIDER`, `MEMORA_TTS_MODEL`, `MEMORA_TTS_VOICE`. Лише локально: `MEMORA_SMOKE_EMAIL/PASSWORD`.
+`MEMORA_TTS_PROVIDER`, `MEMORA_TTS_MODEL`, `MEMORA_TTS_VOICE`, `MEMORA_TRANSCRIBE_MODEL` (`gpt-transcribe`). Лише локально: `MEMORA_SMOKE_EMAIL/PASSWORD`.
 
 ## Відомі обмеження
 - Lighthouse mobile `/app` (локальний prod-білд, 2026-11-24): доступність 100, кращі практики 100, швидкість 73
@@ -182,4 +203,8 @@ Supabase CLI (залогінений, проєкт прив'язаний):
   слів NGSL — уже активна практика знайомих слів (поглиблення списками 3k+ — пізніше).
 - Константи калібрування й частка ⅓ тематичних слів — експеримент (`program.ts`).
 - `lexicon.audio_url` не використовується (аудіо адресується хешем тексту) — кандидат у cleanup.
+- Квота письма/говоріння (`dailyProductionQuota`) і поріг відкриття (7 днів) — евристика; «слово розпізнано» —
+  лише проксі вимови (експеримент), не оцінка вимови.
+- `pnpm test-user` відв'язує (`user_id → null`) записи `ai_usage` тестового акаунта для письма/говоріння,
+  щоб звільнити денну квоту; гроші лишаються в місяці.
 - Gemini 3.x подорожчає вдвічі з 2027-01-01 (нас не стосується, поки за замовчуванням OpenAI).

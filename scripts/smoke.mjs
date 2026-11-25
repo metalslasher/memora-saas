@@ -1,8 +1,12 @@
 // Playwright smoke test against a running Memora (pnpm dev or pnpm start).
 // Env: MEMORA_SMOKE_URL, MEMORA_SMOKE_EMAIL/PASSWORD, MEMORA_SMOKE_MUTATE=0
 // (read-only), MEMORA_SMOKE_BROWSER_PATH, MEMORA_SMOKE_HEADLESS=0,
-// MEMORA_SMOKE_SHOTS=<dir> (save 375/768/1440 screenshots of every screen).
+// MEMORA_SMOKE_SHOTS=<dir> (save 375/768/1440 screenshots of every screen),
+// MEMORA_SMOKE_AI=0 (the server has no AI: own-sentence/speak-aloud are not expected).
+// The microphone is Chromium's fake device; on Windows it plays a sentence
+// spoken by the system voice (SAPI), elsewhere a beep ("nothing heard" is accepted).
 import { chromium, expect } from "@playwright/test";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -16,6 +20,8 @@ const desktop = { width: 1440, height: 900 };
 const mobile = { width: 375, height: 812 };
 const tablet = { width: 768, height: 1024 };
 const consoleProblems = [];
+const expectAi = process.env.MEMORA_SMOKE_AI !== "0";
+const spokenSentence = "I eventually found my keys under the couch.";
 
 async function main() {
   await assertServerReady();
@@ -23,6 +29,7 @@ async function main() {
 
   const browser = await launchBrowser();
   const context = await browser.newContext({ acceptDownloads: true, viewport: desktop });
+  await context.grantPermissions(["microphone"], { origin: baseUrl });
   const page = await context.newPage();
   page.on("console", (message) => {
     if (message.type() === "error") consoleProblems.push(message.text());
@@ -64,11 +71,38 @@ async function main() {
 async function launchBrowser() {
   const headless = process.env.MEMORA_SMOKE_HEADLESS !== "0";
   const executablePath = process.env.MEMORA_SMOKE_BROWSER_PATH;
-  if (executablePath) return chromium.launch({ executablePath, headless });
+  const speech = fakeSpeechFile();
+  const args = [
+    "--use-fake-ui-for-media-stream",
+    "--use-fake-device-for-media-stream",
+    ...(speech ? [`--use-file-for-fake-audio-capture=${speech}`] : []),
+  ];
+  if (executablePath) return chromium.launch({ executablePath, headless, args });
   try {
-    return await chromium.launch({ channel: process.env.MEMORA_SMOKE_BROWSER_CHANNEL ?? "chrome", headless });
+    return await chromium.launch({ channel: process.env.MEMORA_SMOKE_BROWSER_CHANNEL ?? "chrome", headless, args });
   } catch {
-    return chromium.launch({ headless });
+    return chromium.launch({ headless, args });
+  }
+}
+
+/** A WAV of a spoken sentence for the fake microphone (Windows system voice), or null. */
+function fakeSpeechFile() {
+  if (process.platform !== "win32") return null;
+  const file = path.join(os.tmpdir(), "memora-smoke-speech.wav");
+  if (fs.existsSync(file)) return file;
+  try {
+    const script = [
+      "Add-Type -AssemblyName System.Speech",
+      "$s = New-Object System.Speech.Synthesis.SpeechSynthesizer",
+      "$s.Rate = -1",
+      `$s.SetOutputToWaveFile('${file}')`,
+      `$s.Speak('${spokenSentence}')`,
+      "$s.Dispose()",
+    ].join("; ");
+    execFileSync("powershell", ["-NoProfile", "-Command", script], { stdio: "ignore", timeout: 30000 });
+    return fs.existsSync(file) ? file : null;
+  } catch {
+    return null;
   }
 }
 
@@ -205,7 +239,12 @@ async function assertPractice(page) {
   // screenshots at both sizes. Seeded by `pnpm test-user`: one card of each type is due.
   await page.setViewportSize(mobile);
   const seen = new Set();
-  for (let step = 0; step < 16 && (await visibleSoon(answerBox)); step += 1) {
+  const production = page.getByTestId("production-card");
+  for (let step = 0; step < 24 && (await visibleSoon(answerBox.or(production))); step += 1) {
+    if (await production.isVisible()) {
+      seen.add(await assertProductionCard(page));
+      continue;
+    }
     const kind = await exerciseKind(page);
     const typedAnswer = kind === "recognition" ? "" : "smoke";
     const first = !seen.has(kind);
@@ -227,9 +266,69 @@ async function assertPractice(page) {
     await page.waitForTimeout(300);
   }
   await page.setViewportSize(desktop);
-  const expected = ["recognition", "recall", "cloze", "listening", ...(shouldMutate ? ["known"] : [])];
+  const expected = [
+    "recognition",
+    "recall",
+    "cloze",
+    "listening",
+    ...(shouldMutate ? ["known"] : []),
+    ...(shouldMutate && expectAi ? ["sentence", "speaking"] : []),
+  ];
   const missing = expected.filter((kind) => !seen.has(kind));
   if (missing.length > 0) throw new Error(`Exercise types not met in the queue (run "pnpm test-user" to reseed): ${missing.join(", ")}`);
+}
+
+/**
+ * Own sentence / speak aloud: question, AI feedback (one real call each, a
+ * fraction of a cent), the suggested rating, and for speaking also the
+ * "no microphone access" note (getUserMedia rejected in the page).
+ */
+async function assertProductionCard(page) {
+  const card = page.getByTestId("production-card");
+  const feedback = page.getByTestId("production-feedback");
+  const isSpeaking = (await card.getByRole("button", { name: "Записати" }).count()) > 0;
+  const kind = isSpeaking ? "speaking" : "sentence";
+  await shotBoth(page, `practice-${kind}`);
+
+  if (isSpeaking) {
+    await page.evaluate(() => {
+      const devices = navigator.mediaDevices;
+      window.__memoraGetUserMedia = devices.getUserMedia.bind(devices);
+      devices.getUserMedia = () => Promise.reject(new DOMException("denied", "NotAllowedError"));
+    });
+    await card.getByRole("button", { name: "Записати" }).click();
+    await expect(card.getByText("Немає доступу до мікрофона.", { exact: false })).toBeVisible();
+    await shotBoth(page, "practice-speaking-denied");
+    await page.evaluate(() => {
+      navigator.mediaDevices.getUserMedia = window.__memoraGetUserMedia;
+    });
+    await card.getByRole("button", { name: "Записати" }).click();
+    await expect(card.getByRole("button", { name: /^Готово/ })).toBeVisible();
+    await page.waitForTimeout(3500);
+    await shotBoth(page, "practice-speaking-recording");
+    await card.getByRole("button", { name: /^Готово/ }).click();
+  } else {
+    await card.locator("#production-answer").fill("I always try to meet the deadline, but last week I miss it.");
+    await card.getByRole("button", { name: /^Перевірити/ }).click();
+  }
+
+  const silent = card.getByText("Нічого не розчув", { exact: false });
+  await expect(feedback.or(silent).or(card.getByRole("alert"))).toBeVisible({ timeout: 60000 });
+  if (await silent.isVisible()) {
+    console.log("Speak aloud: the fake microphone was not understood (no system voice) — skipped.");
+    await card.getByRole("button", { name: "Пропустити" }).click();
+    return kind;
+  }
+  if (!(await feedback.isVisible())) throw new Error(`${kind}: ${await card.getByRole("alert").innerText()}`);
+  if (isSpeaking) await expect(card.getByTestId("production-said")).toContainText(/keys/i);
+  await expect(page.getByTestId("auto-rating")).toBeVisible();
+  // Easy is never suggested from AI feedback.
+  await expect(page.getByTestId("auto-rating")).not.toContainText("Легко");
+  await assertAboveTabBar(page, page.getByRole("button", { name: /^Далі/ }));
+  await shotBoth(page, `practice-${kind}-answer`);
+  await page.getByRole("button", { name: /^Далі/ }).click();
+  await page.waitForTimeout(300);
+  return kind;
 }
 
 /** The vocabulary test pool (bands with meanings, pseudowords) from its TS module. */
@@ -456,6 +555,17 @@ async function assertSettings(page) {
   await expect(page.getByText("Скинути або видалити")).toBeVisible();
   if (shouldMutate) await expect(page.getByTestId("settings-level")).toContainText("слів");
   await shot(page, "settings");
+
+  const speaking = page.getByTestId("speaking-switch");
+  await expect(speaking).toHaveAttribute("aria-checked", "true");
+  if (shouldMutate) {
+    await speaking.click();
+    await expect(page.getByText("Говоріння вимкнено.")).toBeVisible();
+    await expect(speaking).toHaveAttribute("aria-checked", "false");
+    await speaking.click();
+    await expect(page.getByText("Говоріння ввімкнено.")).toBeVisible();
+    await expect(speaking).toHaveAttribute("aria-checked", "true");
+  }
 
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: /Повна копія/ }).click();
