@@ -1,4 +1,4 @@
-import { DAILY_MINUTES_OPTIONS, isDailyMinutes } from "./pace";
+import { DAILY_MINUTES_OPTIONS, isDailyMinutes, MAX_COUNTED_CARD_MS } from "./pace";
 import type { CardStatus, ReviewRating, WordStatus } from "./types";
 
 const reviewRatings: ReviewRating[] = ["again", "hard", "good", "easy"];
@@ -17,6 +17,8 @@ export function validateReviewInput(input: {
   rating: ReviewRating;
   responseText: string;
   elapsedMs: number;
+  /** Time the session timer counted (idle capped); optional for older clients. */
+  countedMs?: number;
 }) {
   if (!reviewRatings.includes(input.rating)) throw new Error("Невідома оцінка.");
   if (!Number.isFinite(input.elapsedMs) || input.elapsedMs < 0) {
@@ -29,6 +31,7 @@ export function validateReviewInput(input: {
     // Typing is optional: learners may recall silently and reveal the answer.
     responseText: String(input.responseText ?? "").trim().slice(0, 2000),
     elapsedMs: Math.min(Math.round(input.elapsedMs), 30 * 60_000),
+    countedMs: Number.isFinite(input.countedMs) ? Math.min(Math.max(Math.round(input.countedMs ?? 0), 0), MAX_COUNTED_CARD_MS) : 0,
   };
 }
 

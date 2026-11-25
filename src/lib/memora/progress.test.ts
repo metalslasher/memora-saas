@@ -5,19 +5,12 @@ describe("progress", () => {
   it("parses get_progress_stats output", () => {
     const stats = parseProgressStats({
       today: "2026-11-19",
-      streak: { streak: 3, reviewed_today: true, today: "2026-11-19", week_days: ["2026-11-17", "2026-11-19"] },
       activity: [{ day: "2026-11-19", reviews: 12, correct: 9 }, { day: "bad" }],
       recall_30d: { reviews: 20, correct: 15 },
       reviews_7d: 12,
       forecast: [{ day: "2026-11-19", cards: 4 }],
       stages: { new: 5, learning: 2, young: 3, mature: 1 },
       words: { total: 6, active: 5 },
-    });
-    expect(stats.streak).toEqual({
-      streak: 3,
-      reviewedToday: true,
-      today: "2026-11-19",
-      weekDays: ["2026-11-17", "2026-11-19"],
     });
     expect(stats.activity).toEqual([{ day: "2026-11-19", reviews: 12, correct: 9 }]);
     expect(stats.forecast).toEqual([{ day: "2026-11-19", cards: 4 }]);
@@ -50,8 +43,18 @@ describe("progress", () => {
   });
 
   it("labels the current week", () => {
-    const week = buildWeek({ streak: 1, reviewedToday: true, today: "2026-11-19", weekDays: ["2026-11-19"] });
+    const week = buildWeek({
+      streak: 1,
+      goalMet: true,
+      today: "2026-11-19",
+      weekDays: ["2026-11-19"],
+      frozenDays: ["2026-11-17"],
+      freezeUsed: true,
+      doneMs: 0,
+      goalMinutes: 15,
+    });
     expect(week.map((day) => day.label)).toEqual(["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Нд"]);
-    expect(week[3]).toEqual({ day: "2026-11-19", label: "Чт", isCompleted: true, isToday: true });
+    expect(week[3]).toEqual({ day: "2026-11-19", label: "Чт", isCompleted: true, isFrozen: false, isToday: true });
+    expect(week[1].isFrozen).toBe(true);
   });
 });

@@ -1,14 +1,14 @@
-import { parseProgressStats, readStreak } from "../progress";
-import type { CardKind, ReviewRating, StreakSummary } from "../types";
+import { parseProgressStats, type ProgressStats } from "../progress";
+import type { CardKind, ReviewRating } from "../types";
 import { must, type Db } from "./db";
+import { getStreak } from "./goal";
 
-export async function getProgressStats(db: Db, timezone: string) {
-  return parseProgressStats(must(await db.rpc("get_progress_stats", { p_tz: timezone })));
-}
-
-export async function getStreak(db: Db, timezone: string): Promise<StreakSummary> {
-  const rows = must(await db.rpc("get_streak", { p_tz: timezone }));
-  return readStreak(rows[0], new Date().toISOString().slice(0, 10));
+export async function getProgressStats(db: Db, profile: { timezone: string; dailyMinutes: number }): Promise<ProgressStats> {
+  const [stats, streak] = await Promise.all([
+    db.rpc("get_progress_stats", { p_tz: profile.timezone }).then(must),
+    getStreak(db, profile),
+  ]);
+  return { ...parseProgressStats(stats), streak };
 }
 
 export type WeakCard = {

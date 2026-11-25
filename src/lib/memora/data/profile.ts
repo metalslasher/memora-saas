@@ -5,7 +5,7 @@ import type { TestResult } from "../vocab-test";
 import { check, isUniqueViolation, maybe, must, type Db } from "./db";
 
 const profileColumns =
-  "id,timezone,daily_minutes,goals,onboarded_at,program_rank,known_rank,calibrated_at,level_estimate,speaking_enabled";
+  "id,timezone,daily_minutes,goals,onboarded_at,program_rank,known_rank,calibrated_at,level_estimate,speaking_enabled,reminders_enabled,reminder_start,reminder_end";
 
 type ProfileRow = Pick<
   Database["public"]["Tables"]["profiles"]["Row"],
@@ -19,6 +19,9 @@ type ProfileRow = Pick<
   | "calibrated_at"
   | "level_estimate"
   | "speaking_enabled"
+  | "reminders_enabled"
+  | "reminder_start"
+  | "reminder_end"
 >;
 
 export function mapProfile(row: ProfileRow): Profile {
@@ -33,6 +36,9 @@ export function mapProfile(row: ProfileRow): Profile {
     calibratedAt: row.calibrated_at,
     levelEstimate: row.level_estimate,
     speakingEnabled: row.speaking_enabled,
+    remindersEnabled: row.reminders_enabled,
+    reminderStart: row.reminder_start,
+    reminderEnd: row.reminder_end,
   };
 }
 
@@ -134,4 +140,20 @@ export async function savePosition(db: Db, userId: string, position: { knownRank
       })
       .eq("id", userId),
   );
+}
+
+export async function updateReminders(
+  db: Db,
+  userId: string,
+  input: { enabled: boolean; start: number; end: number },
+) {
+  const row = must(
+    await db
+      .from("profiles")
+      .update({ reminders_enabled: input.enabled, reminder_start: input.start, reminder_end: input.end })
+      .eq("id", userId)
+      .select("reminders_enabled,reminder_start,reminder_end")
+      .single(),
+  );
+  return { enabled: row.reminders_enabled, start: row.reminder_start, end: row.reminder_end };
 }
