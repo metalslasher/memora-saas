@@ -112,7 +112,7 @@ as $$
            date_trunc('day', now() at time zone p_tz) at time zone p_tz as ds
   )
   select me.d, me.ds,
-         coalesce(sum(greatest(r.counted_ms, least(r.elapsed_ms, 90000))), 0)::bigint,
+         coalesce(sum(greatest(r.counted_ms, least(r.elapsed_ms, 90000))) filter (where r.id is not null), 0)::bigint,
          count(r.id)::integer
   from me
   left join public.review_logs r on r.user_id = me.uid and r.reviewed_at >= me.ds

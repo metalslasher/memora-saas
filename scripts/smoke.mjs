@@ -40,6 +40,7 @@ async function main() {
     await assertGuestRedirect(page);
     await assertLanding(page);
     await assertPwa(page);
+    await assertCronAuth(page);
 
     if (!email || !password) {
       console.log("Smoke OK: landing only (MEMORA_SMOKE_EMAIL/PASSWORD are not set).");
@@ -218,6 +219,8 @@ async function assertPractice(page) {
 
   await expect(page.getByRole("tablist", { name: /Довжина сесії/ })).toBeVisible();
   const count = page.getByTestId("session-count");
+  // Daily goal: a fresh day shows progress, not a finished goal.
+  await expect(page.getByTestId("goal-text")).toContainText(/Ціль дня: 0 з \d+ хв/);
 
   // First card: check, rate, undo — the same card comes back.
   const firstKind = await exerciseKind(page);
@@ -266,6 +269,7 @@ async function assertPractice(page) {
     await page.waitForTimeout(300);
   }
   await page.setViewportSize(desktop);
+  if (shouldMutate) await assertGoalReached(page);
   const expected = [
     "recognition",
     "recall",
@@ -545,6 +549,34 @@ async function assertProgress(page) {
   await shot(page, "progress");
 }
 
+/**
+ * The whole queue was practised: today's goal counts (server-confirmed), the
+ * header shows it and the streak lights up from 1 day.
+ */
+async function assertGoalReached(page) {
+  await expect(page.getByTestId("goal-text")).toHaveText("Ціль дня виконано", { timeout: 20000 });
+  await expect(page.getByLabel(/^Серія: 1 день поспіль/).first()).toBeVisible();
+  await shotBoth(page, "practice-goal");
+  // A fresh load (server data) agrees with what the screen showed.
+  await page.reload();
+  await expect(page.getByTestId("goal-text")).toHaveText("Ціль дня виконано");
+}
+
+/** The reminder route is closed without the secret (and works with it). */
+async function assertCronAuth(page) {
+  const url = `${baseUrl}/api/cron/reminders`;
+  expect((await page.request.post(url)).status()).toBe(401);
+  expect((await page.request.post(url, { headers: { Authorization: "Bearer wrong" } })).status()).toBe(401);
+  expect((await page.request.get(url)).status()).toBe(405);
+  const secret = process.env.CRON_SECRET;
+  if (secret && shouldMutate) {
+    const response = await page.request.post(url, { headers: { Authorization: `Bearer ${secret}` } });
+    expect(response.status()).toBe(200);
+    const body = await response.json();
+    for (const key of ["checked", "due", "sent", "removed"]) expect(typeof body[key]).toBe("number");
+  }
+}
+
 async function assertSettings(page) {
   await navLink(page, "Профіль").click();
   await heading(page, "Профіль");
@@ -565,6 +597,32 @@ async function assertSettings(page) {
     await speaking.click();
     await expect(page.getByText("Говоріння ввімкнено.")).toBeVisible();
     await expect(speaking).toHaveAttribute("aria-checked", "true");
+  }
+
+  // Reminders: the switch is there; when this browser can subscribe, it works both ways.
+  const reminders = page.getByTestId("reminders-switch");
+  if (await visibleSoon(reminders)) {
+    await expect(reminders).toHaveAttribute("aria-checked", "false");
+    if (shouldMutate) {
+      await reminders.click();
+      const turnedOn = page.getByText("Нагадування ввімкнено.");
+      const refused = page.getByText(/Не вдалося підписати|Сповіщення заблоковано/);
+      await expect(turnedOn.or(refused)).toBeVisible({ timeout: 15000 });
+      if (await turnedOn.isVisible()) {
+        await expect(reminders).toHaveAttribute("aria-checked", "true");
+        await expect(page.getByTestId("reminder-start")).toHaveValue("19");
+        await page.getByTestId("reminder-start").selectOption("20");
+        await expect(page.getByTestId("reminder-end")).toHaveValue("22");
+        await shot(page, "settings-reminders");
+        await reminders.click();
+        await expect(page.getByText("Нагадування вимкнено.")).toBeVisible();
+        await expect(reminders).toHaveAttribute("aria-checked", "false");
+      } else {
+        console.log("Reminders: this browser cannot subscribe to push (no push service); switch checked only.");
+      }
+    }
+  } else {
+    console.log("Reminders: push is not supported in this browser; panel shows the explanation.");
   }
 
   const downloadPromise = page.waitForEvent("download");

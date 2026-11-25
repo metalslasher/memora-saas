@@ -25,6 +25,7 @@ export default async function SettingsPage({
       isRecovery={params.recovery === "1"}
       dailyMinutes={profile.dailyMinutes}
       speakingEnabled={profile.speakingEnabled}
+      reminders={{ enabled: profile.remindersEnabled, start: profile.reminderStart, end: profile.reminderEnd }}
       goals={cleanGoals(profile.goals)}
       level={test ? { vocab: test.vocab, cefr: cefrFromVocab(test.vocab), takenAt: test.takenAt } : null}
       snapshot={snapshot}
