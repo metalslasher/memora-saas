@@ -1,16 +1,8 @@
-import { LandingPage } from "@/components/memora/landing-page";
-import { redirect } from "next/navigation";
-import { safeNextPath } from "@/lib/memora/share";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { Landing } from "@/components/memora/landing/landing";
 
-export default async function Home({ searchParams }: { searchParams: Promise<{ next?: string | string[] }> }) {
-  const params = await searchParams;
-  const next = safeNextPath(typeof params.next === "string" ? params.next : null);
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+// Static page: sign-in state is read on the client, ?next= is handled by the proxy.
+export const dynamic = "force-static";
 
-  if (user && next) redirect(next);
-  return <LandingPage isSignedIn={Boolean(user)} next={next} />;
+export default function Home() {
+  return <Landing />;
 }

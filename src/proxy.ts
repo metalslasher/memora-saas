@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { safeNextPath } from "@/lib/memora/share";
 import type { Database } from "@/lib/supabase/database.types";
 
 /**
@@ -33,6 +34,11 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const { pathname } = request.nextUrl;
+  // The landing is static; a signed-in visitor sent back with ?next= goes straight there.
+  if (pathname === "/" && user) {
+    const next = safeNextPath(request.nextUrl.searchParams.get("next"));
+    if (next) return withCookies(response, NextResponse.redirect(new URL(next, request.nextUrl.origin), 303));
+  }
   const isAppRoute = pathname === "/app" || pathname.startsWith("/app/");
   const isBetaRoute = pathname === "/beta";
   if (!isAppRoute && !isBetaRoute) return response;
@@ -58,13 +64,16 @@ function redirectWithCookies(request: NextRequest, response: NextResponse, pathn
   url.search = "";
   if (next) url.searchParams.set("next", next);
   // 303: a shared POST to /app/share continues as a GET.
-  const redirect = NextResponse.redirect(url, 303);
+  return withCookies(response, NextResponse.redirect(url, 303));
+}
+
+function withCookies(response: NextResponse, redirect: NextResponse) {
   response.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie));
   return redirect;
 }
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|icon.svg|apple-icon|manifest.webmanifest|sw.js|pwa/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    "/((?!_next/static|_next/image|icon.svg|apple-icon|manifest.webmanifest|sw.js|pwa/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|mp3)$).*)",
   ],
 };
