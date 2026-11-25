@@ -21,6 +21,7 @@ describe("validation", () => {
       rating: "good",
       responseText: "hi",
       elapsedMs: 30 * 60_000,
+      countedMs: 0,
     });
     expect(() => validateReviewInput({ cardId: id, rating: "meh" as never, responseText: "", elapsedMs: 1 })).toThrow();
     expect(() => validateReviewInput({ cardId: id, rating: "good", responseText: "", elapsedMs: -1 })).toThrow();

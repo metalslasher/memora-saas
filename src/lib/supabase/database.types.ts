@@ -164,6 +164,30 @@ export type Database = {
           },
         ]
       }
+      goal_days: {
+        Row: {
+          active_ms: number
+          created_at: string
+          day: string
+          reason: string
+          user_id: string
+        }
+        Insert: {
+          active_ms?: number
+          created_at?: string
+          day: string
+          reason: string
+          user_id?: string
+        }
+        Update: {
+          active_ms?: number
+          created_at?: string
+          day?: string
+          reason?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       lexicon: {
         Row: {
           audio_url: string | null
@@ -243,9 +267,13 @@ export type Database = {
           goals: string[]
           id: string
           known_rank: number | null
+          last_reminder_day: string | null
           level_estimate: Json | null
           onboarded_at: string | null
           program_rank: number | null
+          reminder_end: number
+          reminder_start: number
+          reminders_enabled: boolean
           speaking_enabled: boolean
           timezone: string
           updated_at: string
@@ -257,9 +285,13 @@ export type Database = {
           goals?: string[]
           id?: string
           known_rank?: number | null
+          last_reminder_day?: string | null
           level_estimate?: Json | null
           onboarded_at?: string | null
           program_rank?: number | null
+          reminder_end?: number
+          reminder_start?: number
+          reminders_enabled?: boolean
           speaking_enabled?: boolean
           timezone?: string
           updated_at?: string
@@ -271,18 +303,53 @@ export type Database = {
           goals?: string[]
           id?: string
           known_rank?: number | null
+          last_reminder_day?: string | null
           level_estimate?: Json | null
           onboarded_at?: string | null
           program_rank?: number | null
+          reminder_end?: number
+          reminder_start?: number
+          reminders_enabled?: boolean
           speaking_enabled?: boolean
           timezone?: string
           updated_at?: string
         }
         Relationships: []
       }
+      push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string
+          endpoint: string
+          id: string
+          p256dh: string
+          user_agent: string
+          user_id: string
+        }
+        Insert: {
+          auth: string
+          created_at?: string
+          endpoint: string
+          id?: string
+          p256dh: string
+          user_agent?: string
+          user_id?: string
+        }
+        Update: {
+          auth?: string
+          created_at?: string
+          endpoint?: string
+          id?: string
+          p256dh?: string
+          user_agent?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       review_logs: {
         Row: {
           card_id: string
+          counted_ms: number
           elapsed_ms: number
           id: string
           rating: Database["public"]["Enums"]["review_rating"]
@@ -296,6 +363,7 @@ export type Database = {
         }
         Insert: {
           card_id: string
+          counted_ms?: number
           elapsed_ms?: number
           id?: string
           rating: Database["public"]["Enums"]["review_rating"]
@@ -309,6 +377,7 @@ export type Database = {
         }
         Update: {
           card_id?: string
+          counted_ms?: number
           elapsed_ms?: number
           id?: string
           rating?: Database["public"]["Enums"]["review_rating"]
@@ -406,6 +475,15 @@ export type Database = {
           reservation_id: string
         }[]
       }
+      get_day_activity: {
+        Args: { p_tz: string }
+        Returns: {
+          active_ms: number
+          day: string
+          day_start: string
+          reviews: number
+        }[]
+      }
       get_practice_cards: {
         Args: { p_limit?: number; p_new_words?: number; p_tz: string }
         Returns: {
@@ -459,6 +537,20 @@ export type Database = {
         }[]
       }
       get_progress_stats: { Args: { p_tz: string }; Returns: Json }
+      get_reminder_candidates: {
+        Args: { p_now?: string }
+        Returns: {
+          daily_minutes: number
+          due_words: number
+          last_reminder_day: string
+          met_days: string[]
+          new_ready: number
+          reminder_end: number
+          reminder_start: number
+          timezone: string
+          user_id: string
+        }[]
+      }
       get_streak: {
         Args: { p_tz: string }
         Returns: {
@@ -470,6 +562,15 @@ export type Database = {
       }
       is_current_user_allowed: { Args: never; Returns: boolean }
       restore_words_backup: { Args: { p_words: Json }; Returns: number }
+      save_push_subscription: {
+        Args: {
+          p_auth: string
+          p_endpoint: string
+          p_p256dh: string
+          p_user_agent?: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       card_kind:

@@ -47,6 +47,9 @@ Memora — веб-тренажер англійської для україно�
   Локальний dev: `pnpm dev` (у `pnpm-workspace.yaml` має бути `packages: ["."]`,
   інакше pnpm 9 падає з «packages field missing»). Тестовий акаунт:
   `pnpm test-user`; smoke: `pnpm smoke` (див. docs/architecture.md).
+  Справжній пуш: `node --env-file=.env.local scripts/push-check.mjs` (після `pnpm test-user`, на `pnpm start`; відкриває вікно Chrome).
+  Нагадування: Vercel env `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `CRON_SECRET`; щогодини маршрут `/api/cron/reminders`
+  викликає Supabase `pg_cron` (секрет у Vault `cron_secret`).
   AI-скрипти (TS): `npx tsx --env-file=.env.local scripts/ai-compare.ts` (тексти),
   `scripts/tts-compare.ts` (голоси) — платні, пишуть в `ai_usage`.
   Програма: `npx tsx --env-file=.env.local scripts/import-lexicon.ts` — ідемпотентний імпорт

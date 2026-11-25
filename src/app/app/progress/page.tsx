@@ -8,7 +8,7 @@ export const metadata: Metadata = { title: "Прогрес · Memora" };
 export default async function ProgressPage() {
   const { supabase, profile } = await getAppContext();
   const [stats, weakCards, recentReviews] = await Promise.all([
-    getProgressStats(supabase, profile.timezone),
+    getProgressStats(supabase, profile),
     listWeakCards(supabase),
     listRecentReviews(supabase),
   ]);

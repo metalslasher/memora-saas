@@ -53,7 +53,9 @@ export function usePracticeSession(
   initialSummary: PracticeSummary,
   { canPlayAudio, canRecord }: { canPlayAudio: boolean; canRecord: boolean },
 ) {
-  const { showToast, setDueCount, markReviewed } = useShell();
+  const { showToast, setDueCount, markReviewed, applyGoal, streak } = useShell();
+  /** Today's goal as confirmed by the server (the screen may show it earlier, optimistically). */
+  const goalMetRef = useRef(streak.goalMet);
   const [cards, setCards] = useState(initialCards);
   const [newOrder, setNewOrder] = useState(() => orderOf(initialCards));
   const [summary, setSummary] = useState(initialSummary);
@@ -156,16 +158,25 @@ export function usePracticeSession(
       correct: current.correct + (wasCorrect ? 1 : 0),
       activeMs: current.activeMs + countedMs,
     }));
-    markReviewed();
+    markReviewed(countedMs);
     resetCardUi();
 
     const token = {};
     const serverLogId = reviewChainRef.current
       .catch(() => undefined)
-      .then(() => gradeCardAction({ cardId: card.id, rating, responseText: response, elapsedMs }))
+      .then(() => gradeCardAction({
+          cardId: card.id,
+          rating,
+          responseText: response,
+          elapsedMs,
+          countedMs,
+          goalMet: goalMetRef.current,
+        }))
       .then((result) => {
         if (!result.ok) throw new Error(result.error);
         if (!undoneRef.current.has(token)) updateSchedule(result.data.cardId, result.data.schedule);
+        if (result.data.goal) goalMetRef.current = result.data.goal.met;
+        applyGoal(result.data.goal);
         return result.data.logId;
       })
       .catch((error: unknown) => {
@@ -185,6 +196,7 @@ export function usePracticeSession(
     setLastReview(null);
     undoneRef.current.add(review.token);
     updateSchedule(review.cardId, review.previousSchedule);
+    markReviewed(-review.countedMs);
     setSession((current) => ({
       ...current,
       reviewed: Math.max(0, current.reviewed - 1),
@@ -203,8 +215,10 @@ export function usePracticeSession(
       .then(async () => {
         const logId = await review.serverLogId;
         if (!logId) return;
-        const result = await undoReviewAction(logId);
+        const result = await undoReviewAction(logId, goalMetRef.current);
         if (!result.ok) throw new Error(result.error);
+        if (result.data.goal) goalMetRef.current = result.data.goal.met;
+        applyGoal(result.data.goal);
       })
       .catch((error: unknown) => {
         showToast("error", `Не вдалося скасувати: ${formatError(error)}`);

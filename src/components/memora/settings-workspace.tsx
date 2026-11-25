@@ -1,8 +1,8 @@
 "use client";
 
 import type { ChangeEvent, FormEvent } from "react";
-import { useRef, useState } from "react";
-import { Download, GraduationCap, KeyRound, LogOut, Share2, ShieldCheck, Smartphone, Trash2, Upload } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Bell, Download, GraduationCap, KeyRound, LogOut, Share2, ShieldCheck, Smartphone, Trash2, Upload } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -14,6 +14,11 @@ import {
   updateDailyMinutesAction,
   updateSpeakingAction,
 } from "@/lib/memora/actions/account";
+import {
+  removePushSubscriptionAction,
+  savePushSubscriptionAction,
+  saveRemindersAction,
+} from "@/lib/memora/actions/reminders";
 import { updateGoalsAction } from "@/lib/memora/actions/program";
 import { unwrap } from "@/lib/memora/actions/result";
 import { parseBackupJson, previewBackup, type BackupDocument, type BackupPreview } from "@/lib/memora/backup";
@@ -38,6 +43,7 @@ import { dateStamp, downloadTextFile, formatDate, formatError, plural } from "./
 import { hardNavigate } from "./hard-navigate";
 import { GoalPicker } from "./onboarding-flow";
 import { useInstallPrompt } from "./pwa";
+import { currentPushSubscription, pushSupport, subscribeThisDevice, unsubscribeThisDevice } from "./push";
 import { humanizeAuthError } from "./auth";
 
 export function SettingsWorkspace({
@@ -49,6 +55,7 @@ export function SettingsWorkspace({
   isRecovery,
   snapshot,
   speakingEnabled,
+  reminders,
 }: {
   counts: { words: number; reviews: number };
   email: string | null;
@@ -59,6 +66,7 @@ export function SettingsWorkspace({
   isRecovery: boolean;
   snapshot: string;
   speakingEnabled: boolean;
+  reminders: { enabled: boolean; start: number; end: number };
 }) {
   useFreshSnapshot(snapshot);
   const { showError } = useShell();
@@ -90,6 +98,7 @@ export function SettingsWorkspace({
       <div className="grid grid-cols-1 gap-4 md:gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] xl:items-start">
         <LearningPanel dailyMinutes={dailyMinutes} goals={goals} level={level} speakingEnabled={speakingEnabled} />
         <div className="space-y-4 md:space-y-5">
+          <RemindersPanel initial={reminders} />
           <AppPanel />
           <PasswordPanel />
         </div>
@@ -247,6 +256,164 @@ function SpeakingSwitch({ initial, onError }: { initial: boolean; onError: (mess
         />
       </button>
     </div>
+  );
+}
+
+/** Daily reminder (web push) in a window of the day; only sent when today's goal is not met yet. */
+function RemindersPanel({ initial }: { initial: { enabled: boolean; start: number; end: number } }) {
+  const { showToast } = useShell();
+  const [support, setSupport] = useState<"checking" | "supported" | "unsupported">("checking");
+  const [deviceOn, setDeviceOn] = useState(false);
+  const [enabled, setEnabled] = useState(initial.enabled);
+  const [start, setStart] = useState(initial.start);
+  const [end, setEnd] = useState(initial.end);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const on = enabled && deviceOn;
+
+  useEffect(() => {
+    // Browser capabilities are only known after mount.
+    const supported = pushSupport() === "supported";
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSupport(supported ? "supported" : "unsupported");
+    if (supported) void currentPushSubscription().then((subscription) => setDeviceOn(subscription !== null));
+  }, []);
+
+  async function saveWindow(nextStart: number, nextEnd: number, nextEnabled: boolean) {
+    const saved = unwrap(await saveRemindersAction({ enabled: nextEnabled, start: nextStart, end: nextEnd }));
+    setEnabled(saved.enabled);
+    setStart(saved.start);
+    setEnd(saved.end);
+  }
+
+  async function toggle() {
+    if (isSaving) return;
+    setIsSaving(true);
+    setError(null);
+    try {
+      if (on) {
+        await saveWindow(start, end, false);
+        const endpoint = await unsubscribeThisDevice();
+        if (endpoint) await removePushSubscriptionAction(endpoint);
+        setDeviceOn(false);
+        showToast("success", "Нагадування вимкнено.");
+        return;
+      }
+      const result = await subscribeThisDevice();
+      if (!result.ok) {
+        setError(
+          result.reason === "denied"
+            ? "Сповіщення заблоковано. Дозволь їх для Memora в налаштуваннях телефону (Додатки → Memora → Сповіщення) і спробуй ще раз."
+            : "Не вдалося підписати цей пристрій. Перевір інтернет і спробуй ще раз.",
+        );
+        return;
+      }
+      unwrap(await savePushSubscriptionAction({ ...result.subscription, userAgent: navigator.userAgent }));
+      await saveWindow(start, end, true);
+      setDeviceOn(true);
+      showToast("success", "Нагадування ввімкнено.");
+    } catch (saveError) {
+      setError(formatError(saveError));
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function changeWindow(nextStart: number, nextEnd: number) {
+    const previous = { start, end };
+    setStart(nextStart);
+    setEnd(nextEnd);
+    setError(null);
+    try {
+      await saveWindow(nextStart, nextEnd, enabled);
+    } catch (saveError) {
+      setStart(previous.start);
+      setEnd(previous.end);
+      setError(formatError(saveError));
+    }
+  }
+
+  const hourLabel = (hour: number) => `${hour.toString().padStart(2, "0")}:00`;
+  const selectClass =
+    "h-10 rounded-xl border border-line bg-surface-3 px-3 text-sm text-text outline-none focus:border-accent disabled:opacity-50";
+
+  return (
+    <ShellPanel className="p-4 md:p-6">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <SectionHeader
+            icon={Bell}
+            title="Нагадування"
+            description={
+              support === "unsupported"
+                ? "Цей браузер не вміє надсилати сповіщення. На Android відкрий Memora в Chrome і додай її на головний екран."
+                : "Одне сповіщення на день у вибраний час — лише якщо ціль дня ще не виконано."
+            }
+          />
+        </div>
+        {support === "supported" ? (
+          <button
+            aria-checked={on}
+            aria-label="Нагадування"
+            className={`relative h-7 w-12 shrink-0 rounded-full border transition disabled:opacity-60 ${
+              on ? "border-accent bg-accent" : "border-line-strong bg-surface-4"
+            }`}
+            data-testid="reminders-switch"
+            disabled={isSaving}
+            onClick={() => void toggle()}
+            role="switch"
+            type="button"
+          >
+            <span
+              className={`absolute top-0.5 size-[22px] rounded-full bg-white shadow transition-[left] ${on ? "left-[22px]" : "left-0.5"}`}
+            />
+          </button>
+        ) : null}
+      </div>
+      {on ? (
+        <div className="mt-4 flex flex-wrap items-center gap-2 text-sm text-text-2">
+          <span>Приходить між</span>
+          <select
+            aria-label="Початок вікна"
+            className={selectClass}
+            data-testid="reminder-start"
+            value={start}
+            onChange={(event) => {
+              const value = Number(event.target.value);
+              void changeWindow(value, end <= value ? Math.min(24, value + 1) : end);
+            }}
+          >
+            {Array.from({ length: 24 }, (_, hour) => (
+              <option key={hour} value={hour}>
+                {hourLabel(hour)}
+              </option>
+            ))}
+          </select>
+          <span>і</span>
+          <select
+            aria-label="Кінець вікна"
+            className={selectClass}
+            data-testid="reminder-end"
+            value={end}
+            onChange={(event) => void changeWindow(start, Number(event.target.value))}
+          >
+            {Array.from({ length: 24 }, (_, index) => index + 1)
+              .filter((hour) => hour > start)
+              .map((hour) => (
+                <option key={hour} value={hour}>
+                  {hourLabel(hour)}
+                </option>
+              ))}
+          </select>
+        </div>
+      ) : null}
+      {enabled && support === "supported" && !deviceOn ? (
+        <p className="mt-3 text-xs leading-5 text-muted">
+          Нагадування ввімкнені на іншому пристрої. Щоб отримувати їх і тут, увімкни перемикач.
+        </p>
+      ) : null}
+      {error ? <StatusBanner className="mt-4" tone="error" message={error} /> : null}
+    </ShellPanel>
   );
 }
 

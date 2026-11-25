@@ -87,6 +87,10 @@ export type Profile = {
   levelEstimate: unknown;
   /** "Говоріння": the speak-aloud exercise is served. */
   speakingEnabled: boolean;
+  /** Daily push reminder (needs a subscribed device) and its window in local hours: start inclusive, end exclusive. */
+  remindersEnabled: boolean;
+  reminderStart: number;
+  reminderEnd: number;
 };
 
 export type PracticeCard = {
@@ -156,10 +160,27 @@ export type ReviewOutcome = {
 };
 
 export type StreakSummary = {
+  /** Current streak (daily goal met; one frozen miss per week). */
   streak: number;
-  reviewedToday: boolean;
+  /** Today's goal is already met. */
+  goalMet: boolean;
   /** Local date (YYYY-MM-DD) in the learner's timezone. */
   today: string;
-  /** Local dates of the current Monday–Sunday week with reviews. */
+  /** Local dates of the current Monday–Sunday week on which the goal was met. */
   weekDays: string[];
+  /** Days of the current week saved by a freeze. */
+  frozenDays: string[];
+  /** This week's freeze is spent. */
+  freezeUsed: boolean;
+  /** Counted practice time today, ms. */
+  doneMs: number;
+  /** The learner's minutes per day. */
+  goalMinutes: number;
+};
+
+/** Result of re-checking today's daily goal after a review or undo. */
+export type GoalSync = {
+  met: boolean;
+  /** Full streak summary, present only when `met` differs from what the client believed. */
+  streak: StreakSummary | null;
 };

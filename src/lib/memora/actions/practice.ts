@@ -1,6 +1,7 @@
 "use server";
 
 import { requireActionContext } from "../data/context";
+import { syncGoalDay } from "../data/goal";
 import {
   getPracticeSession,
   gradeCard,
@@ -11,6 +12,7 @@ import { getProfile } from "../data/profile";
 import type {
   CardStatus,
   PracticeCard,
+  GoalSync,
   PracticeSummary,
   ReviewOutcome,
   ReviewRating,
@@ -19,17 +21,36 @@ import type {
 import { validateCardStatus, validateId, validateReviewInput } from "../validation";
 import { fail, ok, type ActionResult } from "./result";
 
+/** Re-checks today's goal; a failure here must never lose the review itself. */
+async function syncGoalSafely(
+  db: Parameters<typeof syncGoalDay>[0],
+  userId: string,
+  wasMet: boolean,
+): Promise<GoalSync | null> {
+  try {
+    const profile = await getProfile(db, userId);
+    return profile ? await syncGoalDay(db, profile, wasMet) : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Grades one card; the client has already moved on optimistically. */
 export async function gradeCardAction(input: {
   cardId: string;
   rating: ReviewRating;
   responseText: string;
   elapsedMs: number;
-}): Promise<ActionResult<ReviewOutcome>> {
+  countedMs: number;
+  /** The client already shows today's goal as met: nothing to re-check. */
+  goalMet: boolean;
+}): Promise<ActionResult<ReviewOutcome & { goal: GoalSync | null }>> {
   try {
     const review = validateReviewInput(input);
-    const { supabase } = await requireActionContext();
-    return ok(await gradeCard(supabase, review));
+    const { supabase, user } = await requireActionContext();
+    const outcome = await gradeCard(supabase, review);
+    const goal = input.goalMet === true ? null : await syncGoalSafely(supabase, user.id, false);
+    return ok({ ...outcome, goal });
   } catch (error) {
     return fail(error);
   }
@@ -37,11 +58,13 @@ export async function gradeCardAction(input: {
 
 export async function undoReviewAction(
   logId: string,
-): Promise<ActionResult<{ cardId: string; schedule: StoredSchedule }>> {
+  goalMet: boolean,
+): Promise<ActionResult<{ cardId: string; schedule: StoredSchedule; goal: GoalSync | null }>> {
   try {
     const cleanId = validateId(logId, "Оцінку");
-    const { supabase } = await requireActionContext();
-    return ok(await undoReview(supabase, cleanId));
+    const { supabase, user } = await requireActionContext();
+    const undone = await undoReview(supabase, cleanId);
+    return ok({ ...undone, goal: await syncGoalSafely(supabase, user.id, goalMet === true) });
   } catch (error) {
     return fail(error);
   }

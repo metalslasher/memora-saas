@@ -6,6 +6,7 @@ export const HEATMAP_WEEKS = 18;
 
 export type DayActivity = { day: string; reviews: number; correct: number };
 
+/** Progress screen data: get_progress_stats() plus the streak from goal days (data/progress.ts). */
 export type ProgressStats = {
   today: string;
   streak: StreakSummary;
@@ -18,7 +19,7 @@ export type ProgressStats = {
 };
 
 /** Maps the jsonb returned by get_progress_stats() into typed data. */
-export function parseProgressStats(value: Json): ProgressStats {
+export function parseProgressStats(value: Json): Omit<ProgressStats, "streak"> {
   const raw = isRecord(value) ? value : {};
   const today = readDay(raw.today) ?? new Date().toISOString().slice(0, 10);
   const recall = isRecord(raw.recall_30d) ? raw.recall_30d : {};
@@ -27,7 +28,6 @@ export function parseProgressStats(value: Json): ProgressStats {
 
   return {
     today,
-    streak: readStreak(raw.streak, today),
     activity: readList(raw.activity).flatMap((item) => {
       const day = readDay(item.day);
       return day ? [{ day, reviews: count(item.reviews), correct: count(item.correct) }] : [];
@@ -45,21 +45,6 @@ export function parseProgressStats(value: Json): ProgressStats {
       mature: count(stages.mature),
     },
     words: { total: count(words.total), active: count(words.active) },
-  };
-}
-
-export function readStreak(value: unknown, fallbackToday: string): StreakSummary {
-  const raw = isRecord(value) ? value : {};
-  return {
-    streak: count(raw.streak),
-    reviewedToday: raw.reviewed_today === true,
-    today: readDay(raw.today) ?? fallbackToday,
-    weekDays: Array.isArray(raw.week_days)
-      ? raw.week_days.flatMap((day) => {
-          const parsed = readDay(day);
-          return parsed ? [parsed] : [];
-        })
-      : [],
   };
 }
 
@@ -103,10 +88,17 @@ export function buildWeek(streak: StreakSummary) {
   const today = parseDay(streak.today);
   const monday = addDays(today, -((today.getUTCDay() + 6) % 7));
   const practiced = new Set(streak.weekDays);
+  const frozen = new Set(streak.frozenDays);
 
   return labels.map((label, index) => {
     const day = formatDay(addDays(monday, index));
-    return { day, label, isCompleted: practiced.has(day), isToday: day === streak.today };
+    return {
+      day,
+      label,
+      isCompleted: practiced.has(day),
+      isFrozen: frozen.has(day),
+      isToday: day === streak.today,
+    };
   });
 }
 

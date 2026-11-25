@@ -7,8 +7,8 @@ import type * as React from "react";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { updateTimezoneAction } from "@/lib/memora/actions/account";
 import { buildWeek } from "@/lib/memora/progress";
-import { markReviewedToday, pluralizeDays, streakMessage } from "@/lib/memora/streak";
-import type { StreakSummary } from "@/lib/memora/types";
+import { addGoalTime, pluralizeDays, streakMessage } from "@/lib/memora/streak";
+import type { GoalSync, StreakSummary } from "@/lib/memora/types";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { LogoMark, Wordmark } from "./brand";
 import { Toast, type ToastMessage } from "./shared-ui";
@@ -28,8 +28,10 @@ type ShellContextValue = {
   showError: (error: unknown) => void;
   /** Updates the practice badge in the navigation. */
   setDueCount: (count: number) => void;
-  /** Optimistically lights up today's streak after the first review. */
-  markReviewed: () => void;
+  /** Optimistically adds counted time to today's goal (negative after an undo). */
+  markReviewed: (countedMs: number) => void;
+  /** Applies the server's re-check of today's goal. */
+  applyGoal: (goal: GoalSync | null) => void;
   streak: StreakSummary;
 };
 
@@ -71,10 +73,19 @@ export function AppShell({ children, email, streak, dueCount, timezone, sidebarC
     [],
   );
   const markReviewed = useCallback(
-    () =>
-      setLive((current) =>
-        current.streak.reviewedToday ? current : { ...current, streak: markReviewedToday(current.streak) },
-      ),
+    (countedMs: number) => setLive((current) => ({ ...current, streak: addGoalTime(current.streak, countedMs) })),
+    [],
+  );
+  const applyGoal = useCallback(
+    (goal: GoalSync | null) => {
+      const next = goal?.streak;
+      if (!next) return;
+      // The server's streak wins, but keeps the time already counted on screen.
+      setLive((current) => ({
+        ...current,
+        streak: { ...next, doneMs: Math.max(next.doneMs, current.streak.doneMs) },
+      }));
+    },
     [],
   );
 
@@ -107,8 +118,8 @@ export function AppShell({ children, email, streak, dueCount, timezone, sidebarC
   }
 
   const context = useMemo<ShellContextValue>(
-    () => ({ showToast, showError, setDueCount, markReviewed, streak: live.streak }),
-    [live.streak, markReviewed, setDueCount, showError, showToast],
+    () => ({ showToast, showError, setDueCount, markReviewed, applyGoal, streak: live.streak }),
+    [applyGoal, live.streak, markReviewed, setDueCount, showError, showToast],
   );
 
   return (
@@ -257,7 +268,7 @@ function Sidebar({
 }
 
 function StreakCard({ streak }: { streak: StreakSummary }) {
-  const isHot = streak.streak > 0 && streak.reviewedToday;
+  const isHot = streak.streak > 0 && streak.goalMet;
 
   return (
     <section
@@ -284,11 +295,11 @@ function StreakCard({ streak }: { streak: StreakSummary }) {
           <div
             key={day.day}
             className="grid justify-items-center gap-1"
-            title={`${day.label}: ${day.isCompleted ? "була практика" : "без практики"}`}
+            title={`${day.label}: ${day.isCompleted ? "ціль виконано" : day.isFrozen ? "заморожено — серія збережена" : "без практики"}`}
           >
             <span
               className={`h-1.5 w-full rounded-full ${
-                day.isCompleted ? "bg-accent" : day.isToday ? "bg-accent/25" : "bg-surface-4"
+                day.isCompleted ? "bg-accent" : day.isFrozen ? "bg-violet/70" : day.isToday ? "bg-accent/25" : "bg-surface-4"
               }`}
             />
             <span className={`text-[10px] ${day.isToday ? "font-semibold text-text-2" : "text-faint"}`}>
@@ -302,7 +313,7 @@ function StreakCard({ streak }: { streak: StreakSummary }) {
 }
 
 function StreakChip({ compact = false, streak }: { compact?: boolean; streak: StreakSummary }) {
-  const isHot = streak.streak > 0 && streak.reviewedToday;
+  const isHot = streak.streak > 0 && streak.goalMet;
   const label = `Серія: ${streak.streak} ${pluralizeDays(streak.streak)}`;
 
   return (

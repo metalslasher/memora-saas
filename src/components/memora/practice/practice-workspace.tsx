@@ -1,8 +1,9 @@
 "use client";
 
-import { ArrowRight, Check, Clock3, Flame, Gauge, Plus, Sparkles, Target, Timer, Undo2, X } from "lucide-react";
+import { ArrowRight, Check, Clock3, Flame, Gauge, Plus, Snowflake, Sparkles, Target, Timer, Undo2, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { goalPercent, goalProgressLabel } from "@/lib/memora/goal";
 import { estimateMinutes, sessionOptions } from "@/lib/memora/pace";
 import { isProductionKind } from "@/lib/memora/production";
 import { isNewWordCard } from "@/lib/memora/queue";
@@ -38,6 +39,7 @@ export function PracticeWorkspace({
   return (
     <div className="mx-auto w-full max-w-3xl">
       <PracticeHeader practice={practice} />
+      <GoalLine />
       {offerTest ? <TestOffer /> : null}
       <div className="mt-3 md:mt-5">
         {activeCard ? (
@@ -90,6 +92,43 @@ function TestOffer() {
       >
         <X className="size-4" />
       </button>
+    </div>
+  );
+}
+
+/** Daily goal: minutes counted today, or done; with the weekly freeze when a streak is running. */
+function GoalLine() {
+  const { streak } = useShell();
+  const percent = goalPercent(streak.doneMs, streak.goalMinutes);
+
+  return (
+    <div className="mt-2 flex items-center gap-2 text-xs" data-testid="goal-line">
+      {streak.goalMet ? (
+        <Check className="size-3.5 shrink-0 text-accent" strokeWidth={2.5} />
+      ) : (
+        <Target className="size-3.5 shrink-0 text-faint" />
+      )}
+      <span className={streak.goalMet ? "font-medium text-accent" : "text-text-2"} data-testid="goal-text">
+        {streak.goalMet ? "Ціль дня виконано" : `Ціль дня: ${goalProgressLabel(streak.doneMs, streak.goalMinutes)}`}
+      </span>
+      <div
+        aria-hidden
+        className="h-1 min-w-8 flex-1 overflow-hidden rounded-full bg-surface-3"
+      >
+        <div
+          className={`h-full rounded-full transition-[width] duration-500 ${streak.goalMet ? "bg-accent" : "bg-accent/60"}`}
+          style={{ width: `${streak.goalMet ? 100 : percent}%` }}
+        />
+      </div>
+      {streak.streak > 0 ? (
+        <span
+          className="inline-flex shrink-0 items-center gap-1 text-muted"
+          title="Один пропущений день на тиждень (пн–нд) не скидає серію"
+        >
+          <Snowflake className="size-3 text-violet" />
+          {streak.freezeUsed ? "заморозку витрачено" : "є заморозка"}
+        </span>
+      ) : null}
     </div>
   );
 }
@@ -224,10 +263,12 @@ function SessionComplete({ practice }: { practice: PracticeSession }) {
       </div>
 
       <div className="flex flex-col items-center gap-4 px-6 py-5">
-        <p className="inline-flex items-center gap-2 text-sm text-text-2">
-          <Flame className="size-4 text-amber" />
-          Серія: {streak.streak} {pluralizeDays(streak.streak)}
-        </p>
+        {streak.goalMet && streak.streak > 0 ? (
+          <p className="inline-flex items-center gap-2 text-sm text-text-2">
+            <Flame className="size-4 text-amber" />
+            Серія: {streak.streak} {pluralizeDays(streak.streak)}
+          </p>
+        ) : null}
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
           {leftInQueue > 0 ? (
             <Button icon={Timer} variant="primary" onClick={() => practice.extendSession(5)}>

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { AppShell } from "@/components/memora/app-shell";
 import { getAppContext, loadPracticeSummary } from "@/lib/memora/data/context";
-import { getStreak } from "@/lib/memora/data/progress";
+import { getStreak } from "@/lib/memora/data/goal";
 import { heldBackNew } from "@/lib/memora/pace";
 
 export const metadata: Metadata = {
@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const { supabase, user, profile } = await getAppContext();
   const [streak, summary, cookieStore] = await Promise.all([
-    getStreak(supabase, profile.timezone),
+    getStreak(supabase, profile),
     loadPracticeSummary(),
     cookies(),
   ]);

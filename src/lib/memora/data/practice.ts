@@ -77,7 +77,7 @@ export async function setCardStatus(db: Db, cardId: string, status: CardStatus) 
  */
 export async function gradeCard(
   db: Db,
-  input: { cardId: string; rating: ReviewRating; responseText: string; elapsedMs: number },
+  input: { cardId: string; rating: ReviewRating; responseText: string; elapsedMs: number; countedMs?: number },
 ): Promise<ReviewOutcome> {
   const card = must(
     await db
@@ -101,6 +101,7 @@ export async function gradeCard(
         rating: input.rating,
         reviewed_at: reviewedAt.toISOString(),
         elapsed_ms: input.elapsedMs,
+        counted_ms: input.countedMs ?? 0,
         response_text: input.responseText,
         was_correct: input.rating !== "again",
         schedule_before: before,

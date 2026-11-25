@@ -178,9 +178,18 @@ async function seedPractice(id) {
       goals: [],
       daily_minutes: 15,
       speaking_enabled: true,
+      reminders_enabled: false,
+      reminder_start: 19,
+      reminder_end: 22,
+      last_reminder_day: null,
     })
     .eq("id", id);
   if (profileError) throw profileError;
+  // A clean habit state: no goal days, no subscribed devices.
+  for (const table of ["goal_days", "push_subscriptions"]) {
+    const { error } = await admin.from(table).delete().eq("user_id", id);
+    if (error) throw error;
+  }
   // Free the daily quota of the AI exercises for the next smoke run. The rows
   // stay (the money stays in the month), detached like a deleted account's.
   const { error: usageError } = await admin
