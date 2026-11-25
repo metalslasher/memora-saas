@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "db-check": "node scripts/db-check.mjs",
     "smoke": "node --env-file-if-exists=.env.local scripts/smoke.mjs",
     "test-user": "node scripts/create-test-user.mjs",
     "typecheck": "tsc --noEmit",
