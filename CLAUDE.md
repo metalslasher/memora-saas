@@ -95,6 +95,9 @@ Memora — веб-тренажер англійської для україно�
   файл — `supabase/migrations/<version>_<name>.sql`. Потім advisors і
   `supabase gen types typescript --linked > src/lib/supabase/database.types.ts`.
   Читання (list_tables, advisors, execute_sql select) через MCP — ок.
+- Перед будь-яким `drop` функції/таблиці/колонки — перевір залежності в самій БД
+  (тіла функцій через `pg_get_functiondef`, в'ю), а не лише grep по файлах: 2026-11-26
+  cleanup пачки 7 видалив `get_streak`, а `get_progress_stats` її ще викликав — «Прогрес» на проді падав.
 - Vercel MCP: team `metalslashers-projects` (`team_fxQ3xAZ8zn9jn0C9dPrtBgwJ`),
   project `memora-saas`; доступ авторизовано. При 403 — `authorize_team_access`
   і дати власнику лінк. Запасний шлях: `gh api repos/metalslasher/memora-saas/commits/<ref>/status`.
