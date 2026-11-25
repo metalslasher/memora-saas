@@ -12,20 +12,30 @@ const geistMono = Geist_Mono({
   subsets: ["latin", "cyrillic"],
   variable: "--font-geist-mono",
   display: "swap",
+  // Only small counters use it; preloading would compete with the main font on slow phones.
+  preload: false,
 });
 
+const siteUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL
+  ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+  : "http://localhost:3000";
+
+const description =
+  "Тренажер англійських слів для україномовних: спершу згадуєш сам, потім бачиш відповідь, а повтори приходять саме тоді, коли слово починає забуватися. 10–15 хвилин на день.";
+
 export const metadata: Metadata = {
-  title: "Memora — тренажер англійських слів",
-  description:
-    "Згадуй, а не перечитуй. Memora тренує англійські слова й фрази через активне пригадування та розумні інтервальні повторення.",
+  metadataBase: new URL(siteUrl),
+  title: "Memora — англійські слова, які ти згадаєш",
+  description,
   applicationName: "Memora",
   openGraph: {
-    title: "Memora — запам’ятовуй надовго",
-    description:
-      "Англійські слова й фрази через активне пригадування та інтервальні повторення.",
+    title: "Memora — англійські слова, які ти згадаєш, а не лише впізнаєш",
+    description,
     type: "website",
     locale: "uk_UA",
+    siteName: "Memora",
   },
+  twitter: { card: "summary_large_image" },
   appleWebApp: {
     capable: true,
     title: "Memora",

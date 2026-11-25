@@ -25,7 +25,7 @@ const copy: Record<AuthMode, { title: string; subtitle: string; submit: string }
   },
   "sign-up": {
     title: "Створи акаунт",
-    subtitle: "Memora зараз у закритій беті — увійти можуть лише запрошені.",
+    subtitle: "Memora зараз у закритій беті. Створи акаунт — щойно тебе додадуть, увійдеш із цим email.",
     submit: "Створити акаунт",
   },
   reset: {

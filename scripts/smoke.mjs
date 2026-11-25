@@ -185,16 +185,24 @@ async function assertPwa(page) {
 }
 
 async function assertLanding(page) {
-  await expect(page.getByRole("heading", { level: 1 })).toContainText("Запам’ятовуй");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("згадаєш");
   await expect(page.getByText(/QA/)).toHaveCount(0);
+  // Link preview: Open Graph image is served as a PNG.
+  const ogImage = await page.locator('meta[property="og:image"]').getAttribute("content");
+  expect(ogImage).toContain("/opengraph-image");
+  const og = await page.request.get(`${baseUrl}${new URL(ogImage).pathname}`);
+  expect(og.ok()).toBe(true);
+  expect(og.headers()["content-type"]).toContain("image/png");
 
-  // The interactive demo card works without an account.
-  await page.locator("#demo-answer").fill("flaky tset");
+  // The demo card uses the real answer check and auto-grade, no account needed.
+  await page.locator("#demo-answer").fill("figurd out");
   await page.locator("#demo-answer").press("Enter");
-  await expect(page.getByText("Майже — є описка")).toBeVisible();
+  await expect(page.getByText("Є описка")).toBeVisible();
+  await expect(page.getByText("Оцінка: Важко")).toBeVisible();
   await shot(page, "landing");
 
-  await page.getByRole("button", { name: "Почати", exact: true }).first().click();
+  // Main action: request access = create an account (closed beta), sign-in for the invited.
+  await page.getByRole("button", { name: "Хочу доступ" }).first().click();
   await expect(page.getByRole("dialog", { name: "Створи акаунт" })).toContainText("закритій беті");
   await page.getByRole("button", { name: "Вхід", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "З поверненням" })).toBeVisible();

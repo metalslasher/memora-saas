@@ -12,7 +12,7 @@ project `whqfpktgwwctqhqvsoqm`. Preview і прод ділять одну БД.
 ## Маршрути
 | URL | Що | Файл |
 |---|---|---|
-| `/` | Лендінг; залогіненим замість входу показує «Відкрити Memora» | `src/app/page.tsx`, `components/memora/landing-page.tsx` |
+| `/` | Лендінг (статичний); залогіненим замість «Хочу доступ» показує «Відкрити Memora» | `src/app/page.tsx`, `components/memora/landing/*` |
 | `/app` | Практика (черга на сьогодні) | `src/app/app/page.tsx`, `components/memora/practice/*` |
 | `/app/onboarding` | Онбординг і повторний тест: тест рівня → перевірка значень → результат → цілі → хвилини | `src/app/app/onboarding/page.tsx`, `components/memora/onboarding-flow.tsx` |
 | `/app/words`, `/app/words/[id]` | Бібліотека слів, деталі слова | `src/app/app/words/*`, `components/memora/words/*` |
@@ -33,9 +33,25 @@ project `whqfpktgwwctqhqvsoqm`. Preview і прод ділять одну БД.
 (лише production) і `useInstallPrompt` (подія `beforeinstallprompt`): кнопка «Встановити» у верхній панелі
 (зникає на 30 днів після «Ні») і блок «Memora на телефоні» в Профілі.
 
+## Лендінг
+Статична сторінка (`force-static`, рендер під час збірки), серверні компоненти в `components/memora/landing/`:
+- `landing.tsx` — усі секції; тексти описують лише те, що працює (звірено з `docs/product.md`).
+- `retention-chart.tsx` — схема «як працюють повтори»: справжній планувальник (`scheduler.ts`, FSRS-6) прогнаний на слові з
+  оцінками «Добре» під час збірки; ті самі інтервали в тексті кроку 3 (`reviewGaps`). Клієнтського JS немає.
+- Острівці (`"use client"`): `demo-card.tsx` — картка «речення з пропуском» на справжніх `findCloze`, `checkAnswer`, `autoGrade`;
+  `play-clip.tsx` — два кліпи голосом застосунку (`public/landing/*.mp3`, ті самі зразки gpt-4o-mini-tts / alloy з порівняння пачки 3,
+  вантажаться лише після натискання); `auth-island.tsx` — кнопки входу/реєстрації й діалог. Supabase-клієнт і `AuthModal` вантажаться
+  на вимогу (клік або посилання з листа з `?code=`); «чи залогінений» — за наявністю сесійної cookie `sb-…-auth-token`, без запиту.
+- Головна дія — «Хочу доступ» = створити акаунт (закрита бета: акаунт поза allowlist бачить `/beta`, після додавання email в
+  allowlist входить тим самим паролем); «Увійти» / «У мене є запрошення» — для запрошених.
+- `src/app/opengraph-image.tsx` — картинка для прев’ю посилань (1200×630, під час збірки; Geist із кирилицею тягнеться з Google
+  Fonts підмножиною, без мережі — системний шрифт). `metadataBase` — `VERCEL_PROJECT_PRODUCTION_URL`.
+- `components/memora/button-class.ts` — стилі кнопок без `"use client"`, щоб серверні компоненти могли ними користуватись.
+
 ## Доступ і безпека (три рівні)
 1. `src/proxy.ts` — оновлює сесійну cookie; гостей з `/app/*` веде на `/?next=<шлях>` (лендінг одразу
-   відкриває вхід і після нього повертає на `next`, лише шляхи `/app…` — `safeNextPath`); акаунти
+   відкриває вхід і після нього повертає на `next`, лише шляхи `/app…` — `safeNextPath`; залогіненого з `/?next=` одразу
+   веде на `next` — лендінг статичний і сам цього не робить); акаунти
    поза allowlist (`is_current_user_allowed()`) — на `/beta`.
 2. `lib/memora/data/context.ts` — `getAppContext()` для сторінок,
    `requireActionContext()` для server actions (перевіряє користувача й allowlist).
@@ -192,6 +208,7 @@ SQL-функції (security invoker, RLS діє): `get_practice_overview` (лі
   й з чужим, 405 на GET, 200 із секретом). Також: маніфест, іконки, `/sw.js`, share target
   (GET і POST, гість → вхід → повернення на «Додати слово»), installability через DevTools
   (`Page.getInstallabilityErrors`; `in-incognito` ігнорується — контексти Playwright анонімні).
+  Лендінг: заголовок, og:image (PNG), демо-картка (описка → «Є описка», «Оцінка: Важко»), «Хочу доступ» → «Створи акаунт» → «Вхід».
   Знімки (`MEMORA_SMOKE_SHOTS`) — 375, 768 і 1440. Перед практикою smoke проходить онбординг
   (пропозиція тесту → тест як учень із 4 000 слів → перевірка значень → цілі → хвилини) і перевіряє, що
   автоподача поставила в практику 6 нових слів. Якщо на сервері налаштовано AI —
