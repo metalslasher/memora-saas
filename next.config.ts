@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
-// Minimal CSP: only framing/base/form/object restrictions. A nonce-based
-// script/style policy is planned for the hardening batch (roadmap batch 9).
+// Baseline CSP for every response (also files the proxy does not touch: assets, sw.js).
+// The full policy with a per-request script nonce is set in src/proxy.ts (lib/memora/csp.ts);
+// the browser applies both, so they must not contradict each other.
 const contentSecurityPolicy = [
   "frame-ancestors 'none'",
   "base-uri 'self'",
