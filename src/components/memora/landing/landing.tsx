@@ -388,7 +388,7 @@ function WordSources() {
         <article className="rounded-2xl border border-line bg-surface-2 p-4 md:p-5">
           <h3 className="font-semibold tracking-tight">Тест словникового запасу</h3>
           <p className="mt-1 text-sm leading-6 text-muted">
-            5–7 хвилин: «знаєш це слово?» і перевірка значень. Серед слів є неіснуючі — так тест не дає собі збрехати.
+            5–7 хвилин: «знаєш це слово?» і перевірка значень. Серед слів є неіснуючі — так тест помічає вгадування.
             Слова, які ти вже знаєш, одразу йдуть у складніші вправи.
           </p>
           <div className="mt-4 rounded-xl bg-surface-1 p-4 text-center">
@@ -483,7 +483,7 @@ function Habit() {
       <div className="mx-auto max-w-6xl px-4 py-14 md:px-6 md:py-20">
         <SectionHead
           eyebrow="Щодня потроху"
-          lead="Пам’ять тримають регулярні короткі заняття, а не марафони у вихідні. Memora допомагає не випадати."
+          lead="Пам’ять тримають регулярні короткі заняття, а не марафони у вихідні. Memora допомагає не випадати з ритму."
           title="10–15 хвилин на день — і звичка тримається"
         />
         <div className="mt-8 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
