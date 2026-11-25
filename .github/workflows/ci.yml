@@ -1,18 +1,29 @@
 name: CI
 
 on:
-  pull_request:
   push:
-    branches:
-      - main
+  pull_request:
+    branches: [main]
+
+# A push and its pull request share one run; a newer push cancels the older run (saves free minutes).
+concurrency:
+  group: ci-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   checks:
-    name: Lint, Test, Build
+    name: Lint, Test, Build, Smoke
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     env:
-      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
-      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-placeholder-key
+      # Placeholders are enough for lint/typecheck/test/build: no secrets are needed.
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || 'https://example.supabase.co' }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 'ci-placeholder-key' }}
+      MEMORA_SMOKE_EMAIL: ${{ secrets.MEMORA_SMOKE_EMAIL }}
+      MEMORA_SMOKE_PASSWORD: ${{ secrets.MEMORA_SMOKE_PASSWORD }}
 
     steps:
       - name: Checkout
@@ -32,6 +43,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Audit dependencies (high and critical)
+        run: pnpm audit --audit-level=high
+
       - name: Lint
         run: pnpm lint
 
@@ -43,3 +57,16 @@ jobs:
 
       - name: Production build
         run: pnpm build
+
+      # Authenticated smoke runs only when the owner added the secrets
+      # (NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, MEMORA_SMOKE_EMAIL,
+      # MEMORA_SMOKE_PASSWORD) and only on pushes. Without them these steps are skipped.
+      - name: Smoke (authenticated)
+        if: github.event_name == 'push' && env.MEMORA_SMOKE_EMAIL != '' && env.MEMORA_SMOKE_PASSWORD != '' && env.NEXT_PUBLIC_SUPABASE_URL != 'https://example.supabase.co'
+        env:
+          MEMORA_SMOKE_AI: "0"
+          MEMORA_SMOKE_URL: http://localhost:3000
+        run: |
+          pnpm start &
+          for i in $(seq 1 30); do curl -sf http://localhost:3000 >/dev/null && break; sleep 2; done
+          pnpm smoke
