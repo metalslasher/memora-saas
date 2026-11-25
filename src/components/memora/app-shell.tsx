@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleHelp, Flame, LogOut, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { CircleHelp, Download, Flame, LogOut, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type * as React from "react";
@@ -15,6 +15,7 @@ import { Toast, type ToastMessage } from "./shared-ui";
 import { isNavActive, navigationItems, sectionTitle } from "./types";
 import { formatError } from "./utils";
 import { hardNavigate } from "./hard-navigate";
+import { registerServiceWorker, useInstallPrompt } from "./pwa";
 
 const SIDEBAR_COOKIE = "memora-sidebar";
 
@@ -80,6 +81,8 @@ export function AppShell({ children, email, streak, dueCount, timezone, sidebarC
   // Keep "today" (streak, daily limits) in the learner's own timezone.
   // Saved silently: a router.refresh here would remount the current page and
   // wipe an in-progress practice card. The new zone applies on next navigation.
+  useEffect(() => registerServiceWorker(), []);
+
   useEffect(() => {
     const browserZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     if (!browserZone || browserZone === timezone) return;
@@ -229,7 +232,7 @@ function Sidebar({
       </nav>
 
       <div className="space-y-2 px-3 pb-4">
-        {isCollapsed ? <StreakChip compact streak={streak} /> : <StreakCard streak={streak} />}
+        {streak.streak === 0 ? null : isCollapsed ? <StreakChip compact streak={streak} /> : <StreakCard streak={streak} />}
         <button
           className={`flex w-full items-center rounded-xl text-sm text-muted transition hover:bg-surface-2 hover:text-text ${
             isCollapsed ? "h-11 justify-center" : "h-10 gap-3 px-3"
@@ -306,7 +309,7 @@ function StreakChip({ compact = false, streak }: { compact?: boolean; streak: St
     <div
       aria-label={label}
       className={`flex items-center justify-center gap-1.5 rounded-xl border border-line bg-surface-2/80 font-mono text-sm font-semibold ${
-        compact ? "h-11 w-full" : "h-9 px-2.5"
+        compact ? "h-11 w-full" : "h-10 px-2.5"
       } ${isHot ? "text-amber" : streak.streak > 0 ? "text-accent" : "text-faint"}`}
       title={label}
     >
@@ -327,11 +330,12 @@ function MobileTopBar({ pathname, streak }: { pathname: string; streak: StreakSu
           <span className="truncate text-[15px] font-semibold">{sectionTitle(pathname)}</span>
         </Link>
         <div className="flex items-center gap-2">
-          <StreakChip streak={streak} />
+          <InstallButton />
+          {streak.streak > 0 ? <StreakChip streak={streak} /> : null}
           <Link
             aria-current={isHelp ? "page" : undefined}
             aria-label="Довідка"
-            className={`grid size-9 place-items-center rounded-xl border bg-surface-2/80 transition hover:text-text ${
+            className={`grid size-10 place-items-center rounded-xl border bg-surface-2/80 transition hover:text-text ${
               isHelp ? "border-accent/50 text-accent" : "border-line text-muted"
             }`}
             href="/app/help"
@@ -341,6 +345,38 @@ function MobileTopBar({ pathname, streak }: { pathname: string; streak: StreakSu
         </div>
       </div>
     </header>
+  );
+}
+
+const installDismissedKey = "memora.install-dismissed";
+const installQuietDays = 30;
+
+/** A quiet "Install" pill: only when Chrome offers it, hidden for a month after "No". */
+function InstallButton() {
+  const { state, install } = useInstallPrompt();
+  /** null until read from localStorage (not available on the server). */
+  const [isQuiet, setIsQuiet] = useState<boolean | null>(null);
+  useEffect(() => {
+    const dismissedAt = Number(window.localStorage.getItem(installDismissedKey)) || 0;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setIsQuiet(Date.now() - dismissedAt < installQuietDays * 86_400_000);
+  }, []);
+  if (state !== "available" || isQuiet !== false) return null;
+
+  return (
+    <button
+      className="flex h-10 items-center gap-1.5 rounded-xl border border-accent/30 bg-accent-soft px-3 text-sm font-semibold text-accent transition hover:border-accent/60"
+      onClick={async () => {
+        if ((await install()) === "dismissed") {
+          window.localStorage.setItem(installDismissedKey, String(Date.now()));
+          setIsQuiet(true);
+        }
+      }}
+      type="button"
+    >
+      <Download className="size-4" />
+      Встановити
+    </button>
   );
 }
 

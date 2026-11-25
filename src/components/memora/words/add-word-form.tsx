@@ -22,14 +22,17 @@ export function AddWordForm({
   ai,
   words,
   onAdded,
+  initialLemma = "",
 }: {
   ai: AiStatus;
   words: WordListItem[];
   onAdded: (word: WordListItem) => void;
+  /** A word shared from another app. */
+  initialLemma?: string;
 }) {
   const router = useRouter();
   const { showError, showToast } = useShell();
-  const [draft, setDraft] = useState<WordDraft>(emptyDraft);
+  const [draft, setDraft] = useState<WordDraft>(() => ({ ...emptyDraft, lemma: initialLemma }));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [allowSimilar, setAllowSimilar] = useState(false);
   const [added, setAdded] = useState<string[]>([]);

@@ -87,14 +87,6 @@ function TestOffer() {
   );
 }
 
-function greeting(now = new Date()) {
-  const hour = now.getHours();
-  if (hour < 5) return "Доброї ночі";
-  if (hour < 12) return "Доброго ранку";
-  if (hour < 18) return "Доброго дня";
-  return "Доброго вечора";
-}
-
 function PracticeHeader({ practice }: { practice: PracticeSession }) {
   const fresh = practice.queue.filter(isNewWordCard).length;
   const reviews = practice.queue.length - fresh;
@@ -104,33 +96,31 @@ function PracticeHeader({ practice }: { practice: PracticeSession }) {
   const options = sessionOptions(practice.summary.dailyMinutes);
 
   return (
-    <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
-      <div className="min-w-0">
-        <h1 className="text-xl font-semibold tracking-tight md:text-[28px]" suppressHydrationWarning>
-          {greeting()}
-        </h1>
-        <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-sm text-text-2">
+    <div>
+      <h1 className="mb-1 text-[28px] font-semibold tracking-tight max-lg:sr-only">Практика</h1>
+      <div className="flex items-center justify-between gap-3">
+        <p className="min-w-0 text-sm leading-5 text-text-2" data-testid="practice-summary">
           {parts.length > 0 ? (
             <>
-              <span>{parts.join(" · ")}</span>
-              <span className="inline-flex items-center gap-1 text-muted">
-                <Clock3 className="size-3.5" />≈ {estimateMinutes(practice.queue.length)} хв
+              {parts.join(" · ")}
+              <span className="whitespace-nowrap text-muted">
+                {" "}
+                <Clock3 className="inline size-3.5 align-[-2px]" /> ≈ {estimateMinutes(practice.queue.length)} хв
               </span>
             </>
           ) : (
             <span className="text-muted">На сьогодні черга порожня</span>
           )}
         </p>
-      </div>
-      <div className="flex items-center gap-2">
-        <span className="text-xs text-faint">Сесія</span>
-        <SegmentedControl
-          ariaLabel="Довжина сесії"
-          className="[&_button]:h-8 [&_button]:px-2.5"
-          options={options.map((minutes) => ({ value: String(minutes), label: `${minutes} хв` }))}
+        {practice.queue.length === 0 ? null : (
+          <SegmentedControl
+          ariaLabel="Довжина сесії, хвилин"
+          className="shrink-0 [&_button]:h-9 [&_button]:min-w-10 [&_button]:px-2"
+          options={options.map((minutes) => ({ value: String(minutes), label: String(minutes) }))}
           value={String(practice.sessionMinutes)}
           onChange={(value) => practice.setSessionMinutes(Number(value))}
-        />
+          />
+        )}
       </div>
     </div>
   );
@@ -163,7 +153,7 @@ function SessionProgress({ practice }: { practice: PracticeSession }) {
       </span>
       <button
         aria-label="Скасувати останню оцінку"
-        className="grid size-8 place-items-center rounded-lg text-muted transition hover:bg-surface-3 hover:text-text disabled:pointer-events-none disabled:opacity-30"
+        className="-mr-2 grid size-10 place-items-center rounded-lg text-muted transition hover:bg-surface-3 hover:text-text disabled:pointer-events-none disabled:opacity-30"
         disabled={!practice.canUndo}
         onClick={practice.undo}
         title="Скасувати останню оцінку (Z)"

@@ -2,7 +2,7 @@
 
 import type { ChangeEvent, FormEvent } from "react";
 import { useRef, useState } from "react";
-import { CircleHelp, Download, GraduationCap, KeyRound, LogOut, ShieldCheck, Trash2, Upload } from "lucide-react";
+import { Download, GraduationCap, KeyRound, LogOut, Share2, ShieldCheck, Smartphone, Trash2, Upload } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -36,6 +36,8 @@ import { useFreshSnapshot } from "./use-fresh-snapshot";
 import { dateStamp, downloadTextFile, formatDate, formatError, plural } from "./utils";
 import { hardNavigate } from "./hard-navigate";
 import { GoalPicker } from "./onboarding-flow";
+import { useInstallPrompt } from "./pwa";
+import { humanizeAuthError } from "./auth";
 
 export function SettingsWorkspace({
   counts,
@@ -69,30 +71,25 @@ export function SettingsWorkspace({
   }
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Профіль"
-        description={email ?? undefined}
-        action={
-          <>
-            <Link className={buttonClass("secondary", "sm", "lg:hidden")} href="/app/help">
-              <CircleHelp className="size-4" />
-              Довідка
-            </Link>
-            <Button className="lg:hidden" icon={LogOut} size="sm" onClick={() => void signOut()}>
-              Вийти
-            </Button>
-          </>
-        }
-      />
+    <div className="space-y-4 md:space-y-5">
+      <div className="flex items-center justify-between gap-3">
+        <PageHeader title="Профіль" description={email ?? undefined} />
+        {/* The desktop sidebar has its own "Sign out". */}
+        <Button className="shrink-0 lg:hidden" icon={LogOut} size="sm" onClick={() => void signOut()}>
+          Вийти
+        </Button>
+      </div>
 
       {isRecovery ? (
-        <StatusBanner tone="success" message="Ти перейшов за посиланням для відновлення. Задай новий пароль нижче." />
+        <StatusBanner tone="success" message="Посилання спрацювало — задай новий пароль нижче." />
       ) : null}
 
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] xl:items-start">
+      <div className="grid grid-cols-1 gap-4 md:gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] xl:items-start">
         <LearningPanel dailyMinutes={dailyMinutes} goals={goals} level={level} />
-        <PasswordPanel />
+        <div className="space-y-4 md:space-y-5">
+          <AppPanel />
+          <PasswordPanel />
+        </div>
       </div>
 
       <DataPanel counts={counts} />
@@ -151,10 +148,10 @@ function LearningPanel({
   }
 
   return (
-    <ShellPanel className="p-5 md:p-6">
+    <ShellPanel className="p-4 md:p-6">
       <SectionHeader icon={GraduationCap} title="Навчання" description="Рівень, цілі й час на день — з них програма підбирає нові слова." />
 
-      <div className="mt-5 flex flex-wrap items-center justify-between gap-2">
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0 text-sm">
           <FieldLabel>Рівень</FieldLabel>
           <p className="mt-1 text-text-2" data-testid="settings-level">
@@ -168,12 +165,12 @@ function LearningPanel({
         </Link>
       </div>
 
-      <div className="mt-5">
+      <div className="mt-4">
         <FieldLabel>Цілі</FieldLabel>
         <GoalPicker className="mt-2" goals={goals} disabled={isSavingGoals} onChange={(next) => void changeGoals(next)} />
       </div>
 
-      <div className="mt-5">
+      <div className="mt-4">
         <FieldLabel>Хвилин на день</FieldLabel>
         <SegmentedControl
           ariaLabel="Хвилин на день"
@@ -190,6 +187,35 @@ function LearningPanel({
       </div>
 
       {error ? <StatusBanner className="mt-4" tone="error" message={error} /> : null}
+    </ShellPanel>
+  );
+}
+
+/** Install Memora as an app and share words into it (Android). */
+function AppPanel() {
+  const { state, install } = useInstallPrompt();
+  if (state === "installed") return null;
+
+  return (
+    <ShellPanel className="p-4 md:p-6">
+      <SectionHeader
+        icon={Smartphone}
+        title="Memora на телефоні"
+        description={
+          state === "available"
+            ? "Встанови як застосунок: окрема іконка, без рядка браузера, і пункт Memora в меню «Поділитися»."
+            : "У Chrome на Android: меню ⋮ → «Додати на головний екран». Після цього Memora з’явиться в меню «Поділитися»."
+        }
+      />
+      {state === "available" ? (
+        <Button className="mt-4 w-full sm:w-auto" icon={Download} variant="primary" onClick={() => void install()}>
+          Встановити Memora
+        </Button>
+      ) : null}
+      <p className="mt-3 flex items-start gap-2 text-xs leading-5 text-muted">
+        <Share2 className="mt-0.5 size-3.5 shrink-0" />
+        Поділися словом — відкриється «Додати слово»; абзацом — «З тексту».
+      </p>
     </ShellPanel>
   );
 }
@@ -216,16 +242,16 @@ function PasswordPanel() {
       setConfirmPassword("");
       showToast("success", "Пароль оновлено.");
     } catch (updateError) {
-      setError(formatError(updateError));
+      setError(humanizeAuthError(updateError));
     } finally {
       setIsSaving(false);
     }
   }
 
   return (
-    <ShellPanel className="p-5 md:p-6">
+    <ShellPanel className="p-4 md:p-6">
       <SectionHeader icon={ShieldCheck} title="Пароль" description="Від 8 символів, з літерою і цифрою." />
-      <form className="mt-6 space-y-4" onSubmit={updatePassword}>
+      <form className="mt-4 space-y-4" onSubmit={updatePassword}>
         <PasswordInput autoComplete="new-password" label="Новий пароль" value={newPassword} onChange={setNewPassword} />
         <PasswordInput autoComplete="new-password" label="Ще раз" value={confirmPassword} onChange={setConfirmPassword} />
         {error ? <StatusBanner tone="error" message={error} /> : null}
@@ -311,16 +337,16 @@ function DataPanel({ counts }: { counts: { words: number; reviews: number } }) {
       const restored = unwrap(await restoreBackupAction(backup.document));
       setBackup(null);
       setIsRestoreConfirmed(false);
-      showToast("success", `Резервну копію відновлено: ${restored} слів.`);
+      showToast("success", `Копію відновлено: ${plural(restored, ["слово", "слова", "слів"])}.`);
       router.refresh();
     });
   }
 
   function confirmReset() {
-    if (!window.confirm(`Обнулити історію повторень (${counts.reviews})? Слова залишаться, але всі картки почнуть навчання з нуля.`)) return;
+    if (!window.confirm(`Скинути історію повторень (${counts.reviews})? Слова залишаться, але всі картки почнуть навчання з нуля.`)) return;
     return run(async () => {
       unwrap(await resetProgressAction());
-      showToast("success", "Прогрес обнулено.");
+      showToast("success", "Прогрес скинуто.");
       router.refresh();
     });
   }
@@ -335,14 +361,14 @@ function DataPanel({ counts }: { counts: { words: number; reviews: number } }) {
   }
 
   return (
-    <ShellPanel className="p-5 md:p-6">
-      <SectionHeader icon={Download} title="Дані" description="Збережи копію своїх слів або віднови їх із файлу." />
+    <ShellPanel className="p-4 md:p-6">
+      <SectionHeader icon={Download} title="Дані" description="Збережи копію слів або віднови їх із файлу." />
 
-      <div className="mt-6 grid gap-3 sm:grid-cols-2">
+      <div className="mt-4 grid gap-2 sm:grid-cols-2">
         {exports.map((item) => (
           <button
             key={item.label}
-            className="group flex items-center justify-between gap-3 rounded-2xl border border-line bg-surface-1 p-4 text-left transition hover:border-accent/50 disabled:opacity-60"
+            className="group flex min-h-14 items-center justify-between gap-3 rounded-xl border border-line bg-surface-1 px-4 py-2.5 text-left transition hover:border-accent/50 disabled:opacity-60"
             disabled={isBusy}
             onClick={() => void item.onClick()}
             type="button"
@@ -356,10 +382,10 @@ function DataPanel({ counts }: { counts: { words: number; reviews: number } }) {
         ))}
       </div>
 
-      <div className="mt-3 flex flex-col gap-3 rounded-2xl border border-line bg-surface-1 p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mt-2 flex items-center justify-between gap-3 rounded-xl border border-line bg-surface-1 px-4 py-2.5">
         <div>
           <p className="text-sm font-semibold">Відновити з копії</p>
-          <p className="mt-0.5 text-xs text-muted">Поточні слова й історію буде замінено даними з файлу.</p>
+          <p className="mt-0.5 text-xs text-muted">Замінить поточні слова й історію.</p>
         </div>
         <input
           ref={fileInputRef}
@@ -417,10 +443,10 @@ function DataPanel({ counts }: { counts: { words: number; reviews: number } }) {
         </div>
       ) : null}
 
-      <details className="group mt-6 rounded-2xl border border-danger/20 bg-danger-soft/40">
-        <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm font-semibold text-[#ffb4aa] [&::-webkit-details-marker]:hidden">
+      <details className="group mt-4 rounded-xl border border-danger/20 bg-danger-soft/40">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-4 text-sm font-semibold text-[#ffb4aa] [&::-webkit-details-marker]:hidden">
           <Trash2 className="size-4" />
-          Небезпечна зона
+          Скинути або видалити
         </summary>
         <div className="grid gap-2 px-4 pb-4 sm:grid-cols-2">
           <Button
@@ -430,7 +456,7 @@ function DataPanel({ counts }: { counts: { words: number; reviews: number } }) {
             variant="danger"
             onClick={() => void confirmReset()}
           >
-            Обнулити прогрес
+            Скинути прогрес
             <span className="font-mono text-xs opacity-80">{counts.reviews}</span>
           </Button>
           <Button

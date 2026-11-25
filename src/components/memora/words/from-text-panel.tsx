@@ -25,14 +25,22 @@ export function FromTextPanel({
   ai,
   words,
   onAdded,
+  initialText = "",
+  linkOnly = false,
 }: {
   ai: AiStatus;
   words: WordListItem[];
   onAdded: (words: WordListItem[]) => void;
+  /** Text shared from another app: skip straight to picking words. */
+  initialText?: string;
+  /** Another app shared only a link — there is no text to work with. */
+  linkOnly?: boolean;
 }) {
   const { showError, showToast } = useShell();
-  const [step, setStep] = useState<Step>("paste");
-  const [text, setText] = useState("");
+  const [text, setText] = useState(initialText.slice(0, MAX_TEXT_LENGTH));
+  const [step, setStep] = useState<Step>(() =>
+    tokenizeText(initialText).some((token) => token.isWord) ? "pick" : "paste",
+  );
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [isBusy, setIsBusy] = useState(false);
@@ -104,6 +112,9 @@ export function FromTextPanel({
     return (
       <div className="space-y-4 p-5">
         {ai.blockedMessage ? <Notice>{ai.blockedMessage}</Notice> : null}
+        {linkOnly ? (
+          <Notice>Прийшло лише посилання, без тексту. Виділи потрібний абзац на сторінці й поділися ним або встав його сюди.</Notice>
+        ) : null}
         <TextArea
           autoFocus
           hint={`${text.length}/${MAX_TEXT_LENGTH}`}

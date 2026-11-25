@@ -24,6 +24,5 @@ export function isNavActive(href: string, pathname: string) {
 }
 
 export function sectionTitle(pathname: string) {
-  if (pathname === "/app") return "Memora";
   return navigationItems.find((item) => isNavActive(item.href, pathname))?.label ?? "Memora";
 }

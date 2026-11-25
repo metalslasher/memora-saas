@@ -1,7 +1,7 @@
 // Playwright smoke test against a running Memora (pnpm dev or pnpm start).
 // Env: MEMORA_SMOKE_URL, MEMORA_SMOKE_EMAIL/PASSWORD, MEMORA_SMOKE_MUTATE=0
 // (read-only), MEMORA_SMOKE_BROWSER_PATH, MEMORA_SMOKE_HEADLESS=0,
-// MEMORA_SMOKE_SHOTS=<dir> (save 375/1440 screenshots of every screen).
+// MEMORA_SMOKE_SHOTS=<dir> (save 375/768/1440 screenshots of every screen).
 import { chromium, expect } from "@playwright/test";
 import fs from "node:fs";
 import os from "node:os";
@@ -14,6 +14,7 @@ const shouldMutate = process.env.MEMORA_SMOKE_MUTATE !== "0";
 const shotsDir = process.env.MEMORA_SMOKE_SHOTS;
 const desktop = { width: 1440, height: 900 };
 const mobile = { width: 375, height: 812 };
+const tablet = { width: 768, height: 1024 };
 const consoleProblems = [];
 
 async function main() {
@@ -31,6 +32,7 @@ async function main() {
   try {
     await assertGuestRedirect(page);
     await assertLanding(page);
+    await assertPwa(page);
 
     if (!email || !password) {
       console.log("Smoke OK: landing only (MEMORA_SMOKE_EMAIL/PASSWORD are not set).");
@@ -45,6 +47,9 @@ async function main() {
     await assertSettings(page);
     await assertHelp(page);
     await assertMobile(page);
+    await assertShareTarget(page);
+    await assertInstallable(page, context);
+    await assertShareAfterSignIn(browser);
     await assertNoConsoleErrors();
     console.log(`Smoke OK: authenticated flow${shouldMutate ? " with mutations" : " (read-only)"}.`);
   } finally {
@@ -98,11 +103,50 @@ async function shot(page, name) {
   // Phone answer screens: what is on screen after the reveal scroll (the tab bar is fixed).
   const fullPage = !(name.endsWith("-answer") && size?.width === mobile.width);
   await page.screenshot({ path: path.join(shotsDir, `${name}-${size?.width ?? 0}.png`), fullPage });
+  // Desktop screens also get a tablet shot (the phone layout at 768).
+  if (size?.width === desktop.width) {
+    await page.setViewportSize(tablet);
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: path.join(shotsDir, `${name}-${tablet.width}.png`), fullPage: true });
+    await page.setViewportSize(desktop);
+  }
 }
 
 async function assertGuestRedirect(page) {
+  // A guest is sent to sign in, and the app page waits in ?next= for after it.
   await page.goto(`${baseUrl}/app/words`, { waitUntil: "domcontentloaded" });
-  await expect(page).toHaveURL(`${baseUrl}/`);
+  await expect(page).toHaveURL(`${baseUrl}/?next=%2Fapp%2Fwords`);
+  await expect(page.getByRole("dialog", { name: "З поверненням" })).toBeVisible();
+  await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
+}
+
+/** Web app manifest, icons, service worker and the share target endpoint (no account needed). */
+async function assertPwa(page) {
+  const manifestResponse = await page.request.get(`${baseUrl}/manifest.webmanifest`);
+  expect(manifestResponse.ok()).toBe(true);
+  const manifest = await manifestResponse.json();
+  expect(manifest.start_url).toBe("/app");
+  expect(manifest.display).toBe("standalone");
+  expect(manifest.share_target?.action).toBe("/app/share");
+  expect(manifest.share_target?.params?.text).toBe("text");
+  const pngs = manifest.icons.filter((icon) => icon.type === "image/png");
+  for (const needed of ["192x192", "512x512"]) {
+    if (!pngs.some((icon) => icon.sizes === needed && icon.purpose === "any")) throw new Error(`No ${needed} icon.`);
+    if (!pngs.some((icon) => icon.sizes === needed && icon.purpose === "maskable")) throw new Error(`No maskable ${needed} icon.`);
+  }
+  for (const icon of pngs) {
+    const response = await page.request.get(`${baseUrl}${icon.src}`);
+    expect(response.ok(), icon.src).toBe(true);
+    expect(response.headers()["content-type"]).toContain("image/png");
+  }
+  const worker = await page.request.get(`${baseUrl}/sw.js`);
+  expect(worker.ok()).toBe(true);
+  expect(await worker.text()).toContain("activate");
+
+  // A guest share (GET) goes to sign-in and keeps the share for after it.
+  const guestShare = await page.request.get(`${baseUrl}/app/share?text=reliable`, { maxRedirects: 0 });
+  expect(guestShare.status()).toBe(303);
+  expect(guestShare.headers().location).toContain("next=%2Fapp%2Fshare%3Ftext%3Dreliable");
 }
 
 async function assertLanding(page) {
@@ -124,7 +168,7 @@ async function assertLanding(page) {
 async function signIn(page) {
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Пароль", { exact: true }).fill(password);
-  await page.locator('form button[type="submit"]').click();
+  await page.getByRole("dialog").locator('form button[type="submit"]').click();
   await expect(page).toHaveURL(`${baseUrl}/app`, { timeout: 30000 });
   await expect(navLink(page, "Практика")).toBeVisible({ timeout: 20000 });
 }
@@ -138,7 +182,7 @@ async function assertPractice(page) {
     return;
   }
 
-  await expect(page.getByRole("tablist", { name: "Довжина сесії" })).toBeVisible();
+  await expect(page.getByRole("tablist", { name: /Довжина сесії/ })).toBeVisible();
   const count = page.getByTestId("session-count");
 
   // First card: check, rate, undo — the same card comes back.
@@ -238,7 +282,7 @@ async function assertOnboarding(page) {
   await expect(page).toHaveURL(`${baseUrl}/app`, { timeout: 90000 });
   await expect(page.getByText("Тест на 5 хвилин")).toHaveCount(0);
   // 15 minutes ≈ 6 new words today: the seeded new word + program words.
-  await expect(page.locator("main h1 + p")).toContainText("6 нових слів", { timeout: 20000 });
+  await expect(page.getByTestId("practice-summary")).toContainText("6 нових слів", { timeout: 20000 });
   await shotBoth(page, "practice-feed");
 }
 
@@ -409,7 +453,7 @@ async function assertSettings(page) {
   await expect(page.getByText("Нових карток на день")).toHaveCount(0);
   await expect(page.getByText("Рівень англійської")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Оновити пароль", exact: true })).toBeDisabled();
-  await expect(page.getByText("Небезпечна зона")).toBeVisible();
+  await expect(page.getByText("Скинути або видалити")).toBeVisible();
   if (shouldMutate) await expect(page.getByTestId("settings-level")).toContainText("слів");
   await shot(page, "settings");
 
@@ -468,6 +512,72 @@ async function assertMobile(page) {
   await page.reload();
   await heading(page, "Профіль");
   await page.setViewportSize(desktop);
+}
+
+/** "Share → Memora": a word opens "Add word", a text opens "From a text"; GET and POST. */
+async function assertShareTarget(page) {
+  await page.goto(`${baseUrl}/app/share?text=${encodeURIComponent("“thorough”")}&url=${encodeURIComponent("https://example.com/a")}`);
+  await expect(page).toHaveURL(`${baseUrl}/app/words`);
+  const addDialog = page.getByRole("dialog", { name: "Додати слово" });
+  await expect(addDialog).toBeVisible();
+  await expect(addDialog.getByRole("textbox").first()).toHaveValue("thorough");
+  await shot(page, "share-word");
+  await addDialog.getByRole("button", { name: "Закрити" }).last().click();
+
+  const post = await page.request.post(`${baseUrl}/app/share`, { form: { text: "figure out" }, maxRedirects: 0 });
+  expect(post.status()).toBe(303);
+  expect(post.headers().location).toContain("/app/words?add=figure+out");
+
+  const hasAi = await page.getByRole("button", { name: "З тексту" }).isVisible();
+  if (!hasAi) {
+    console.log("Share of a longer text skipped: AI is not configured on the server.");
+    return;
+  }
+  const text = "My commute takes about forty minutes, so I listen to podcasts on the way.";
+  await page.goto(`${baseUrl}/app/share?text=${encodeURIComponent(text)}`);
+  await expect(page).toHaveURL(`${baseUrl}/app/words`);
+  const textDialog = page.getByRole("dialog", { name: "Слова з тексту" });
+  await expect(textDialog.getByText("Тапни слова, яких не знаєш", { exact: false })).toBeVisible();
+  await expect(textDialog.getByRole("button", { name: "podcasts" })).toBeVisible();
+  await shot(page, "share-text");
+  await textDialog.getByRole("button", { name: "Закрити" }).last().click();
+}
+
+/** Chrome considers the app installable (manifest + service worker), checked via DevTools. */
+async function assertInstallable(page, context) {
+  await page.goto(`${baseUrl}/app`);
+  const hasWorker = await page.evaluate(async () => {
+    if (!("serviceWorker" in navigator)) return false;
+    const ready = navigator.serviceWorker.ready.then(() => true);
+    return Promise.race([ready, new Promise((resolve) => setTimeout(() => resolve(false), 10_000))]);
+  });
+  if (!hasWorker) {
+    console.log("Installability skipped: the service worker registers only in a production build.");
+    return;
+  }
+  const cdp = await context.newCDPSession(page);
+  const { installabilityErrors } = await cdp.send("Page.getInstallabilityErrors");
+  await cdp.detach();
+  // Playwright contexts count as incognito, where Chrome never offers install.
+  const problems = installabilityErrors.map((error) => error.errorId).filter((id) => id !== "in-incognito");
+  if (problems.length > 0) throw new Error(`Not installable: ${problems.join(", ")}`);
+}
+
+/** A guest who shares a word signs in and lands on "Add word" with it. */
+async function assertShareAfterSignIn(browser) {
+  const context = await browser.newContext({ viewport: mobile });
+  try {
+    const page = await context.newPage();
+    await page.goto(`${baseUrl}/app/share?text=grumpy`);
+    await expect(page.getByRole("dialog", { name: "З поверненням" })).toBeVisible();
+    await page.getByLabel("Email").fill(email);
+    await page.getByLabel("Пароль", { exact: true }).fill(password);
+    await page.getByRole("dialog").locator('form button[type="submit"]').click();
+    await expect(page).toHaveURL(`${baseUrl}/app/words`, { timeout: 30000 });
+    await expect(page.getByRole("dialog", { name: "Додати слово" }).getByRole("textbox").first()).toHaveValue("grumpy");
+  } finally {
+    await context.close();
+  }
 }
 
 async function assertNoHorizontalOverflow(page) {

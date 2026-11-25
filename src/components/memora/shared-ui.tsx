@@ -39,7 +39,7 @@ const buttonVariants: Record<ButtonVariant, string> = {
 };
 
 const buttonSizes: Record<ButtonSize, string> = {
-  sm: "h-9 gap-1.5 rounded-lg px-3 text-sm",
+  sm: "h-10 gap-1.5 rounded-lg px-3 text-sm",
   md: "h-11 gap-2 rounded-xl px-4 text-sm",
   lg: "h-12 gap-2 rounded-xl px-5 text-[15px]",
   icon: "size-10 rounded-xl",
@@ -487,12 +487,9 @@ export function PageHeader({
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
       <div className="min-w-0">
-        <h1 className="text-2xl font-semibold tracking-tight md:text-[28px]">
-          {title}
-        </h1>
-        {description ? (
-          <p className="mt-1 text-sm leading-6 text-muted">{description}</p>
-        ) : null}
+        {/* Phones and tablets show the section title in the top bar already. */}
+        <h1 className="text-[28px] font-semibold tracking-tight max-lg:sr-only">{title}</h1>
+        {description ? <p className="text-sm leading-6 text-muted lg:mt-1">{description}</p> : null}
       </div>
       {action ? <div className="flex shrink-0 gap-2">{action}</div> : null}
     </div>
