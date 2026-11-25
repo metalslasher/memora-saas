@@ -1,4 +1,4 @@
-import type { ReviewRating, WordSource, WordStatus } from "@/lib/memora/types";
+import type { ReviewRating, WordSource } from "@/lib/memora/types";
 
 const genericError = "Щось пішло не так. Спробуй ще раз.";
 const networkError = "Немає зв’язку із сервером. Перевір інтернет і спробуй ще раз.";
@@ -24,12 +24,6 @@ export const ratingLabels: Record<ReviewRating, string> = {
   hard: "Важко",
   good: "Згадав",
   easy: "Легко",
-};
-
-export const wordStatusLabels: Record<WordStatus, string> = {
-  active: "у навчанні",
-  paused: "на паузі",
-  archived: "в архіві",
 };
 
 export const wordSourceLabels: Record<WordSource, string> = {

@@ -9,6 +9,7 @@
     "start": "next start",
     "lint": "eslint",
     "errors": "node --env-file-if-exists=.env.local scripts/errors.mjs",
+    "lighthouse": "node --env-file-if-exists=.env.local scripts/lighthouse.mjs",
     "db-check": "node scripts/db-check.mjs",
     "smoke": "node --env-file-if-exists=.env.local scripts/smoke.mjs",
     "test-user": "node scripts/create-test-user.mjs",

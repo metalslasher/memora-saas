@@ -32,7 +32,7 @@ Memora — веб-тренажер англійської для україно�
 | Коли | Що |
 |---|---|
 | Кінець кожної пачки | `pnpm lint && pnpm typecheck && pnpm test && pnpm build`; оновити «Поточний стан», «Журнал рішень», «Журнал обслуговування» в roadmap; оновити цей файл, якщо змінились команди/структура; push |
-| Після будь-якої DDL-міграції | Supabase advisors (security + performance) |
+| Після будь-якої DDL-міграції | `pnpm db-check` (функції/cron, що посилаються на неіснуючі об'єкти; має бути OK) → Supabase advisors (security + performance) → `supabase gen types` |
 | Після змін UI | скріни 375 / 1440 px ключових екранів (Playwright), подивитись самому |
 | Раз на місяць або на межі пачки, що прийшлась пізніше | оновлення залежностей, перевірка витрат AI (`ai_usage`), повний візуальний аудит — тільки якщо минуло ≥ 4 тижнів або були великі UI-зміни |
 | Нова сесія | не дублювати аудит, якщо в журналі обслуговування він свіжий (< 2 тижнів) і код з того часу суттєво не мінявся |
@@ -43,7 +43,7 @@ Memora — веб-тренажер англійської для україно�
   Supabase Free (засинає після ~7 днів без запитів).
 - Supabase project id: `whqfpktgwwctqhqvsoqm` (див. розділ «Supabase і Vercel»).
 - Залежності ставити через `npx pnpm@11.7.0 …` (глобально стоїть pnpm 9).
-- Команди: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, `pnpm smoke`, `pnpm test-user`.
+- Команди: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, `pnpm smoke`, `pnpm test-user`, `pnpm db-check`, `pnpm errors`, `pnpm lighthouse`.
   Локальний dev: `pnpm dev` (у `pnpm-workspace.yaml` має бути `packages: ["."]`,
   інакше pnpm 9 падає з «packages field missing»). Тестовий акаунт:
   `pnpm test-user`; smoke: `pnpm smoke` (див. docs/architecture.md).
@@ -95,7 +95,7 @@ Memora — веб-тренажер англійської для україно�
   файл — `supabase/migrations/<version>_<name>.sql`. Потім advisors і
   `supabase gen types typescript --linked > src/lib/supabase/database.types.ts`.
   Читання (list_tables, advisors, execute_sql select) через MCP — ок.
-- Перед будь-яким `drop` функції/таблиці/колонки — перевір залежності в самій БД
+- Перед будь-яким `drop` функції/таблиці/колонки — перевір залежності в самій БД (після — `pnpm db-check`)
   (тіла функцій через `pg_get_functiondef`, в'ю), а не лише grep по файлах: 2026-11-26
   cleanup пачки 7 видалив `get_streak`, а `get_progress_stats` її ще викликав — «Прогрес» на проді падав.
 - Vercel MCP: team `metalslashers-projects` (`team_fxQ3xAZ8zn9jn0C9dPrtBgwJ`),
