@@ -57,7 +57,7 @@ export function DemoCard() {
     >
       <div className="flex items-center gap-2 px-4 pt-4 text-xs">
         <span className="rounded-md bg-surface-4 px-2 py-0.5 font-medium text-text-2">Повторення</span>
-        <span className="text-faint">пропуск у реченні</span>
+        <span className="text-muted">пропуск у реченні</span>
       </div>
 
       <div className="px-5 pb-5 pt-5 text-center">
@@ -109,7 +109,7 @@ export function DemoCard() {
           <input
             autoCapitalize="off"
             autoComplete="off"
-            className="h-12 w-full rounded-xl border border-line-strong bg-surface-1 px-4 text-base outline-none transition placeholder:text-faint focus:border-accent focus:ring-4 focus:ring-accent/15"
+            className="h-12 w-full rounded-xl border border-line-strong bg-surface-1 px-4 text-base outline-none transition placeholder:text-muted focus:border-accent focus:ring-4 focus:ring-accent/15"
             id="demo-answer"
             lang="en"
             placeholder="Впиши англійською"

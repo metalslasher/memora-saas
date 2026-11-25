@@ -12,6 +12,8 @@ const geistMono = Geist_Mono({
   subsets: ["latin", "cyrillic"],
   variable: "--font-geist-mono",
   display: "swap",
+  // Only small counters use it; preloading would compete with the main font on slow phones.
+  preload: false,
 });
 
 const siteUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL

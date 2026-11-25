@@ -71,7 +71,7 @@ const sources = {
 function Source({ source }: { source: { label: string; href: string } }) {
   return (
     <a
-      className="inline-flex items-center gap-1 text-xs text-faint underline decoration-line-strong underline-offset-4 transition hover:text-accent"
+      className="inline-flex items-center gap-1 text-xs text-muted underline decoration-line-strong underline-offset-4 transition hover:text-accent"
       href={source.href}
       rel="noopener noreferrer"
       target="_blank"
@@ -166,7 +166,7 @@ function Hero() {
         </div>
         <div className="mx-auto w-full max-w-md">
           <DemoCard />
-          <p className="mt-3 text-center text-xs leading-5 text-faint">
+          <p className="mt-3 text-center text-xs leading-5 text-muted">
             Справжня перевірка з Memora. Спробуй з опискою або іншою формою слова.
           </p>
         </div>
@@ -251,7 +251,7 @@ function HowItWorks() {
       <div className="mt-8 grid gap-6 lg:grid-cols-[1.1fr_0.9fr] lg:gap-10">
         <div className="rounded-3xl border border-line bg-surface-2 p-4 md:p-6">
           <RetentionChart />
-          <p className="mt-3 text-xs leading-5 text-faint">
+          <p className="mt-3 text-xs leading-5 text-muted">
             Розраховано тим самим алгоритмом, що й у практиці (FSRS-6), для слова, яке ти щоразу згадуєш правильно.
             Для кожного слова й кожної відповіді інтервали свої.{" "}
             <Source source={sources.fsrs} /> · <Source source={sources.benchmark} />
@@ -297,7 +297,7 @@ function ExerciseCard({
       <div className="flex items-center gap-2">
         <Icon aria-hidden="true" className={`size-4 ${paid ? "text-violet" : "text-accent"}`} />
         <h3 className="text-sm font-semibold">{title}</h3>
-        <span className={`ml-auto rounded-md px-2 py-0.5 text-[11px] font-medium ${paid ? "bg-violet-soft text-violet" : "bg-surface-4 text-muted"}`}>
+        <span className={`ml-auto rounded-md px-2 py-0.5 text-[11px] font-medium ${paid ? "bg-violet-soft text-violet" : "bg-surface-4 text-text-2"}`}>
           {tag}
         </span>
       </div>
@@ -339,7 +339,7 @@ function Exercises() {
               <PlayClip large label="Прослухати фразу" src="/landing/figure-out.mp3" />
               <div className="min-w-0">
                 <p className="text-sm text-text-2">Впиши, що почув</p>
-                <p className="text-xs text-faint">Натисни — це голос, яким говорить Memora</p>
+                <p className="text-xs text-muted">Натисни — це голос, яким говорить Memora</p>
               </div>
             </div>
           </ExerciseCard>
@@ -357,7 +357,7 @@ function Exercises() {
               <span className="grid size-8 place-items-center rounded-full bg-danger-soft text-danger">
                 <Mic aria-hidden="true" className="size-4" />
               </span>
-              <span className="font-mono text-xs text-faint">0:04</span>
+              <span className="font-mono text-xs text-muted">0:04</span>
               <span className="ml-auto rounded-md bg-accent-soft px-2 py-0.5 text-[11px] font-medium text-accent">
                 Слово розпізнано
               </span>
@@ -392,7 +392,7 @@ function WordSources() {
             Слова, які ти вже знаєш, одразу йдуть у складніші вправи.
           </p>
           <div className="mt-4 rounded-xl bg-surface-1 p-4 text-center">
-            <p className="text-xs text-faint">Знаєш це слово?</p>
+            <p className="text-xs text-muted">Знаєш це слово?</p>
             <p className="mt-1 text-2xl font-semibold" lang="en">
               reliable
             </p>
@@ -423,7 +423,7 @@ function WordSources() {
                 {label}
               </span>
             ))}
-            <span className="basis-full pt-1 text-xs text-faint">Наприклад, 15 хв на день — близько 6 нових слів на старті</span>
+            <span className="basis-full pt-1 text-xs text-muted">Наприклад, 15 хв на день — близько 6 нових слів на старті</span>
           </div>
         </article>
 
@@ -506,7 +506,7 @@ function Habit() {
               <div className="mt-2 h-1.5 rounded-full bg-surface-4">
                 <div className="h-full w-[53%] rounded-full bg-accent" />
               </div>
-              <ul aria-label="Приклад тижня" className="mt-3 grid grid-cols-7 gap-1.5 text-center text-[11px] text-faint">
+              <ul aria-label="Приклад тижня" className="mt-3 grid grid-cols-7 gap-1.5 text-center text-[11px] text-muted">
                 {week.map(([day, state]) => (
                   <li key={day}>
                     <span
@@ -562,7 +562,7 @@ function Habit() {
             <div className="mt-4 flex items-center gap-2 rounded-xl bg-surface-1 p-3 text-xs text-text-2">
               <Share2 aria-hidden="true" className="size-4 text-muted" />
               Поділитися
-              <ArrowRight aria-hidden="true" className="size-3.5 text-faint" />
+              <ArrowRight aria-hidden="true" className="size-3.5 text-muted" />
               <span className="inline-flex items-center gap-1.5 rounded-lg bg-surface-3 px-2 py-1 font-semibold text-text">
                 <LogoMark className="size-4" />
                 Memora
@@ -648,7 +648,7 @@ function FinalCta() {
 function Footer() {
   return (
     <footer className="border-t border-line">
-      <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-6 text-xs leading-5 text-faint md:flex-row md:items-center md:justify-between md:px-6">
+      <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-6 text-xs leading-5 text-muted md:flex-row md:items-center md:justify-between md:px-6">
         <Wordmark markClassName="size-6" />
         <p className="inline-flex items-center gap-1.5">
           <ShieldCheck aria-hidden="true" className="size-4" />

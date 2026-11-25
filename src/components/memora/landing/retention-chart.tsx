@@ -94,7 +94,7 @@ export function RetentionChart() {
               y1={y(r)}
               y2={y(r)}
             />
-            <text fill="var(--faint)" fontSize="10" textAnchor="end" x={pad.left - 6} y={y(r) + 3.5}>
+            <text fill="var(--muted)" fontSize="10" textAnchor="end" x={pad.left - 6} y={y(r) + 3.5}>
               {Math.round(r * 100)}%
             </text>
           </g>
@@ -113,15 +113,15 @@ export function RetentionChart() {
             <text
               fill="var(--text-2)"
               fontSize="10.5"
-              textAnchor={index === 0 ? "start" : "middle"}
-              x={x(segment.from) - (index === 0 ? 3 : 0)}
+              textAnchor={index === 0 ? "end" : "middle"}
+              x={x(segment.from) - (index === 0 ? -6 : 0)}
               y={H - pad.bottom + 15}
             >
               {index === 0 ? "старт" : formatInterval(start, new Date(start.getTime() + segment.from * DAY))}
             </text>
           </g>
         ))}
-        <text fill="var(--faint)" fontSize="10" textAnchor="end" x={W - pad.right} y={H - 4}>
+        <text fill="var(--muted)" fontSize="10" textAnchor="end" x={W - pad.right} y={H - 4}>
           час від першого знайомства зі словом →
         </text>
       </svg>
